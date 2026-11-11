@@ -16,7 +16,8 @@ missing or unproven after 0.1.0.
   instead of cloning the repository by hand.
 - **Optional smoothing for vector characters** (character format decision D2). Vector actors
   are rasterised aliased today.
-- **The size of the classics pack** (71 MB, mostly the 2x sheets of the vector characters).
+- **The size of the classics pack** (about 74 MB, mostly the 2x sheets of the vector
+  characters).
 - **An own CC0 character for `builtin`**, so that screenshots without Microsoft art are
   possible.
 
