@@ -1449,6 +1449,9 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   web loader reports missing files, unparsable files and stale checksums per animation.
   OLE streams' checksums are not compared (the runtime does not). Reason: the runtime
   loads animations lazily (agent15-format 8.2).
+- **B-REN-8 Office font size** (clarifies B-OB-1, ruled by the lead): the Office balloon's
+  13 / 16 px are the Tahoma cell height (positive lfHeight, R-OB-4), so TM.height is 13 / 16
+  and G is 6 / 8. B-BAL-2's em rule applies to the Agent balloon's negative ACS heights.
 
 ## 4. Reconciliation
 
