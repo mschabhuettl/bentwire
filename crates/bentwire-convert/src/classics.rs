@@ -1,7 +1,7 @@
 //! Batch conversion into a pack (A-PACK-2, A-ID-1, A-CONV-5): a list of source files in, one
 //! `<id>.bwc` per source that converts completely, plus a report of exclusions. Generic: the
 //! list of sources and every source-specific path live with the pack that uses it
-//! (`characters/classics/sources.sh`).
+//! (`sources.sh` of the bentwire-classics repository).
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -81,7 +81,7 @@ fn id_for(path: &Path, stem: &str, data: &[u8]) -> Result<String, Error> {
 }
 
 /// Per-id converter options (A-CONV-3): `id lang codepage` per line, `#` comments. The pack
-/// script keeps them in `characters/classics/options.txt`.
+/// script keeps them in `options.txt` of bentwire-classics.
 pub fn parse_overrides(text: &str) -> Vec<(String, String, String)> {
     text.lines()
         .map(str::trim)

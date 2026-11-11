@@ -9,17 +9,13 @@ use std::path::PathBuf;
 use bentwire_character::Character;
 use bentwire_convert::classics::{Outcome, generate, parse_overrides};
 
-/// The classics pack: `BENTWIRE_CLASSICS`, else `$BENTWIRE_PACKS/classics` (the pack may live
-/// outside this repository).
+/// The classics pack (its own repository): `BENTWIRE_CLASSICS`, else `../bentwire-classics`
+/// next to this repository. A relative value is taken from the repository root.
 fn pack() -> PathBuf {
-    let p = match (
-        std::env::var_os("BENTWIRE_CLASSICS"),
-        std::env::var_os("BENTWIRE_PACKS"),
-    ) {
-        (Some(c), _) => PathBuf::from(c),
-        (None, Some(packs)) => PathBuf::from(packs).join("classics"),
-        (None, None) => panic!("NOT RUN: set BENTWIRE_CLASSICS or BENTWIRE_PACKS"),
-    };
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let p = root.join(
+        std::env::var_os("BENTWIRE_CLASSICS").unwrap_or_else(|| "../bentwire-classics".into()),
+    );
     if !p.join("pack.toml").exists() {
         panic!("NOT RUN: no classics pack at {}", p.display());
     }
@@ -49,7 +45,7 @@ fn classics_pack_loads_and_is_reproducible() {
     assert!(theme.exists(), "balloon theme missing");
 
     let tmp = oracle_common::temp_dir("classics");
-    // The source list and palette location belong to the pack (characters/classics/sources.sh).
+    // The source list and palette location belong to the pack (its sources.sh).
     let run = |args: &[&str]| -> Vec<PathBuf> {
         let out = std::process::Command::new("bash")
             .arg(pack.join("sources.sh"))
