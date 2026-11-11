@@ -42,6 +42,35 @@ correction no longer applies.
 replacements, copyright the Wine project (https://gitlab.winehq.org/wine/wine), licensed under the LGPL
 2.1 or later (`assets/fonts/LICENSE-LGPL-2.1.txt`). Details in `assets/fonts/README.md`.
 
+## KDE Plasma artwork in the screenshots and GIFs
+
+The screenshots and animated GIFs of bentwire on a KDE Plasma 6 desktop (they are kept in
+[bentwire-classics](https://github.com/mschabhuettl/bentwire-classics)) show KDE artwork in
+its default configuration. None of it is part of this repository.
+
+- **Wallpaper "Sub-Arctic"**, the Plasma 6.6 default wallpaper, by Krystian Zajdel,
+  licensed under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) (the
+  licence in the wallpaper's own metadata). From KDE's Breeze
+  ([invent.kde.org/plasma/breeze](https://invent.kde.org/plasma/breeze)), version 6.6.5.
+  Every image that shows the wallpaper carries this attribution and is shared under the
+  same licence as far as the wallpaper is concerned.
+- **Breeze Plasma theme** (panel and system tray), KDE Visual Design Group, LGPL-2.0 or
+  later. From libplasma
+  ([invent.kde.org/plasma/libplasma](https://invent.kde.org/plasma/libplasma)), version
+  6.6.6.
+- **Breeze icons** (panel launchers, app icons, tray), Uri Herrera and KDE contributors,
+  LGPL-3.0 or later. From
+  [invent.kde.org/frameworks/breeze-icons](https://invent.kde.org/frameworks/breeze-icons).
+- **Breeze look-and-feel, application style and cursors**, KDE Visual Design Group and
+  Uri Herrera: look-and-feel and style GPL-2.0 or later, cursors LGPL-3.0 or later. From
+  Breeze 6.6.5 and
+  [plasma-workspace](https://invent.kde.org/plasma/plasma-workspace) 6.6.6.
+- **Noto Sans**, the panel font, by Google and the Noto project, licensed under the
+  [SIL Open Font License 1.1](https://openfontlicense.org/)
+  ([notofonts](https://github.com/notofonts/notofonts.github.io)).
+
+KDE® and Plasma® are registered trademarks of KDE e.V.
+
 ## Rust crates
 
 Every crate in the dependency closure of the workspace, with its licence as declared in its
