@@ -4,8 +4,15 @@
 //! the character playback model in [`model`].
 
 pub mod api;
+pub mod balloon;
 mod core;
 pub mod draws;
+pub mod fallback;
+pub mod geometry;
+pub mod l10n;
+pub mod lipsync;
 pub mod model;
+pub mod office;
+pub mod speak;
 
 pub use crate::core::Core;
