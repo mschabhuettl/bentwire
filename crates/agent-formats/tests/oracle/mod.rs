@@ -250,3 +250,15 @@ pub fn web_json(w: &agent_formats::acf::WebCharacter) -> Value {
         }).collect::<Vec<_>>(),
     })
 }
+
+/// The layout written by `scripts/oracle/agent15_dump.py`.
+pub fn ole15_json(o: &agent_formats::agent15::OleAcs) -> Value {
+    json!({
+        "root_clsid": o.root_clsid.0.iter().map(|b| format!("{b:02x}")).collect::<String>(),
+        "character": acf_character_json(&o.character),
+        "animations": o.animations.iter().map(|a| match a {
+            Ok(a) => aca_json(a),
+            Err(_) => json!("error"),
+        }).collect::<Vec<_>>(),
+    })
+}

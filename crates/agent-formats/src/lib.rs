@@ -6,5 +6,6 @@ pub mod act;
 pub mod agent15;
 pub mod common;
 pub mod lz;
+pub mod ole;
 
 pub use common::{Error, Result};
