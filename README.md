@@ -119,8 +119,11 @@ pack:
 git clone https://github.com/mschabhuettl/bentwire-classics ~/.local/share/bentwire/characters/classics
 ```
 
+See the [gallery](https://github.com/mschabhuettl/bentwire-classics#gallery) of all of them.
 bentwire grants no licence for these files; see the pack's README. With only `builtin`
-installed, the daemon shows `bentwire-placeholder`. With `classics` installed, the default
+installed, the daemon shows `bentwire-placeholder`
+(<img src="docs/gallery/bentwire-placeholder.png" height="24" alt="the placeholder character">,
+[docs/gallery/](docs/gallery/)). With `classics` installed, the default
 is `clippit`.
 
 <details>
