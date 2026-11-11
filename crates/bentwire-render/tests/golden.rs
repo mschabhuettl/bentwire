@@ -92,7 +92,7 @@ fn r_bal_4_agent_balloon_golden() {
 #[test]
 fn r_bal_9_agent_balloon_scrolling_golden() {
     let f = Fonts::bundled();
-    let s = agent_scene(&f, (0, 0), &["first line", "second line", "third"], -7);
+    let s = agent_scene(&f, (0, 0), &["first line", "second line", "third"], 7);
     check("agent-balloon-scroll", &agent_image(&f, &s, 1));
 }
 
@@ -590,6 +590,7 @@ fn t_4_headless_scene_golden() {
 /// Office balloons laid out and placed by the core (B-OB-1..3), drawn by the renderer.
 fn core_office(
     spec: bentwire_core::api::AskSpec,
+    character: Rect,
     it: impl FnOnce(&mut bentwire_core::office::Interaction),
 ) -> RgbaImage {
     use bentwire_core::office;
@@ -602,14 +603,8 @@ fn core_office(
     };
     it(&mut inter);
     let cx = office::Ctx::new(&f, 800);
-    let placed = office::place(
-        &model,
-        &inter,
-        Rect::new(500, 350, 96, 96),
-        Rect::new(0, 0, 800, 600),
-        &cx,
-    )
-    .expect("fits");
+    let placed =
+        office::place(&model, &inter, character, Rect::new(0, 0, 800, 600), &cx).expect("fits");
     office_image(&f, &placed.scene, 1)
 }
 
@@ -628,6 +623,7 @@ fn b_ob_1_core_layout_heading_markup_golden() {
             buttons: Some(AskButtons::Set("yes-no-cancel".into())),
             ..Default::default()
         },
+        Rect::new(500, 350, 96, 96),
         |_| {},
     );
     check("core-office-heading", &img);
@@ -645,6 +641,7 @@ fn b_ob_1_core_layout_labels_checkboxes_golden() {
             buttons: Some(AskButtons::Set("ok-cancel".into())),
             ..Default::default()
         },
+        Rect::new(500, 350, 96, 96),
         |it| {
             it.checked[0] = true;
             it.hot = Some(Control::Label(1));
@@ -666,7 +663,32 @@ fn b_ob_1_core_layout_numbers_custom_buttons_golden() {
             buttons: Some(AskButtons::Custom(vec!["&Go".into(), "&Later".into()])),
             ..Default::default()
         },
+        Rect::new(500, 350, 96, 96),
         |_| {},
     );
     check("core-office-numbers", &img);
+}
+
+#[test]
+fn r_ob_25_core_layout_side_tail_golden() {
+    use bentwire_core::api::{AskButtons, AskSpec};
+    // No room above the character: the balloon goes beside it with a side tail.
+    let spec = |s: &str| AskSpec {
+        heading: Some("Beside".into()),
+        text: Some(s.into()),
+        buttons: Some(AskButtons::Set("ok".into())),
+        ..Default::default()
+    };
+    let right = core_office(
+        spec("Tail on the left."),
+        Rect::new(100, 10, 96, 96),
+        |_| {},
+    );
+    check("core-office-tail-left", &right);
+    let left = core_office(
+        spec("Tail on the right."),
+        Rect::new(600, 10, 96, 96),
+        |_| {},
+    );
+    check("core-office-tail-right", &left);
 }

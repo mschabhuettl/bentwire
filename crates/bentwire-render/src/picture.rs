@@ -160,7 +160,7 @@ mod tests {
     }
 
     #[test]
-    fn blend_partial_alpha_matches_5_3() {
+    fn b_pix_1_blend_partial_alpha_matches_5_3() {
         let mut d = [100, 100, 100, 255];
         blend_straight(&mut d, &[200, 0, 0, 128]);
         // out_c = round((200*128*255 + 100*255*127) / (128*255 + 255*127)) = 150

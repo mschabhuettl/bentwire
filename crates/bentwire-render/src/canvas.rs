@@ -488,7 +488,7 @@ mod tests {
     }
 
     #[test]
-    fn region_rects_merge_rows() {
+    fn b_wl_8_region_rects_merge_rows() {
         let r = Region::rect(Rect::new(1, 2, 3, 4)).union(&Region::rect(Rect::new(10, 2, 1, 1)));
         assert_eq!(
             r.rects(),
@@ -497,21 +497,21 @@ mod tests {
     }
 
     #[test]
-    fn frame_of_rect_is_border() {
+    fn r_ob_24_frame_of_rect_is_border() {
         let f = Region::rect(Rect::new(0, 0, 4, 3)).frame();
         let n: i32 = f.spans.iter().map(|s| s.x1 - s.x0).sum();
         assert_eq!(n, 4 + 4 + 2);
     }
 
     #[test]
-    fn polygon_right_triangle() {
+    fn r_ob_25_polygon_right_triangle() {
         let r = Region::polygon(&[(0.0, 0.0), (4.0, 0.0), (0.0, 4.0)]);
         let w: Vec<i32> = r.spans.iter().map(|s| s.x1 - s.x0).collect();
         assert_eq!(w, vec![4, 3, 2, 1]);
     }
 
     #[test]
-    fn round_rect_corners_cut() {
+    fn r_bal_4_round_rect_corners_cut() {
         let r = Region::round_rect(Rect::new(0, 0, 40, 30), 16, 20);
         assert!(!r.contains(0, 0));
         assert!(r.contains(20, 0));

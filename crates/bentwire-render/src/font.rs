@@ -540,7 +540,7 @@ mod tests {
     }
 
     #[test]
-    fn text_width_is_sum_of_advances() {
+    fn b_bal_2_text_width_is_sum_of_advances() {
         let f = Fonts::bundled();
         let spec = FontSpec::tahoma(FontSize::Cell(13), false);
         let w = f.text_width(&spec, "Hello world");
@@ -564,7 +564,7 @@ mod tests {
     }
 
     #[test]
-    fn draw_text_marks_pixels_inside_cell() {
+    fn b_bal_2_draw_text_marks_pixels_inside_cell() {
         let f = Fonts::bundled();
         let spec = FontSpec::tahoma(FontSize::Cell(13), false);
         let mut c = Canvas::new(60, 13);
