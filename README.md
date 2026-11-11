@@ -40,7 +40,8 @@ Packages needed to build:
 sudo pacman -S --needed rust wayland libxkbcommon alsa-lib pkgconf
 ```
 
-At run time the daemon needs a session bus and a compositor with `zwlr_layer_shell_v1`
+At run time the daemon needs a session bus (dbus-broker or dbus-daemon; zbus is pure
+Rust and needs no libdbus) and a compositor with `zwlr_layer_shell_v1`
 version 4 or later (Plasma 6, sway, Hyprland). Without layer shell it exits with a
 message. The tray icon needs a StatusNotifierItem host (Plasma's system tray).
 
@@ -241,7 +242,8 @@ With a variable unset, an ignored test fails with "NOT RUN", and `oracle-check.s
 "NOT RUN" and exits 77. They never count as passed.
 
 Desktop scenario (show, play, say, ask answered over D-Bus, moveto, hide, with signal and
-screen checks):
+screen checks). It also needs `dbus-run-session`, `busctl`, `python3` (with
+`python-gobject` for the tray checks), `sway` and `grim`, or `kwin_wayland`:
 
 ```sh
 cargo build -p bentwired -p bentwire && cargo build -p bentwired --examples
@@ -276,6 +278,16 @@ Please check on Plasma:
 - Output hot-plug on KWin (tested on sway).
 - Sound through a real audio device (headless runs log sounds with their duration).
 - Pixels under KWin: no screenshot comparison was possible there.
+- Fractional scale (1.5, through viewporter) and buffer scale 2: only the requests were
+  checked, and sway accepted them. The 2x output pixels were not compared, and these
+  steps did not run under KWin.
+- Multi-monitor setups: covered only by a second headless output under sway and its
+  removal.
+- `hidpi` sheets on a real 2x output.
+- Options... opening the config file through a real `xdg-open` handler (tested with a
+  fake `xdg-open`, which shows that the file is written).
+- The tray icon image as Plasma draws it (registration and properties were tested, not
+  the picture).
 
 ## bentwire decisions
 
