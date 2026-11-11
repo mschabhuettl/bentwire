@@ -264,36 +264,42 @@ bentwire's code is its own; the classic characters are not, and they live in the
 
 ## Known gaps
 
-Not verified on a real Plasma desktop yet. Under headless sway a virtual pointer checked: a click on an opaque pixel, click-through
-on a transparent one, a drag staying 1:1, and the right-click menu with a real popup
-grab and its dismissal by an outside click. Under KWin these ran only through `Test1`.
-Please check on Plasma:
+bentwire has run on a real KDE Plasma 6.6 session (plasmashell and KWin), but only a
+nested, headless one: KWin inside headless sway, with a virtual pointer, no GPU and no real
+mouse. There, show, play, say, ask, the right-click menu, a drag and output scale 2 were run
+and captured; the tray icon registered with Plasma's own StatusNotifierWatcher, and
+Plasma's system tray drew it in the panel. Under headless sway a virtual pointer also
+checked a click on an opaque pixel, click-through on a transparent one, a drag staying 1:1,
+and the right-click menu with a real popup grab and its dismissal by an outside click.
+Please check on a Plasma desktop with real hardware:
 
 <details>
 <summary>The open points</summary>
 
-
 - Negative margins and positions partly off the output (requested and recorded, not
   seen on screen under KWin).
 - The character's layer below a full-screen window and above normal windows.
-- Clicks, drags and the menu grab with a real mouse on KWin.
+- Clicks, drags and the menu grab with a real mouse on KWin. With a virtual pointer under
+  the nested KWin, a right click opened the menu, a click on an Office balloon button
+  answered it and a drag moved the character; dismissing the menu by an outside click
+  was not tried there.
 - Keyboard focus of the ask balloon after a real click (`on_demand` is requested and
   checked, the focus itself is not).
-- The tray in Plasma's system tray (tested only against a minimal watcher: registration,
-  Id, Title, menu labels, a menu click, Activate).
+- Clicking the tray icon and its menu inside Plasma's system tray (tested only against a
+  minimal watcher: menu labels, a menu click, Activate).
 - Output hot-plug on KWin (tested on sway).
 - Sound through a real audio device (headless runs log sounds with their duration).
-- Pixels under KWin: no screenshot comparison was possible there.
-- Fractional scale (1.5, through viewporter) and buffer scale 2: only the requests were
-  checked, and sway accepted them. The 2x output pixels were not compared, and these
-  steps did not run under KWin.
+- Pixels under KWin: the nested KWin's output was captured and checked by eye, and the
+  captures are byte-identical across runs, but there is no automated comparison against
+  expected images. KWin composited with QPainter there, without OpenGL.
+- Fractional scale (1.5, through viewporter): only the requests were checked, and sway
+  accepted them; not run under KWin.
 - Multi-monitor setups: covered only by a second headless output under sway and its
   removal.
-- `hidpi` sheets on a real 2x output.
+- `hidpi` sheets on a real 2x output (the nested KWin ran at scale 2, a real HiDPI panel
+  was not used).
 - Options... opening the config file through a real `xdg-open` handler (tested with a
   fake `xdg-open`, which shows that the file is written).
-- The tray icon image as Plasma draws it (registration and properties were tested, not
-  the picture).
 
 </details>
 
