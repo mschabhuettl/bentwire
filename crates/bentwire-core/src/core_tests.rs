@@ -1014,17 +1014,63 @@ fn r_bal_10_no_auto_hide_and_click() {
 fn r_bal_9_scroll() {
     let mut m = character("c", 0);
     m.states.retain(|s| s.0 != "Speaking");
-    m.balloon.chars_per_line = 4; // 28 px wide, 8 px of text: one char per line.
+    m.balloon.chars_per_line = 4; // 28 px wide, 8 px of text: one word per line.
     m.balloon.lines = 2;
     let mut t = T::visible(m);
     let now = t.now;
     t.req(Call::Speak("a b c".into()));
+    t.advance(now + 352);
+    let b = t.core.scene().agent_balloon.unwrap();
+    assert_eq!(
+        (b.lines.clone(), b.scroll_px),
+        (vec!["a".to_string(), "b".to_string()], 0)
+    );
+    // The third line starts: the outgoing line "a" stays first and slides up.
     t.advance(now + 704);
     let b = t.core.scene().agent_balloon.unwrap();
-    assert_eq!(b.lines, vec!["b".to_string(), "c".to_string()]);
-    assert!(b.scroll_px > 0);
+    assert_eq!(
+        b.lines,
+        vec!["a".to_string(), "b".to_string(), "c".to_string()]
+    );
+    assert_eq!(b.scroll_px, 0);
+    t.advance(now + 704 + 176);
+    let mid = t.core.scene().agent_balloon.unwrap();
+    assert!(
+        mid.scroll_px < 0 && mid.scroll_px > -mid.line_pitch,
+        "{}",
+        mid.scroll_px
+    );
+    assert_eq!(mid.lines.len(), 3);
+    // Finished within 60000 / 170 = 352 ms: "a" dropped, offset back to 0.
     t.advance(now + 704 + 352);
-    assert_eq!(t.core.scene().agent_balloon.unwrap().scroll_px, 0);
+    let b = t.core.scene().agent_balloon.unwrap();
+    assert_eq!(
+        (b.lines, b.scroll_px),
+        (vec!["b".to_string(), "c".to_string()], 0)
+    );
+}
+
+#[test]
+fn moveto_extreme_coordinates_do_not_panic() {
+    let mut t = T::visible(character("c", 0));
+    t.req(Call::Hide { fast: true });
+    let id = t.req(Call::MoveTo {
+        x: i32::MAX,
+        y: 0,
+        speed: 0,
+    });
+    assert_eq!(t.pos(), (i32::MAX, 0));
+    assert_eq!(t.complete_of(id).unwrap().2, errors::HIDDEN);
+    t.req(Call::Show { fast: true });
+    t.req(Call::Speak("hi".into()));
+    let _ = t.core.scene();
+    t.req(Call::MoveTo {
+        x: i32::MIN,
+        y: i32::MIN,
+        speed: 1000,
+    });
+    t.advance(t.now + 5000);
+    let _ = t.core.scene();
 }
 
 // ---------- ask ----------

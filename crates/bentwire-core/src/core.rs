@@ -2402,21 +2402,24 @@ impl Core {
                         c.model.canvas.1.max(1) as i32,
                     );
                     (
-                        fr.x + mo.anchor.0 * fr.w / cw,
-                        fr.y + mo.anchor.1 * fr.h / ch,
+                        fr.x.saturating_add(mo.anchor.0.saturating_mul(fr.w) / cw),
+                        fr.y.saturating_add(mo.anchor.1.saturating_mul(fr.h) / ch),
                     )
                 }),
             _ => None,
         }
-        .unwrap_or((fr.x + fr.w / 2, fr.y + fr.h / 2));
+        .unwrap_or((fr.x.saturating_add(fr.w / 2), fr.y.saturating_add(fr.h / 2)));
         let p = balloon::place(fr, m, s.w, s.h, anchor);
+        // R-BAL-9: during a scroll the outgoing line stays first and slides out.
+        let pitch = s.line_h + 2;
+        let scrolling = s.scroll.is_some() && s.first_line > 0;
+        let (from, count) = if scrolling {
+            (s.first_line - 1, s.style_lines as usize + 1)
+        } else {
+            (s.first_line, s.style_lines as usize)
+        };
         let mut lines = Vec::new();
-        for l in s
-            .lines
-            .iter()
-            .skip(s.first_line)
-            .take(s.style_lines as usize)
-        {
+        for l in s.lines.iter().skip(from).take(count) {
             let words: Vec<&str> = l
                 .iter()
                 .filter(|(wi, _)| *wi < s.revealed)
@@ -2437,9 +2440,13 @@ impl Core {
             bg: s.bg,
             border: s.border,
             text_origin: (p.body.x + 10, p.body.y + 10),
-            line_pitch: s.line_h + 2,
+            line_pitch: pitch,
             lines,
-            scroll_px: s.scroll.map_or(0, |x| x.2),
+            scroll_px: if scrolling {
+                s.scroll.map_or(0, |x| x.2 - pitch)
+            } else {
+                0
+            },
         })
     }
 

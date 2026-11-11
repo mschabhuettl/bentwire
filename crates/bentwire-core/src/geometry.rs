@@ -117,51 +117,70 @@ impl Slide {
             return self.target;
         }
         let p = self.progressed.min(major);
-        let x = i64::from(self.start.0) + dx * p / major;
-        let y = i64::from(self.start.1) + dy * p / major;
+        // i128: the product of two 33-bit distances does not fit in i64.
+        let lerp = |d: i64| (i128::from(d) * i128::from(p) / i128::from(major)) as i64;
+        let x = i64::from(self.start.0) + lerp(dx);
+        let y = i64::from(self.start.1) + lerp(dy);
         (x as i32, y as i32)
     }
 }
 
+/// Frame centre in i64 (positions are not clamped, B-WL-4, so i32 sums can overflow).
+fn centre(f: Rect) -> (i64, i64) {
+    (
+        i64::from(f.x) + i64::from(f.w) / 2,
+        i64::from(f.y) + i64::from(f.h) / 2,
+    )
+}
+
+/// Half-open containment of an i64 point.
+fn holds(r: Rect, x: i64, y: i64) -> bool {
+    let (l, t) = (i64::from(r.x), i64::from(r.y));
+    x >= l && x < l + i64::from(r.w) && y >= t && y < t + i64::from(r.h)
+}
+
 /// B-WL-2: the output containing the frame centre, else the nearest one.
 pub fn output_for(frame: Rect, outputs: &[OutputInfo]) -> Option<&OutputInfo> {
-    let (cx, cy) = (frame.x + frame.w / 2, frame.y + frame.h / 2);
-    outputs
-        .iter()
-        .find(|o| o.rect.contains(cx, cy))
-        .or_else(|| {
-            outputs.iter().min_by_key(|o| {
-                let ddx = (o.rect.x - cx).max(0).max(cx - (o.rect.right() - 1));
-                let ddy = (o.rect.y - cy).max(0).max(cy - (o.rect.bottom() - 1));
-                i64::from(ddx) * i64::from(ddx) + i64::from(ddy) * i64::from(ddy)
-            })
+    let (cx, cy) = centre(frame);
+    outputs.iter().find(|o| holds(o.rect, cx, cy)).or_else(|| {
+        outputs.iter().min_by_key(|o| {
+            let (l, t) = (i64::from(o.rect.x), i64::from(o.rect.y));
+            let (r, b) = (l + i64::from(o.rect.w) - 1, t + i64::from(o.rect.h) - 1);
+            let ddx = (l - cx).max(0).max(cx - r);
+            let ddy = (t - cy).max(0).max(cy - b);
+            ddx.saturating_mul(ddx)
+                .saturating_add(ddy.saturating_mul(ddy))
         })
+    })
 }
 
 /// B-WL-4: pull the frame inside `m`, right and bottom edges first, then left and top.
 pub fn pull_inside(frame: Rect, m: Rect) -> (i32, i32) {
-    let (mut x, mut y) = (frame.x, frame.y);
-    if x + frame.w > m.right() {
-        x = m.right() - frame.w;
+    let (mut x, mut y) = (i64::from(frame.x), i64::from(frame.y));
+    let (w, h) = (i64::from(frame.w), i64::from(frame.h));
+    let (ml, mt) = (i64::from(m.x), i64::from(m.y));
+    let (mr, mb) = (ml + i64::from(m.w), mt + i64::from(m.h));
+    if x + w > mr {
+        x = mr - w;
     }
-    if y + frame.h > m.bottom() {
-        y = m.bottom() - frame.h;
+    if y + h > mb {
+        y = mb - h;
     }
-    if x < m.x {
-        x = m.x;
+    if x < ml {
+        x = ml;
     }
-    if y < m.y {
-        y = m.y;
+    if y < mt {
+        y = mt;
     }
-    (x, y)
+    (x as i32, y as i32)
 }
 
 /// B-WL-4 output change: the output holding the centre, else the first output.
 pub fn pull_on_output_change(frame: Rect, outputs: &[OutputInfo]) -> Option<(i32, i32)> {
-    let (cx, cy) = (frame.x + frame.w / 2, frame.y + frame.h / 2);
+    let (cx, cy) = centre(frame);
     let m = outputs
         .iter()
-        .find(|o| o.rect.contains(cx, cy))
+        .find(|o| holds(o.rect, cx, cy))
         .or(outputs.first())?;
     Some(pull_inside(frame, m.rect))
 }
@@ -200,6 +219,26 @@ mod tests {
         }
         assert_eq!(s.position(), (i32::MIN, 0));
         assert_eq!(moving_state(R, i32::MIN, 0), Some("MovingRight"));
+    }
+
+    #[test]
+    fn b_wl_2_b_wl_4_extreme_positions_do_not_overflow() {
+        let o = [
+            out(1, Rect::new(0, 0, 1000, 800)),
+            out(2, Rect::new(1000, 0, 1000, 800)),
+        ];
+        let f = Rect::new(i32::MAX, 0, 100, 100);
+        assert_eq!(output_for(f, &o).unwrap().id, 2);
+        let f = Rect::new(i32::MIN, i32::MIN, 100, 100);
+        assert_eq!(output_for(f, &o).unwrap().id, 1);
+        assert_eq!(
+            pull_on_output_change(Rect::new(i32::MAX, 0, 100, 100), &o),
+            Some((900, 0))
+        );
+        assert_eq!(
+            pull_inside(Rect::new(i32::MIN, i32::MAX, 100, 100), o[0].rect),
+            (0, 700)
+        );
     }
 
     #[test]

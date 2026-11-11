@@ -481,10 +481,13 @@ pub struct AgentBalloonScene {
     pub text_origin: (i32, i32),
     /// Line pitch, TM.height + 2.
     pub line_pitch: i32,
-    /// Visible lines, top to bottom, with only the words revealed so far.
+    /// Visible lines, top to bottom, with only the words revealed so far. While a
+    /// scroll runs, the first entry is the outgoing line that slides out at the top.
     pub lines: Vec<String>,
-    /// Vertical scroll offset in px (R-BAL-9): lines are drawn `scroll_px` lower and
-    /// clipped to the text area; it counts down to 0.
+    /// Scroll offset in px (R-BAL-9): line i is drawn at
+    /// `text_origin.1 + i * line_pitch + scroll_px`, clipped to the text area. During a
+    /// scroll it goes from 0 down to `-line_pitch` (the lines slide up); then the
+    /// outgoing line is dropped and it is 0 again.
     pub scroll_px: i32,
 }
 

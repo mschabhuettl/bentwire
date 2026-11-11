@@ -16,7 +16,7 @@ B-ASK-3 | b_ask_3_r_ob_16_markup
 B-ASK-4 | b_ask_4_b_wl_8_phases_and_answer, b_ask_4_hidden_and_too_big
 B-ASK-5 | b_ask_5_validation
 B-ASK-6 | b_ask_6_autodown
-B-ASK-7 | b_ask_7_matrix_modal, b_ask_7_matrix_autodown_and_switch, b_ask_7_autodown_hide_closes_with_status_3, b_ask_7_ask_shown_during_drag_is_placed_at_drag_end || other crates: bentwired: b_ask_7_b_char_5_character_switch_closes_ask, b_ask_7_drag_hides_and_replaces_modal_balloon, b_ask_7_hide_stop_and_stopall_close_the_ask, b_ask_7_play_modal_stays_autodown_dismissed ...
+B-ASK-7 | b_ask_7_matrix_modal, b_ask_7_matrix_autodown_and_switch, b_ask_7_autodown_hide_closes_with_status_3, b_ask_7_ask_shown_during_drag_is_placed_at_drag_end || other crates: bentwired: b_ask_7_autodown_speak_and_second_ask_dismiss, b_ask_7_b_char_5_character_switch_closes_ask, b_ask_7_drag_hides_and_replaces_modal_balloon, b_ask_7_hide_stop_and_stopall_close_the_ask ...
 B-BAL-1 | b_bal_1_no_balloon
 B-BAL-2 | b_bal_2_font_choice (family, config override, px = |font_height|); TM metrics from the font in bentwire-render || other crates: bentwire-render: b_bal_2_draw_text_marks_pixels_inside_cell, b_bal_2_metrics_from_font, b_bal_2_text_width_is_sum_of_advances
 B-BAL-3 | b_bal_3_anchor_is_lowest_mouth_point, b_bal_3_r_bal_4_r_bal_5_vectors
@@ -44,7 +44,7 @@ B-LIP-1 | b_lip_1_r_lip_2_quantisation
 B-LIP-2 | b_lip_2_no_mouth_during_text_speak
 B-MENU-1 | b_menu_1_r_ui_3_b_menu_2_b_menu_3
 B-MENU-2 | b_menu_1_r_ui_3_b_menu_2_b_menu_3, b_menu_2_strings || other crates: bentwire-render: b_menu_2_menu_en_de_golden, b_menu_2_mnemonic_parsing
-B-MENU-3 | b_menu_1_r_ui_3_b_menu_2_b_menu_3 (Output::OpenConfig); writing the file and xdg-open in bentwired
+B-MENU-3 | b_menu_1_r_ui_3_b_menu_2_b_menu_3 (Output::OpenConfig); writing the file and xdg-open in bentwired || other crates: bentwired: b_menu_3_options_writes_config_and_opens_it
 B-MENU-4 | b_menu_4_animate_shuffle
 B-MOVE-1 | b_move_1_slide_vectors, b_move_1_period_floor
 B-O97-1 | b_o97_1_branches
@@ -87,11 +87,11 @@ B-TRAY-1 | b_tray_1_r_ui_4_activate, b_tray_1_title_cut, b_ui_4_user_hide (tray 
 B-UI-1 | r_ui_1_b_ui_1_click_and_double_click || other crates: bentwired: b_ui_1_click_and_r_ui_2_drag_signals
 B-UI-4 | b_ui_4_user_hide, b_ui_4_user_hide_in_gallery_reports_hidden_by_user || other crates: bentwired: b_ui_4_user_hide_from_menu_interrupts_with_hidden_by_user
 B-WL-1 | output rects in global logical coords are core input (OutputInfo); used by b_wl_2_output_choice, b_ob_3_*; Wayland side in bentwired
-B-WL-2 | b_wl_2_output_choice
+B-WL-2 | b_wl_2_b_wl_4_extreme_positions_do_not_overflow, b_wl_2_output_choice
 B-WL-3 | not testable in core: layer choice; bentwired / T-6 K2
-B-WL-4 | b_wl_4_output_change_pulls_back, b_wl_4_pull_inside || other crates: bentwired: b_wl_4_output_removal_pulls_the_frame_back
+B-WL-4 | b_wl_4_output_change_pulls_back, b_wl_2_b_wl_4_extreme_positions_do_not_overflow, b_wl_4_pull_inside || other crates: bentwired: b_wl_4_output_removal_pulls_the_frame_back
 B-WL-5 | structural: pointer events carry global coordinates (api::PointerEvent); conversion in bentwired
-B-WL-6 | not testable in core: buffers, scale, input region; bentwired and bentwire-render || other crates: bentwire-render: b_wl_6_argb8888_premultiplied_byte_order, b_wl_6_hidpi_picture_used_as_is_region_logical, b_wl_6_integer_upscale_and_byte_order
+B-WL-6 | not testable in core: buffers, scale, input region; bentwired and bentwire-render || other crates: bentwire-render: b_wl_6_argb8888_premultiplied_byte_order, b_wl_6_hidpi_picture_used_as_is_region_logical, b_wl_6_integer_upscale_and_byte_order; bentwired: b_wl_6_scale_of_rotated_and_fractional_outputs
 B-WL-7 | core part: 1:1 drag from the grab offset in r_ui_2_r_win_4_drag; margin compensation in bentwired
 B-WL-8 | b_ask_4_b_wl_8_phases_and_answer || other crates: bentwire-render: b_wl_8_region_rects_merge_rows
 B-WL-9 | core part: menu model and keys in b_menu_1_r_ui_3_b_menu_2_b_menu_3; xdg_popup in bentwired || other crates: bentwire-render: b_wl_9_menu_hit_skips_separator
@@ -108,7 +108,7 @@ R-ANIM-4 | b_seq_a_r_anim_4_branch_vector || other crates: bentwire-character: r
 R-ANIM-5 | r_anim_5_invisible_frames, r_anim_5_zero_ms_frame_with_layers_is_shown
 R-ANIM-6 | b_sw_a_r_anim_6_transition_exit_and_showing_drops
 R-ANIM-7 | b_sw_a_r_anim_7_b_anim_1_loop_stopped_resumes_through_exit, r_anim_7_b_anim_1_stop_cuts_and_no_animation_requests_keep_previous
-R-ANIM-8 | r_anim_8_sound_gating, r_anim_8_sound_commands
+R-ANIM-8 | r_anim_8_sound_gating, r_anim_8_sound_commands || other crates: bentwired: r_anim_8_sound_failed_without_device
 R-ANIM-9 | r_anim_9_hidden_play_fails
 R-BAL- | wildcard reference, see each R-BAL-n
 R-BAL-1 | r_bal_1_r_bal_3_size || other crates: bentwired: r_bal_1_balloon_defaults_and_colours
