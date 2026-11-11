@@ -8,7 +8,7 @@
 [![Latest release](https://img.shields.io/github/v/release/mschabhuettl/bentwire)](https://github.com/mschabhuettl/bentwire/releases/latest)
 [![Licence: MIT OR Apache-2.0](https://img.shields.io/badge/licence-MIT%20OR%20Apache--2.0-blue)](#licences)
 
-<img src="https://raw.githubusercontent.com/mschabhuettl/bentwire-classics/main/screenshots/ask.png" alt="Clippit asks &quot;Build failed&quot; in the Office balloon, with the buttons Show log and Ignore">
+<img src="https://raw.githubusercontent.com/mschabhuettl/bentwire-classics/main/screenshots/hero.gif" width="800" alt="Clippit appears on a KDE Plasma desktop, waves and says hello in its word balloon">
 
 </div>
 
@@ -39,6 +39,23 @@ ships no Microsoft characters: they live in the separate
 - **Integrations.** Reacts to your bash or zsh commands and to Claude Code sessions.
 - **Clean room.** Written from documented formats and observed runtime behaviour; no
   Microsoft code or data in this repository.
+
+## In action
+
+<table>
+<tr>
+<td align="center"><img src="https://raw.githubusercontent.com/mschabhuettl/bentwire-classics/main/screenshots/say.gif" width="400" alt="Clippit says a sentence, typed out in the Agent word balloon"><br><code>bentwire say</code></td>
+<td align="center"><img src="https://raw.githubusercontent.com/mschabhuettl/bentwire-classics/main/screenshots/ask.gif" width="400" alt="Clippit asks a question in the Office balloon and the pointer clicks Show log"><br><code>bentwire ask</code></td>
+</tr>
+<tr>
+<td align="center"><img src="https://raw.githubusercontent.com/mschabhuettl/bentwire-classics/main/screenshots/menu.gif" width="400" alt="The right-click menu of the character with the pointer over its items"><br>The right-click menu</td>
+<td align="center"><img src="https://raw.githubusercontent.com/mschabhuettl/bentwire-classics/main/screenshots/tour.gif" width="400" alt="Clippit, Merlin, Genie, Peedy and Rover appear one after another"><br>Some of the classic characters</td>
+</tr>
+</table>
+
+On a real KDE Plasma 6 desktop. More screenshots and GIFs are in
+[bentwire-classics](https://github.com/mschabhuettl/bentwire-classics#screenshots-and-gifs);
+[docs/screenshots/](docs/screenshots/) has the same with the placeholder character only.
 
 ## Quick start
 
