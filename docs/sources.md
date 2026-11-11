@@ -48,11 +48,11 @@ first one.
 
 | File | Version | Bytes | SHA-256 | Origin |
 |---|---|---|---|---|
-| `$BENTWIRE_REFERENCE/genie/genie.acf` | ACF 0x20001 | 8,325 | `3d94ea569c8d8bbb99d7cdf500d32db44b70e686c912edb39617eaabab5bbccb` | Wayback Machine, `http://agent.microsoft.com/agent2/chars/genie/genie.acf` (timestamp 20000407195309) |
-| `$BENTWIRE_REFERENCE/merlin/merlin.acf` | ACF 0x20001 | 9,051 | `ae62f4c6ed914d2d9c2caea6ff39f8cde68eaca821c80116f7372e4377acbd7f` | Wayback Machine, `http://agent.microsoft.com/agent2/chars/merlin/merlin.acf` (timestamp 19990508214516) |
-| `$BENTWIRE_REFERENCE/peedy/peedy.acf` | ACF 0x20001 | 7,386 | `42ad3b2ad3328020f1380e7f0696fc39834a34c6b52b67977db9a39715cb61e5` | Wayback Machine, `http://agent.microsoft.com/agent2/chars/peedy/peedy.acf` (timestamp 19990508222229) |
-| `$BENTWIRE_REFERENCE/robby/robby.acf` | ACF 0x20001 | 8,672 | `a4d3e0a4ffe4f65311b8ca8ae5ceace6e28d6c7cfacdc3fdac855653cf66bbe0` | Wayback Machine, `http://agent.microsoft.com/agent2/chars/robby/robby.acf` (timestamp 20000511173803) |
-| `$BENTWIRE_REFERENCE/www2006/genie.acf` | ACF 0x20001 | 8,325 | `3d94ea569c8d8bbb99d7cdf500d32db44b70e686c912edb39617eaabab5bbccb` | Wayback Machine, second copy at `http://www.microsoft.com/msagent/chars/genie/genie.acf` (timestamp 20060621202418) |
+| `$BENTWIRE_REFERENCE/genie/genie.acf` | ACF 0x20001 | 8,325 | `3d94ea569c8d8bbb99d7cdf500d32db44b70e686c912edb39617eaabab5bbccb` | Wayback Machine: (public archive copy) |
+| `$BENTWIRE_REFERENCE/merlin/merlin.acf` | ACF 0x20001 | 9,051 | `ae62f4c6ed914d2d9c2caea6ff39f8cde68eaca821c80116f7372e4377acbd7f` | Wayback Machine: (public archive copy) |
+| `$BENTWIRE_REFERENCE/peedy/peedy.acf` | ACF 0x20001 | 7,386 | `42ad3b2ad3328020f1380e7f0696fc39834a34c6b52b67977db9a39715cb61e5` | Wayback Machine: (public archive copy) |
+| `$BENTWIRE_REFERENCE/robby/robby.acf` | ACF 0x20001 | 8,672 | `a4d3e0a4ffe4f65311b8ca8ae5ceace6e28d6c7cfacdc3fdac855653cf66bbe0` | Wayback Machine: (public archive copy) |
+| `$BENTWIRE_REFERENCE/www2006/genie.acf` | ACF 0x20001 | 8,325 | `3d94ea569c8d8bbb99d7cdf500d32db44b70e686c912edb39617eaabab5bbccb` | Wayback Machine, second copy: (public archive copy) |
 
 The animation files next to them (`<char>/<File>.aca`, captured between 2000-02-29 and
 2002-05-26) are 86 files, 3,419,499 bytes in total, all version 0x20001. They are listed by
@@ -169,7 +169,7 @@ zip were computed from the extracted file.
 | `agentdpv.dll` | 2.00.0.3427 | 57,344 | `66a6765e2693b05c7b1bb72973b32264656ffbba7c176f8a86ce0edc8358875c` | same zip |
 | `agentanm.dll` | 2.00.0.3427 | 24,064 | `4f1cb8b500671be72448e6bfa51821168c99f56f25237d4ce9f87d052b9ce934` | same zip |
 | `agentctl.dll` | 2.00.0.3427 | 214,016 | `b50ca2fdd6c41b9c7637c486a49f044286f19f83b7d9fc97cce3eb2e21ae315c` | same zip |
-| `AgentDPv.dll` (Agent 1.5) | 1.5.2.416 | not recorded | `4a5de7cc6327db9e8a610451b91343aa24f270e9f7050808087d0d9760a7b6d1` | `MSagent.exe` (340,112 bytes, SHA-256 `5e00fe1b303dc56e3cf556adaf23a956ccf2ab2bb42b1a50736ad5bd4f3d5208`), Wayback Machine, `http://activex.microsoft.com/controls/agent/MSagent.exe` (timestamp 20000823003356) |
+| `AgentDPv.dll` (Agent 1.5) | 1.5.2.416 | not recorded | `4a5de7cc6327db9e8a610451b91343aa24f270e9f7050808087d0d9760a7b6d1` | `MSagent.exe` (340,112 bytes, SHA-256 `5e00fe1b303dc56e3cf556adaf23a956ccf2ab2bb42b1a50736ad5bd4f3d5208`), Wayback Machine: (public archive copy) |
 | `agentdpv.dll` (Agent 1.5) | 1.5.0.225 | not recorded | `039e856fa12f9d029e5faa2de7c7bd0ad00807ed3c74ae09d429c26f489da506` | public archive `source-files`, `the Agent 1.5 files` (SHA-256 `22a69838b5e8fc52b85354eefc5fce430f011b5841978d849f502eebbad2163d`) |
 | `msadp32.acm` | 5.1.2600.5512 (Windows XP SP3, German) | 14,848 | `81eac2425efa2c31edf22d4c8a87e9fdadeb380b2471779c508f00145c5dd243` | `$BENTWIRE_SOURCES/msadp32.acm` (owner's own copy) |
 | `MSO.DLL` (Office XP) | 10.0.2625 | 9,995,680 | `14b7a79ad2cd96524671f8a63d63ed665253efcf02da74a814fec83f33225134` | `$BENTWIRE_SOURCES/MSO.DLL` (owner's own copy) |
