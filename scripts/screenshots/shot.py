@@ -5,6 +5,7 @@ output or from lossless recorder frames.
 usage: shot.py has SNAPSHOT.json KIND...           exit 0 if every surface kind is mapped
        shot.py rect SNAPSHOT.json MARGIN KIND...   union of those surfaces plus MARGIN,
                                                    clamped to the first output: x y w h
+       shot.py only SNAPSHOT.json KIND...          exit 0 if exactly these kinds are mapped
        shot.py inside SNAPSHOT.json x y w h KIND...  exit 0 if those surfaces lie in the rect
        shot.py crop IN.ppm OUT.png SCALE x y w h   crop a logical rect (times SCALE)
        shot.py pixel IN.ppm RRGGBB                 exit 0 if pixel (0, 0) has the colour
@@ -12,11 +13,13 @@ usage: shot.py has SNAPSHOT.json KIND...           exit 0 if every surface kind 
                                                    differs from REF (the bare desktop): x y
        shot.py button SNAPSHOT.json CAPTION        centre of that Office balloon button: x y
        shot.py strip OUT.png x y w h IN.ppm...     the rect, column band i taken from IN i
-       shot.py frames DIR PTS OUT.txt FIRST LAST GRID
-                                                   ffconcat list of the distinct frames in
-                                                   DIR (00001.png..., times in PTS, seconds),
-                                                   durations rounded to GRID ms, the first
-                                                   and last frame held FIRST and LAST ms
+       shot.py frames DIR PTS OUTDIR FIRST LAST GRID
+                                                   the distinct frames of DIR (00001.png...,
+                                                   times in PTS, seconds) into OUTDIR, with
+                                                   OUTDIR/durations: ms rounded to GRID, the
+                                                   first and last frame held FIRST and LAST;
+                                                   states under 35 ms are dropped
+       shot.py gif DIR OUT.gif DURATIONS           paletted frames into a looping GIF
 """
 import json
 import os
@@ -45,6 +48,9 @@ def main():
         y1 = min(max(q["y"] + q["h"] for q in got) + m, o["y"] + o["h"])
         print(x0 - o["x"], y0 - o["y"], x1 - x0, y1 - y0)
         return True
+    if cmd == "only":
+        s = json.load(open(args[0]))
+        return {q["kind"] for q in s["surfaces"] if q["mapped"]} == set(args[1:])
     if cmd == "inside":
         _, got = surfaces(args[0], args[5:])
         x, y, w, h = (int(v) for v in args[1:5])
@@ -95,26 +101,39 @@ def main():
         times = [float(t.strip(",")) for t in open(pts).read().split()]
         names = sorted(f for f in os.listdir(d) if f.endswith(".png"))
         assert len(names) == len(times), (len(names), len(times))
-        keep = []  # (name, start ms) of each frame that differs from the one before
+        keep = []  # (image, start ms) of each frame that differs from the one before
         prev = None
         for n, t in zip(names, times):
             im = Image.open(os.path.join(d, n)).convert("RGB")
             if prev is None or ImageChops.difference(im, prev).getbbox() is not None:
-                keep.append((n, t * 1000))
+                # A state shown for at most two recorder frames is a transient (the
+                # pointer already moved, the hover not yet drawn): whether it is caught
+                # depends on latency, so it is dropped.
+                if len(keep) > 1 and t * 1000 - keep[-1][1] < 35:
+                    keep.pop()
+                keep.append((im, t * 1000))
             prev = im
-        lines = ["ffconcat version 1.0"]
-        for i, (n, t) in enumerate(keep):
+        os.makedirs(out)
+        ms = []
+        for i, (im, t) in enumerate(keep):
+            im.save(os.path.join(out, f"{i + 1:05d}.png"), optimize=False)
             if i == len(keep) - 1:
-                ms = last
+                ms.append(last)
             elif i == 0:
-                ms = first
+                ms.append(first)
             else:
-                ms = max(grid, round((keep[i + 1][1] - t) / grid) * grid)
-            lines += [f"file {n}", f"duration {ms / 1000:.3f}"]
-        # the concat demuxer drops the last duration unless the file is repeated
-        lines += [f"file {keep[-1][0]}"]
-        open(out, "w").write("\n".join(lines) + "\n")
+                ms.append(max(grid, round((keep[i + 1][1] - t) / grid) * grid))
+        open(os.path.join(out, "durations"), "w").write(" ".join(map(str, ms)) + "\n")
         print(len(keep))
+        return True
+    if cmd == "gif":
+        d, out = args[0], args[1]
+        ms = [int(v) for v in open(args[2]).read().split()]
+        names = sorted(f for f in os.listdir(d) if f.endswith(".png"))
+        ims = [Image.open(os.path.join(d, n)) for n in names]
+        assert len(ims) == len(ms) and all(i.mode == "P" for i in ims)
+        ims[0].save(out, save_all=True, append_images=ims[1:], duration=ms, loop=0,
+                    optimize=False)
         return True
     return False
 

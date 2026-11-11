@@ -8,6 +8,8 @@
 # run on KWin's socket with the default Breeze look and the default wallpaper. Pictures
 # are taken from the outer sway with grim, the virtual pointer (vptr example) is a sway
 # pointer that sway forwards to the nested KWin.
+# Qt Quick distance-field text is off for plasmashell: at scale 2 its glyph cache made
+# the panel clock differ by 1-2 levels between runs.
 # plasmashell and bentwired run under libfaketime with a frozen wall clock (the panel
 # clock and the Office 97 daypart); timers use CLOCK_MONOTONIC, which stays real.
 #
@@ -85,7 +87,7 @@ EOF
     wait_for 20 busctl --user status org.kde.kded6
     wait_for 20 busctl --user call org.kde.kded6 /kded org.kde.kded6 loadModule s statusnotifierwatcher
     wait_for 20 busctl --user introspect org.kde.StatusNotifierWatcher /StatusNotifierWatcher
-    LIBGL_ALWAYS_SOFTWARE=1 frozen plasmashell --no-respawn >"$T/plasma.log" 2>&1 &
+    LIBGL_ALWAYS_SOFTWARE=1 QML_DISABLE_DISTANCEFIELD=1 frozen plasmashell --no-respawn >"$T/plasma.log" 2>&1 &
     SESSION_PIDS+=($!)
     wait_for 30 busctl --user status org.kde.plasmashell
     vp "move $PARK"

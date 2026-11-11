@@ -17,9 +17,10 @@
 # with PIL.
 # The config pins balloon_font = "Tahoma" (bundled), so the Agent balloon does not depend
 # on the host's fontconfig (B-BAL-2).
-# GIFs are recorded in real time (wf-recorder; the fake clock exists only in --headless),
-# then identical frames are merged and frame times rounded to 50 ms, so two runs give the
-# same frames and times unless a frame boundary falls within a few ms of a rounding edge.
+# GIFs are recorded in real time (wf-recorder at the 60 Hz output; the fake clock exists
+# only in --headless), then identical frames are merged, states shorter than 35 ms dropped
+# and frame times rounded to 50 ms. Two runs give the same frames; a frame time whose real
+# value lies near a rounding edge (125 ms, say) can come out 50 ms longer or shorter.
 set -euo pipefail
 
 REPO=$(cd "$(dirname "$0")/.." && pwd)
@@ -110,6 +111,7 @@ snapshot() { # snapshot FILE
 has() { snapshot "$T/s.json" && $PY has "$T/s.json" "$@"; }
 no_office() { ! has office_balloon; }
 no_menu() { ! has menu; }
+no_agent() { ! has agent_balloon; }
 no_surfaces() { snapshot "$T/s.json" && python3 -I -c 'import json, sys; sys.exit(len(json.load(open(sys.argv[1]))["surfaces"]) != 0)' "$T/s.json"; }
 scale2() { snapshot "$T/s.json" && python3 -I -c 'import json, sys; sys.exit(json.load(open(sys.argv[1]))["backend"]["character"]["buffer_scale"] != 2)' "$T/s.json"; }
 tray_item() { busctl --user get-property org.kde.StatusNotifierWatcher /StatusNotifierWatcher \
@@ -170,7 +172,7 @@ capture() { # capture <out.png> <x y w h> <surface kind...>: three agreeing grab
             snapshot "$T/a.json"
             $PY crop "$prev" "$T/cand.png" 1 0 0 $((w * SCALE)) $((h * SCALE))
             # shellcheck disable=SC2086
-            if $PY has "$T/a.json" "$@" && $PY inside "$T/a.json" $rect "$@" \
+            if $PY only "$T/a.json" "$@" && $PY inside "$T/a.json" $rect "$@" \
                 && ! cmp -s "$T/cand.png" "$T/ref.png"; then
                 cp "$T/cand.png" "$out"
                 echo "  $(basename "$out")"
@@ -189,6 +191,7 @@ shoot_set() { # shoot_set <character>: idle (whole desktop), say, ask
     capture "$OUT/idle.png" "0 0 $W $H" character
     "$BIN/bentwire" say "It looks like your build failed. Want me to show the log?" --wait >/dev/null
     capture "$OUT/say.png" "$FRAME" character agent_balloon
+    wait_for 10 no_agent
     "$BIN/bentwire" ask "The build failed in 3 crates." --heading "Build failed" \
         --button "Show log" --button "Ignore" >"$T/ask.out" &
     local ask=$!
@@ -242,10 +245,15 @@ record_stop() { # record_stop <out.gif> [first-hold-ms] [last-hold-ms]
     ffmpeg -v error -i "$d/rec.mkv" -fps_mode passthrough "$d/%05d.png"
     ffprobe -v error -select_streams v -show_entries frame=pts_time -of csv=p=0 "$d/rec.mkv" >"$d/pts"
     local n
-    n=$($PY frames "$d" "$d/pts" "$d/list.txt" "${2:-500}" "${3:-1500}" 50)
-    ffmpeg -v error -y -f concat -i "$d/list.txt" -fps_mode passthrough \
-        -filter_complex "[0:v]split[a][b];[a]palettegen=max_colors=256:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle" \
-        -loop 0 "$1"
+    n=$($PY frames "$d" "$d/pts" "$d/keep" "${2:-500}" "${3:-1500}" 50)
+    # ffmpeg makes one palette for all frames and dithers each frame on its own (ordered,
+    # so unchanged pixels stay unchanged); PIL writes the GIF with the exact durations.
+    ffmpeg -v error -i "$d/keep/%05d.png" -vf palettegen=max_colors=256:stats_mode=diff \
+        -update 1 "$d/palette.png"
+    mkdir "$d/pal"
+    ffmpeg -v error -i "$d/keep/%05d.png" -i "$d/palette.png" \
+        -lavfi "paletteuse=dither=bayer:bayer_scale=4" "$d/pal/%05d.png"
+    $PY gif "$d/pal" "$1" "$d/keep/durations"
     echo "  $(basename "$1") ($n frames, $(($(stat -c %s "$1") / 1024)) KiB)"
 }
 
@@ -263,6 +271,16 @@ gif_appear() { # character appears and waves
     "$BIN/bentwire" show --wait >/dev/null
     "$BIN/bentwire" play "$(anim Wave Greet Greeting)" --wait >/dev/null
     record_stop "$OUT/appear.gif" 800 1500
+    stop_daemon
+}
+
+gif_hero() { # gif_hero <character> <out.gif>: appears, waves and says hello
+    start_daemon "$1" en false
+    record_start hero "$FRAME"
+    "$BIN/bentwire" show --wait >/dev/null
+    "$BIN/bentwire" play "$(anim Wave Greet Greeting)" --wait >/dev/null
+    "$BIN/bentwire" say "Hi! I live on your Plasma desktop." --wait >/dev/null
+    record_stop "$2" 800 2500
     stop_daemon
 }
 
@@ -284,9 +302,8 @@ gif_ask() { # Office balloon, a button clicked with the virtual pointer
     wait_for 10 desktop_settled
     snapshot "$T/a.json"
     read -r bx by < <($PY button "$T/a.json" "Show log")
-    vp "move $((bx - 60)) $((by + 40))"
-    for i in 1 2 3 4 5; do vp "move $((bx - 60 + i * 12)) $((by + 40 - i * 8))"; sleep 0.04; done
-    sleep 0.4
+    # few, slow pointer steps: each state lasts long enough to be recorded every time
+    for i in 0 1 2 3; do vp "move $((bx - 60 + i * 20)) $((by + 60 - i * 20))"; sleep 0.3; done
     vp "press 1"
     sleep 0.25
     vp "release 1"
@@ -371,9 +388,8 @@ if [ "$MODE" != gifs ]; then
         i=0
         for c in merlin merlin-15 genius-97 clippit-97; do
             start_daemon "$c" en true $((i * 320 + 100)) 480
-            capture "$T/part-$c.png" "0 0 $W $H" character
-            cp "$T/g.ppm" "$T/grab-$c.ppm"
-            GRABS+=("$T/grab-$c.ppm")
+            capture "$T/grab-$c.png" "0 0 $W $H" character
+            GRABS+=("$T/grab-$c.png")
             stop_daemon
             i=$((i + 1))
         done
@@ -397,6 +413,7 @@ fi
 if [ "$MODE" != shots ]; then
     echo "GIFs"
     start_session 1
+    gif_hero "$MAIN" "$OUT/hero.gif"
     gif_appear "$MAIN"
     gif_say "$MAIN"
     gif_ask "$MAIN"
@@ -408,6 +425,10 @@ if [ "$MODE" != shots ]; then
         mapfile -t ALL < <(find "$REPO/characters/builtin" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)
         [ "${#ALL[@]}" -gt 1 ] && gif_tour "${ALL[@]}"
     fi
+    stop_session
+    echo "HiDPI GIF (output scale 2)"
+    start_session 2
+    gif_hero "$MAIN" "$OUT/hero-2x.gif"
     stop_session
 fi
 
