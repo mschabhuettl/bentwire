@@ -232,13 +232,13 @@ fn spec_5_5_cli_output_and_exit_codes() {
     assert_eq!(out(&e.cli(&["play"])).0, 1);
     assert_eq!(out(&e.cli(&["frobnicate"])).0, 1);
     // --wait: 0 on success
-    let w = e.cli_bg(&["play", "Wave", "--wait"]);
-    std::thread::sleep(std::time::Duration::from_millis(300));
+    let mut w = e.cli_bg(&["play", "Wave", "--wait"]);
+    started(&mut w);
     e.advance(2000);
     assert_eq!(finish(w).0, 0);
     // --wait on an interrupted request: 3
-    let w = e.cli_bg(&["play", "Wave", "--wait"]);
-    std::thread::sleep(std::time::Duration::from_millis(300));
+    let mut w = e.cli_bg(&["play", "Wave", "--wait"]);
+    started(&mut w);
     e.advance(100);
     assert_eq!(out(&e.cli(&["stop"])).0, 0);
     e.advance(300);
@@ -843,12 +843,186 @@ fn b_gal_1_gallery_next_cancel_and_ok() {
 #[test]
 fn spec_5_5_cli_wait_ends_when_the_daemon_exits() {
     let mut e = ready("cliquit");
-    let w = e.cli_bg(&["play", "Loop", "--wait"]);
-    std::thread::sleep(std::time::Duration::from_millis(300));
+    let mut w = e.cli_bg(&["play", "Loop", "--wait"]);
+    started(&mut w);
     e.advance(300);
     e.client().call_unit(AGENT, AGENT_IF, "Quit", &()).unwrap();
     assert_eq!(e.wait_exit(10), Some(0));
     let (code, _, se) = finish(w);
     assert_eq!(code, 1, "{se}");
     assert!(se.contains("bentwired exited"), "{se}");
+}
+
+#[test]
+fn b_ask_7_moveto_modal_replaced_autodown_dismissed() {
+    let e = ready("ask7f");
+    let mut c = e.client();
+    let ask = open_ask(&e, &c, "modal");
+    let m = c.call_id("MoveTo", &(300i32, 300i32, 1000u32)).unwrap();
+    let mut hidden_during_slide = false;
+    for _ in 0..30 {
+        e.advance(100);
+        if e.snapshot()["office_balloon"].is_null() {
+            hidden_during_slide = true;
+        }
+    }
+    assert_eq!(c.complete(m).0, 0);
+    assert!(
+        hidden_during_slide,
+        "balloon hides while the slide moves the frame"
+    );
+    assert!(balloon_open(&e), "and is shown again at the end");
+    e.key("Escape");
+    e.advance(200);
+    assert_eq!(ask_complete(&mut c, ask).0, -2);
+    let ask = open_ask(&e, &c, "autodown");
+    let m = c.call_id("MoveTo", &(100i32, 100i32, 0u32)).unwrap();
+    e.advance(1000);
+    assert_eq!(ask_complete(&mut c, ask), (0, 0, String::new()));
+    assert_eq!(c.complete(m).0, 0);
+}
+
+#[test]
+fn b_ask_7_autodown_speak_and_second_ask_dismiss() {
+    let e = ready("ask7g");
+    let mut c = e.client();
+    let ask = open_ask(&e, &c, "autodown");
+    let s = c.call_id("Speak", &("now",)).unwrap();
+    e.advance(500);
+    assert_eq!(ask_complete(&mut c, ask), (0, 0, String::new()));
+    c.wait_for("Speak starts", |r| {
+        r.member == "RequestStart" && r.args[0] == s
+    });
+    e.advance(10000);
+    assert_eq!(c.complete(s).0, 0);
+    let first = open_ask(&e, &c, "autodown");
+    let second = open_ask(&e, &c, "modal");
+    assert_eq!(ask_complete(&mut c, first), (0, 0, String::new()));
+    assert!(balloon_open(&e));
+    e.key("Escape");
+    e.advance(200);
+    assert_eq!(ask_complete(&mut c, second).0, -2);
+}
+
+#[test]
+fn b_ask_7_user_hide_closes_ask_with_hidden_by_user() {
+    let e = ready("ask7h");
+    let mut c = e.client();
+    let ask = open_ask(&e, &c, "modal");
+    let (x, y) = centre(&e);
+    e.click(2, x, y);
+    let s = e.snapshot();
+    let hide = s["menu"]
+        .as_array()
+        .expect("menu")
+        .iter()
+        .find(|i| i["label"] == "&Hide")
+        .unwrap()
+        .clone();
+    e.click(
+        1,
+        hide["x"].as_i64().unwrap() as i32 + 3,
+        hide["y"].as_i64().unwrap() as i32 + 3,
+    );
+    e.advance(2000);
+    assert_eq!(
+        ask_complete(&mut c, ask),
+        (0, 3, "org.bentwire.Error.HiddenByUser".into())
+    );
+}
+
+#[test]
+fn b_ask_7_output_change_keeps_the_ask() {
+    let e = ready("ask7i");
+    let c = e.client();
+    open_ask(&e, &c, "modal");
+    let o: u32 = e
+        .test("AddOutput", &("800x600+1920+0",))
+        .body()
+        .deserialize()
+        .unwrap();
+    e.advance(200);
+    assert!(balloon_open(&e));
+    e.test("RemoveOutput", &(o,));
+    e.advance(200);
+    assert!(balloon_open(&e), "the balloon is placed again");
+}
+
+#[test]
+fn b_menu_3_options_writes_config_and_opens_it() {
+    let mut e = Env::new("opts");
+    let log = e.dir.join("xdg-open.log");
+    let fake = e.dir.join("bin/xdg-open");
+    std::fs::write(
+        &fake,
+        format!("#!/bin/sh\necho \"$1\" >> {}\n", log.display()),
+    )
+    .unwrap();
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).unwrap();
+    e.start(&[]);
+    e.advance(1000);
+    let (x, y) = centre(&e);
+    e.click(2, x, y);
+    let s = e.snapshot();
+    let item = s["menu"]
+        .as_array()
+        .expect("menu")
+        .iter()
+        .find(|i| i["label"] == "&Options...")
+        .unwrap()
+        .clone();
+    e.click(
+        1,
+        item["x"].as_i64().unwrap() as i32 + 3,
+        item["y"].as_i64().unwrap() as i32 + 3,
+    );
+    e.advance(100);
+    let cfg = e.dir.join("cfg/bentwire/config.toml");
+    let t = std::time::Instant::now();
+    while !log.exists() {
+        assert!(t.elapsed().as_secs() < 5, "xdg-open not called");
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    assert!(
+        std::fs::read_to_string(&cfg)
+            .unwrap()
+            .contains("speaking_speed")
+    );
+    assert_eq!(
+        std::fs::read_to_string(&log).unwrap().trim(),
+        cfg.display().to_string()
+    );
+}
+
+#[test]
+fn t_4_trace_keyboard_interactivity_and_popup() {
+    let mut e = Env::new("trace2");
+    let trace = e.dir.join("trace.jsonl");
+    e.start(&["--trace", trace.to_str().unwrap()]);
+    e.advance(1000);
+    let c = e.client();
+    open_ask(&e, &c, "modal");
+    let (x, y) = centre(&e);
+    e.click(2, x, y);
+    e.advance(100);
+    let lines: Vec<serde_json::Value> = std::fs::read_to_string(&trace)
+        .unwrap()
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect();
+    assert!(
+        lines
+            .iter()
+            .any(|l| l["req"] == "keyboard_interactivity" && l["value"] == "on_demand")
+    );
+    let popup = lines
+        .iter()
+        .find(|l| l["req"] == "popup")
+        .expect("popup request");
+    assert!(popup["grab_serial"].as_u64().unwrap() > 0);
+    assert_eq!(popup["parent"], "layer_surface");
+    let buf = lines.iter().find(|l| l["req"] == "buffer").unwrap();
+    assert_eq!(buf["buffer_scale"], 1);
+    assert_eq!(buf["format"], "argb8888");
 }

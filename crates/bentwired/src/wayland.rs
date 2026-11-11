@@ -10,7 +10,7 @@ use bentwire_core::api::{
     Surface as CoreSurface,
 };
 use smithay_client_toolkit::{
-    compositor::{CompositorHandler, CompositorState, FrameCallbackData, Region},
+    compositor::{CompositorHandler, CompositorState, Region},
     delegate_registry,
     dispatch2::Dispatch2,
     output::{OutputHandler, OutputState},
@@ -20,6 +20,7 @@ use smithay_client_toolkit::{
         Capability, SeatHandler, SeatState,
         keyboard::{KeyEvent, KeyboardHandler, Keysym, Modifiers, RawModifiers},
         pointer::{PointerEvent, PointerEventKind, PointerHandler},
+        relative_pointer::{RelativeMotionEvent, RelativePointerHandler, RelativePointerState},
     },
     shell::{
         WaylandSurface,
@@ -41,6 +42,7 @@ use wayland_client::{
     globals::registry_queue_init,
     protocol::{wl_keyboard, wl_output, wl_pointer, wl_seat, wl_shm, wl_subsurface, wl_surface},
 };
+use wayland_protocols::wp::relative_pointer::zv1::client::zwp_relative_pointer_v1::ZwpRelativePointerV1;
 use wayland_protocols::wp::viewporter::client::{wp_viewport, wp_viewporter};
 use wayland_protocols::xdg::shell::client::xdg_positioner;
 
@@ -61,12 +63,12 @@ struct CharSurf {
     /// Margins (left, top) last sent, and the global position they stand for.
     margin: (i32, i32),
     requested: (i32, i32),
-    /// Global position the compositor has applied (frame callback seen), B-WL-7.
+    /// Global position the compositor has applied, B-WL-7: set when the wl_display.sync
+    /// sent after the margin commit is done. Pointer events before that `done` were
+    /// generated with the old position, events after it with the new one.
     applied: (i32, i32),
-    /// Committed positions waiting for their frame callbacks, oldest first. A surface
-    /// that is not shown gets no callbacks; the compositor fires the queued ones in order
-    /// once it is shown again.
-    in_flight: std::collections::VecDeque<(i32, i32)>,
+    /// Distinguishes this surface's sync callbacks from those of a destroyed one.
+    generation: u64,
     size: (u32, u32),
     keyboard: bool,
     buffer: Option<smithay_client_toolkit::shm::slot::Buffer>,
@@ -105,6 +107,8 @@ struct WlState {
     pool: SlotPool,
     viewporter: Option<wp_viewporter::WpViewporter>,
     qh: QueueHandle<WlState>,
+    display: wayland_client::protocol::wl_display::WlDisplay,
+    generation: u64,
     ch: Option<CharSurf>,
     /// Agent balloon (0) and Office balloon (1).
     balloons: [Option<SubSurf>; 2],
@@ -122,6 +126,33 @@ struct WlState {
     pointer_surface: Option<wl_surface::WlSurface>,
     /// Surface of the press holding the implicit grab, and its button.
     grab: Option<(wl_surface::WlSurface, u32)>,
+    relative: RelativePointerState,
+    rel_pointer: Option<ZwpRelativePointerV1>,
+    /// Global pointer position during a grab: press position plus relative deltas.
+    grab_pos: Option<(f64, f64)>,
+}
+
+/// A wl_display.sync after a margin commit (B-WL-7).
+struct SyncData {
+    generation: u64,
+    pos: (i32, i32),
+}
+
+impl Dispatch2<wayland_client::protocol::wl_callback::WlCallback, WlState> for SyncData {
+    fn event(
+        &self,
+        state: &mut WlState,
+        _: &wayland_client::protocol::wl_callback::WlCallback,
+        _: wayland_client::protocol::wl_callback::Event,
+        _: &Connection,
+        _: &QueueHandle<WlState>,
+    ) {
+        if let Some(c) = &mut state.ch
+            && c.generation == self.generation
+        {
+            c.applied = self.pos;
+        }
+    }
 }
 
 /// Viewport objects have no events.
@@ -190,6 +221,8 @@ impl Wayland {
             pool,
             viewporter,
             qh: qh.clone(),
+            display: conn.display(),
+            generation: 0,
             ch: None,
             balloons: [None, None],
             menu: None,
@@ -203,6 +236,9 @@ impl Wayland {
             press_serial: 0,
             pointer_surface: None,
             grab: None,
+            relative: RelativePointerState::bind(&globals, &qh),
+            rel_pointer: None,
+            grab_pos: None,
         };
         let mut queue = queue;
         // Two roundtrips: globals, then output and seat details.
@@ -384,7 +420,10 @@ impl WlState {
                 margin: (i32::MIN, i32::MIN),
                 requested: (want.x, want.y),
                 applied: (want.x, want.y),
-                in_flight: Default::default(),
+                generation: {
+                    self.generation += 1;
+                    self.generation
+                },
                 size: (0, 0),
                 keyboard: false,
                 buffer: None,
@@ -398,18 +437,20 @@ impl WlState {
         let viewporter = self.viewporter.clone();
         let c = self.ch.as_mut().expect("created above");
         let mut dirty = false;
-        let mut frame = false;
+        let mut sync = None;
         // B-WL-2: margins = top-left minus the output origin (not clamped, B-WL-4). Each
-        // change asks for a frame callback, so pointer positions are mapped with the
-        // position the compositor has applied (B-WL-7).
+        // change is followed by a sync, so pointer positions are mapped with the position
+        // the compositor has applied (B-WL-7).
         let margin = (want.x - origin.0, want.y - origin.1);
         if c.margin != margin {
             c.layer.set_margin(margin.1, 0, 0, margin.0);
             c.margin = margin;
             c.requested = (want.x, want.y);
             if c.configured {
-                c.in_flight.push_back((want.x, want.y));
-                frame = true;
+                sync = Some(SyncData {
+                    generation: c.generation,
+                    pos: (want.x, want.y),
+                });
             }
             dirty = true;
         }
@@ -464,10 +505,10 @@ impl WlState {
         self.apply_menu(&wl, (want.x, want.y));
         if dirty {
             let c = self.ch.as_mut().expect("present");
-            if frame {
-                wl.frame(&qh, FrameCallbackData(wl.clone()));
-            }
             c.layer.commit();
+            if let Some(d) = sync {
+                self.display.sync(&qh, d);
+            }
         }
     }
 
@@ -694,15 +735,7 @@ impl CompositorHandler for WlState {
         _: wl_output::Transform,
     ) {
     }
-    fn frame(&mut self, _: &Connection, _: &QueueHandle<Self>, s: &wl_surface::WlSurface, _: u32) {
-        // The margins committed with this frame are now in effect (B-WL-7).
-        if let Some(c) = &mut self.ch
-            && c.layer.wl_surface() == s
-            && let Some(p) = c.in_flight.pop_front()
-        {
-            c.applied = p;
-        }
-    }
+    fn frame(&mut self, _: &Connection, _: &QueueHandle<Self>, _: &wl_surface::WlSurface, _: u32) {}
     fn surface_enter(
         &mut self,
         _: &Connection,
@@ -758,7 +791,6 @@ impl LayerShellHandler for WlState {
         {
             c.configured = true;
             c.applied = c.requested;
-            c.in_flight.clear();
             self.apply();
         }
     }
@@ -817,6 +849,12 @@ impl SeatHandler for WlState {
         }
         if cap == Capability::Pointer && self.pointer.is_none() {
             self.pointer = self.seat_state.get_pointer(qh, &seat).ok();
+            if let Some(p) = &self.pointer {
+                self.rel_pointer = self.relative.get_relative_pointer(p, qh).ok();
+                if self.rel_pointer.is_none() {
+                    log::warn!("no zwp_relative_pointer_manager_v1: drags may not stay 1:1");
+                }
+            }
         }
     }
     fn remove_capability(
@@ -834,6 +872,10 @@ impl SeatHandler for WlState {
         if cap == Capability::Pointer
             && let Some(p) = self.pointer.take()
         {
+            if let Some(r) = self.rel_pointer.take() {
+                r.destroy();
+            }
+            self.grab_pos = None;
             p.release();
         }
     }
@@ -923,10 +965,22 @@ impl PointerHandler for WlState {
                 continue;
             };
             let local = ev.position;
-            let (x, y) = (
-                origin.0 + local.0.floor() as i32,
-                origin.1 + local.1.floor() as i32,
-            );
+            let mut pos = (origin.0 as f64 + local.0, origin.1 as f64 + local.1);
+            // B-WL-7: during a grab, surface-local positions are not reliable for a surface
+            // that moves (sway reports them relative to the press-time position), so the
+            // global position is the press position plus the relative-pointer deltas.
+            match &ev.kind {
+                PointerEventKind::Press { .. } if matches!(kind, SurfKind::Core(_)) => {
+                    self.grab_pos = self.rel_pointer.as_ref().map(|_| pos);
+                }
+                PointerEventKind::Motion { .. } | PointerEventKind::Release { .. } => {
+                    if let (Some(g), Some(_)) = (self.grab_pos, &self.grab) {
+                        pos = g;
+                    }
+                }
+                _ => {}
+            }
+            let (x, y) = (pos.0.floor() as i32, pos.1.floor() as i32);
             let core = |k: PointerKind, button: u32, surface: CoreSurface, modifiers: u32| {
                 Event::Pointer(CoreEvent {
                     kind: k,
@@ -973,6 +1027,7 @@ impl PointerHandler for WlState {
                         continue;
                     }
                     self.grab = None;
+                    self.grab_pos = None;
                     self.events
                         .push(core(PointerKind::Release, b, s, self.modifiers));
                 }
@@ -1004,6 +1059,22 @@ impl smithay_client_toolkit::shell::xdg::window::WindowHandler for WlState {
         _: smithay_client_toolkit::shell::xdg::window::WindowConfigure,
         _: u32,
     ) {
+    }
+}
+
+impl RelativePointerHandler for WlState {
+    fn relative_pointer_motion(
+        &mut self,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+        _: &ZwpRelativePointerV1,
+        _: &wl_pointer::WlPointer,
+        e: RelativeMotionEvent,
+    ) {
+        if let Some(g) = &mut self.grab_pos {
+            g.0 += e.delta.0;
+            g.1 += e.delta.1;
+        }
     }
 }
 

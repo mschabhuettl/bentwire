@@ -91,7 +91,7 @@ impl Env {
     pub fn new(tag: &str) -> Env {
         let dir = tempdir(tag);
         std::fs::create_dir_all(dir.join("services")).unwrap();
-        for d in ["cfg", "state", "data", "run"] {
+        for d in ["cfg", "state", "data", "run", "bin"] {
             std::fs::create_dir_all(dir.join(d)).unwrap();
         }
         let conf = dir.join("bus.conf");
@@ -150,6 +150,10 @@ impl Env {
             ("LC_ALL", String::new()),
             ("LC_MESSAGES", String::new()),
             ("RUST_LOG", "warn,zbus=error,tracing=error".into()),
+            (
+                "PATH",
+                format!("{d}/bin:{}", std::env::var("PATH").unwrap_or_default()),
+            ),
         ]
     }
 
@@ -545,6 +549,18 @@ pub fn out(o: &Output) -> (i32, String, String) {
         String::from_utf8_lossy(&o.stdout).into_owned(),
         String::from_utf8_lossy(&o.stderr).into_owned(),
     )
+}
+
+/// Block until a background `--wait` CLI has printed its request id (the call has been
+/// answered), and return the id. Its stdout is consumed.
+pub fn started(c: &mut Child) -> u32 {
+    let mut line = String::new();
+    BufReader::new(c.stdout.take().expect("piped stdout"))
+        .read_line(&mut line)
+        .unwrap();
+    line.trim()
+        .parse()
+        .unwrap_or_else(|_| panic!("expected a request id, got {line:?}"))
 }
 
 /// Wait for a background CLI and return (code, stdout, stderr).

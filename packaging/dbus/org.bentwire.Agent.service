@@ -1,7 +1,7 @@
 # D-Bus activation of bentwired (B-RUN-1). Install into
 # /usr/share/dbus-1/services/ or ~/.local/share/dbus-1/services/ and adjust Exec to the
-# installed path (D-Bus needs an absolute path).
+# installed path (D-Bus needs an absolute path). No SystemdService= line: the unit in
+# packaging/systemd is optional, and dbus-broker fails activation for a missing unit.
 [D-BUS Service]
 Name=org.bentwire.Agent
 Exec=/usr/bin/bentwired
-SystemdService=bentwired.service

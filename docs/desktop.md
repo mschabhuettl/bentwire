@@ -50,7 +50,8 @@ Headless mode for tests: `bentwired --headless [--outputs WxH+X+Y[@S],...] [--se
 ## Automated checks
 
 - `cargo test -p bentwired --test e2e`: D-Bus end to end on a private bus (T-5).
-- `scripts/desktop/scenario.sh sway`: headless sway; show, menu, play, say, ask
+- `scripts/desktop/scenario.sh sway`: headless sway; real-pointer click, click-through,
+  drag and menu grab (virtual pointer), show, menu, play, say, ask
   (answered through `Test1.Pointer`), moveto, tray (minimal SNI watcher), output scale
   2 and 1.5, output hot-plug pull-back, hide; checks D-Bus signals, what the backend
   requested, and grim screenshots (character, balloons and menu found by colour at the
@@ -63,19 +64,22 @@ Headless mode for tests: `bentwired --headless [--outputs WxH+X+Y[@S],...] [--se
 
 ## Not verified headless (please check on Plasma)
 
-The T-6 checklist items that need a real seat, a real panel or a GPU:
+Checked under headless sway with a virtual pointer (`zwlr_virtual_pointer_v1`, the
+`vptr` example): click on an opaque pixel, click-through on a transparent one (K5), a
+drag staying 1:1 (K6), the right-click menu with a real popup grab and its dismissal by
+an outside click (K3). Under KWin these run only through `Test1` (no virtual pointer
+there), so on Plasma please check:
 
-- K1 negative margins and positions partly off-output on KWin (sway accepted them).
+- K1 negative margins and positions partly off-output (requested and recorded, not seen
+  on screen under KWin).
 - K2 the top layer below a full-screen window and above normal windows.
-- K3 the menu's popup grab and `popup_done` on an outside click (tests open the menu
-  without a grab, since synthetic clicks have no press serial).
+- K3 and K6 with a real mouse on KWin (drags use relative-pointer deltas during the
+  implicit grab, so the result does not depend on how the compositor reports positions
+  on a moving surface).
 - K4 keyboard focus of the ask balloon after a real click (`on_demand` is requested and
   checked, focus itself is not).
-- K5 click-through on transparent pixels (the input region is set and checked).
-- K6 drag with a real pointer staying 1:1 (pointer positions are mapped with the
-  position confirmed by frame callbacks; only synthetic drags are tested).
 - K7 the tray in Plasma's system tray (tested against a minimal watcher: registration,
-  Id, Title, dbusmenu labels, Activate).
+  Id, Title, dbusmenu labels, a menu click, Activate).
 - K8 output hot-plug on KWin (tested on sway).
 - Sound output through a real audio device (sounds are traced with their duration).
 - KWin pixels: no screenshot comparison under KWin (see above).

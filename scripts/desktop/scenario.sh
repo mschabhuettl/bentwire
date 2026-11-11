@@ -7,7 +7,9 @@
 #   sway: WLR_BACKENDS=headless sway, screenshots with grim (pixels are checked).
 #   kwin: kwin_wayland --virtual; KWin offers no screenshot without an OpenGL render
 #         node, so geometry is checked through KWin scripting (workspace.windowList).
-# Needs: dbus-run-session, python3, and sway+grim or kwin_wayland + busctl.
+# Needs: dbus-run-session, python3, and sway+grim or kwin_wayland + busctl. Build first:
+#   cargo build -p bentwired -p bentwire && cargo build -p bentwired --examples
+# (the `vptr` example drives a real pointer under sway).
 # Exit status 0 = all checks passed. Artefacts (logs, screenshots, signal log) are kept
 # in the printed directory on failure or with BENTWIRE_SCENARIO_KEEP=1.
 set -euo pipefail
@@ -93,6 +95,15 @@ if python3 -I -c 'import gi' 2>/dev/null; then
 fi
 TRAYARG=--no-tray
 [ "$TRAY" = 1 ] && TRAYARG=
+# One virtual pointer for the whole run (sway): a new device per command would make the
+# seat's pointer capability come and go.
+if [ "$COMP" = sway ] && [ -x "$BIN/examples/vptr" ]; then
+    mkfifo "$T/vptr"
+    "$BIN/examples/vptr" $W $H <"$T/vptr" >"$T/vptr.log" 2>&1 &
+    PIDS+=($!)
+    exec 7>"$T/vptr"
+    sleep 0.5
+fi
 dbus-monitor --session "type='signal',interface='org.bentwire.Character1'" >"$T/signals.log" 2>&1 &
 PIDS+=($!)
 "$BIN/bentwired" --test-interface $TRAYARG --no-audio --characters "$FIXTURES" >"$T/bentwired.log" 2>&1 &
@@ -170,6 +181,36 @@ check "layer surface keyboard_interactivity none" snap 's["backend"]["character"
 sleep 0.5
 shot show
 check "character on screen at ($X,$Y)" shown_at "$X" "$Y"
+
+echo "1a. real pointer (sway: zwlr_virtual_pointer_v1)"
+if [ "$COMP" = sway ] && [ -x "$BIN/examples/vptr" ]; then
+    vp() { printf '%s\n' "$@" >&7; sleep 0.3; }
+    CX=$((X + 16)) CY=$((Y + 16))
+    vp "move $CX $CY" "press 1" "release 1"
+    check "click on an opaque pixel gives Click($CX, $CY) (B-UI-1)" wait_for 5 python3 -I -c '
+import re, sys
+log = open(sys.argv[1]).read()
+sys.exit(0 if re.search(r"member=Click\n\s*uint32 1\n\s*uint32 0\n\s*int32 " + sys.argv[2] + r"\n\s*int32 " + sys.argv[3] + r"\n\s*boolean false", log) else 1)' "$T/signals.log" "$CX" "$CY"
+    N=$(grep -c 'member=Click' "$T/signals.log")
+    sleep 0.6 # past double_click_ms
+    vp "move $((X + 1)) $((Y + 1))" "press 1" "release 1"
+    sleep 0.5
+    check "click on a transparent pixel goes through (B-WL-6, K5)" test "$(grep -c 'member=Click' "$T/signals.log")" = "$N"
+    sleep 0.6
+    STEPS=("move $CX $CY" "press 1")
+    for i in 1 2 3 4 5 6 7 8 9 10; do STEPS+=("move $((CX - 5 * i)) $((CY - 3 * i))" "sleep 30"); done
+    STEPS+=("release 1")
+    vp "${STEPS[@]}"
+    check "drag of (-50, -30) moves the character 1:1 (R-UI-2, B-WL-7, K6)" wait_for 5 sh -c "\"$BIN/bentwire\" status | grep -qx 'left=$((X - 50))' && \"$BIN/bentwire\" status | grep -qx 'top=$((Y - 30))'"
+    "$BIN/bentwire" moveto "$X" "$Y" --speed 0 --wait >/dev/null
+    sleep 0.6
+    vp "move $CX $CY" "press 2" "release 2"
+    check "right click opens the menu with a grab (B-WL-9)" wait_for 5 snap 's["backend"]["menu"] is not None and s["backend"]["menu"]["buffer_attached"]'
+    vp "move 20 20" "press 1" "release 1"
+    check "outside click closes it via popup_done (K3)" wait_for 5 snap 's["backend"]["menu"] is None and s["menu"] is None'
+else
+    echo "  NOT RUN real pointer checks (sway only; build with: cargo build -p bentwired --examples)"
+fi
 
 echo "1b. context menu (xdg_popup on the layer surface)"
 $TEST Pointer suii press 2 "$((X + 16))" "$((Y + 16))" >/dev/null
@@ -271,6 +312,26 @@ check "surface unmapped" wait_for 5 snap 's["backend"]["character"] is None'
 sleep 0.5
 shot hide
 check "character gone from screen" absent
+
+echo "6b. tray menu click"
+if [ "$TRAY" = 1 ]; then
+    SHOWID=$(busctl --user --json=short call "$SNI" "$MENU" com.canonical.dbusmenu GetLayout iias 0 10 0 | python3 -I -c '
+import json, sys
+def walk(n):
+    i, props, kids = n
+    if props.get("label", {}).get("data") == "_Show":
+        return i
+    for k in kids:
+        r = walk(k["data"])
+        if r is not None:
+            return r
+print(walk(json.load(sys.stdin)["data"][1]))')
+    check "hidden character: tray menu offers _Show" test "$SHOWID" != None
+    busctl --user call "$SNI" "$MENU" com.canonical.dbusmenu Event isvu "$SHOWID" clicked s "" 0 >/dev/null
+    check "tray Show shows the character with cause 2 (B-TRAY-1)" wait_for 5 python3 -I -c '
+import re, sys
+sys.exit(0 if re.search(r"member=Shown\n\s*uint32 2", open(sys.argv[1]).read()) else 1)' "$T/signals.log"
+fi
 
 echo "7. D-Bus signals"
 "$BIN/bentwire" quit || true

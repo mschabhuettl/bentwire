@@ -24,7 +24,8 @@ rodio = { version = "0.21", default-features = false, features = ["playback"] }
 smithay-client-toolkit = "0.21"
 ksni = { version = "0.3", default-features = false, features = ["blocking", "async-io"] }
 wayland-client = "0.31"
-wayland-protocols = { version = "0.32", features = ["client", "staging"] }
+wayland-protocols = { version = "0.32", features = ["client", "staging", "unstable"] }
 
 [dev-dependencies]
+wayland-protocols-wlr = { version = "0.3", features = ["client"] }
 serde_json.workspace = true
