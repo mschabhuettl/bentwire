@@ -206,39 +206,33 @@ impl Player<'_> {
 
     /// Paint the current mask with colour `cr` through the current ROP2, then clear it.
     fn paint(&mut self, cr: u32) {
+        self.paint_rop(cr, self.dc.rop2);
+    }
+
+    fn paint_rop(&mut self, cr: u32, code: u16) {
         let idx = self.c.color_index(cr);
-        let code = self.dc.rop2;
-        for (i, m) in self.mask.bits.iter_mut().enumerate() {
-            if !*m {
-                continue;
-            }
-            *m = false;
-            let px = self.c.pixels[i];
-            let v: u8 = match code {
+        let c = &mut *self.c;
+        self.mask.drain(|i| {
+            let px = c.pixels[i];
+            c.pixels[i] = match code {
                 R2_COPYPEN => idx,
                 // ops that ignore the destination
                 1 | 4 | 16 => {
                     if cr & 0xFF_FFFF == MAGIC_TRANSPARENT {
-                        self.c.transparent
+                        c.transparent
                     } else {
-                        self.c.nearest(rop(code, [0; 3], rgb(cr)))
+                        c.nearest(rop(code, [0; 3], rgb(cr)))
                     }
                 }
                 11 => px,
                 // destination-dependent ops leave transparent pixels transparent (W-ROP-1)
-                _ if px == self.c.transparent => px,
+                _ if px == c.transparent => px,
                 _ => {
-                    let d = self
-                        .c
-                        .palette
-                        .get(usize::from(px))
-                        .copied()
-                        .unwrap_or([0; 3]);
-                    self.c.nearest(rop(code, d, rgb(cr)))
+                    let d = c.palette.get(usize::from(px)).copied().unwrap_or([0; 3]);
+                    c.nearest(rop(code, d, rgb(cr)))
                 }
             };
-            self.c.pixels[i] = v;
-        }
+        });
     }
 
     fn stroke_rings(&mut self, rings: &[Vec<(i64, i64)>], closed: bool) {
@@ -485,10 +479,11 @@ impl Player<'_> {
                             cell.3.round(),
                         );
                         fill_test(&mut self.mask, cb, |_, _| true);
-                        self.paint(self.dc.bk_color);
+                        // GDI applies ROP2 to pens and brushes only, not to text
+                        self.paint_rop(self.dc.bk_color, R2_COPYPEN);
                         self.mask = glyphs;
                     }
-                    self.paint(self.dc.text_color);
+                    self.paint_rop(self.dc.text_color, R2_COPYPEN);
                 }
             }
             f => return Err(WmfError::Unsupported { index, function: f }),

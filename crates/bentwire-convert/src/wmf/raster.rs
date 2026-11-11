@@ -10,6 +10,8 @@ pub struct Mask {
     pub w: i32,
     pub h: i32,
     pub bits: Vec<bool>,
+    /// Bounding box of the set bits (x0, y0, x1, y1 inclusive); empty when x0 > x1.
+    pub dirty: (i32, i32, i32, i32),
 }
 
 impl Mask {
@@ -18,7 +20,23 @@ impl Mask {
             w,
             h,
             bits: vec![false; (w.max(0) as usize) * (h.max(0) as usize)],
+            dirty: (i32::MAX, i32::MAX, -1, -1),
         }
+    }
+
+    /// Visit and clear every set bit, in row-major order.
+    pub fn drain(&mut self, mut f: impl FnMut(usize)) {
+        let (x0, y0, x1, y1) = self.dirty;
+        for y in y0.max(0)..=y1 {
+            for x in x0.max(0)..=x1 {
+                let i = (y * self.w + x) as usize;
+                if self.bits[i] {
+                    self.bits[i] = false;
+                    f(i);
+                }
+            }
+        }
+        self.dirty = (i32::MAX, i32::MAX, -1, -1);
     }
 }
 
@@ -36,6 +54,8 @@ impl Plot for Mask {
     fn plot(&mut self, x: i32, y: i32) {
         if x >= 0 && y >= 0 && x < self.w && y < self.h {
             self.bits[(y * self.w + x) as usize] = true;
+            let d = &mut self.dirty;
+            *d = (d.0.min(x), d.1.min(y), d.2.max(x), d.3.max(y));
         }
     }
 }
@@ -204,17 +224,13 @@ pub fn cosmetic_line<P: Plot>(p: &mut P, a: (i64, i64), b: (i64, i64)) {
     }
 }
 
-/// Wide line: every pixel whose centre is within `r` of the segment (round caps).
+/// Wide line: every pixel whose centre is within `r` of the segment (round caps). Each
+/// row only tests the columns near the capsule's extent on that row.
 pub fn wide_segment<P: Plot>(p: &mut P, a: Pt, b: Pt, r: f64) {
-    let bbox = (
-        a.0.min(b.0) - r,
-        a.1.min(b.1) - r,
-        a.0.max(b.0) + r,
-        a.1.max(b.1) + r,
-    );
+    let (w, _) = p.size();
     let (vx, vy) = (b.0 - a.0, b.1 - a.1);
     let l2 = vx * vx + vy * vy;
-    fill_test(p, bbox, |x, y| {
+    let inside = |x: f64, y: f64| {
         let t = if l2 == 0.0 {
             0.0
         } else {
@@ -222,7 +238,56 @@ pub fn wide_segment<P: Plot>(p: &mut P, a: Pt, b: Pt, r: f64) {
         };
         let (dx, dy) = (x - a.0 - t * vx, y - a.1 - t * vy);
         dx * dx + dy * dy <= r * r
-    });
+    };
+    let len = l2.sqrt();
+    let n = if len > 0.0 {
+        (-vy / len * r, vx / len * r)
+    } else {
+        (0.0, 0.0)
+    };
+    let (r0, r1) = row_range(p, a.1.min(b.1) - r, a.1.max(b.1) + r);
+    for y in r0..=r1 {
+        let yc = f64::from(y) + 0.5;
+        // the capsule is convex: its row extent is the min/max over the end circles and
+        // the two long edges
+        let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
+        for c in [a, b] {
+            let dy = yc - c.1;
+            if dy.abs() <= r {
+                let dx = (r * r - dy * dy).sqrt();
+                lo = lo.min(c.0 - dx);
+                hi = hi.max(c.0 + dx);
+            }
+        }
+        for s in [1.0, -1.0] {
+            let (p0, p1) = (
+                (a.0 + s * n.0, a.1 + s * n.1),
+                (b.0 + s * n.0, b.1 + s * n.1),
+            );
+            if p0.1 != p1.1 {
+                let t = (yc - p0.1) / (p1.1 - p0.1);
+                if (0.0..=1.0).contains(&t) {
+                    let x = p0.0 + t * (p1.0 - p0.0);
+                    lo = lo.min(x);
+                    hi = hi.max(x);
+                }
+            } else if (yc - p0.1).abs() < 1e-9 {
+                lo = lo.min(p0.0.min(p1.0));
+                hi = hi.max(p0.0.max(p1.0));
+            }
+        }
+        if lo > hi {
+            continue;
+        }
+        // one pixel of slack on both sides; the exact test decides
+        let c0 = (lo - 1.5).ceil().max(0.0) as i64;
+        let c1 = ((hi + 0.5).floor() as i64).min(i64::from(w) - 1);
+        for x in c0..=c1 {
+            if inside(x as f64 + 0.5, yc) {
+                p.plot(x as i32, y);
+            }
+        }
+    }
 }
 
 #[cfg(test)]
