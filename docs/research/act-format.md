@@ -44,17 +44,12 @@ file format, partial for Office-level behavior (see "Unknowns").
 
 ## 2. Sources
 
-All Microsoft files were obtained from a public archive on 2026-11-11, with the user's
-authorization (user owns an Office 97 license). Nothing was executed. Downloads are in
-`$BENTWIRE_REFERENCE/` (not in this repo).
+Nothing was executed. The files are not in this repository.
 
-### 2.1 Office 97 Professional CD (individual files streamed out of the ISO)
+### 2.1 Office 97 Professional CD
 
-Item: (public archive copy) file
-`Microsoft Office 97 Professional.iso` (511,328,256 bytes, public archive
-`87d0385e883e0ba36129e9b8eec264a775f53bd4`, md5 `a5759137edeb35bc5a00805031d21f33`).
-Files were fetched one by one through a public archive copy, URL pattern
-`(public archive copy)`.
+Files from the Microsoft Office 97 Professional CD (English), identified by their path on
+the CD:
 
 | ISO path | Bytes | SHA-256 |
 |---|---|---|
@@ -84,10 +79,9 @@ Power Pup, Scribble, Will). There is no Value Pack actor folder on this CD.
 
 ### 2.2 Actor collection
 
-Item: (public archive copy) ("Microsoft Bob / Office Assistant actors
-(.ACT)"), files at `(public archive copy)<name>`. All 37 downloaded
-files match the item's published sha1 values. The 9 Office 97 actors are byte-identical to
-the CD files above. Additional files used for verification:
+A public archive copy of a collection of 37 Office 97 and Microsoft Bob actor files (.ACT).
+The 9 Office 97 actors are byte-identical to the CD files above. Additional files used for
+verification:
 
 Origins (inferred from content): DOLPHIN.act = Kairu (Office 97 Japanese), OFFLADY.act =
 Saeko-sensei (Office 97 Japanese, item name in cp932), EARL.act (Office 97 web download),
@@ -137,10 +131,10 @@ Personal Tutor); 17 Microsoft Bob actors plus ZSPEAKER and ZVISIBLE (format v1.0
 
 ### 2.3 Read-only comparison material
 
-- `$BENTWIRE_SOURCES/MSO.DLL` (Office XP, FileVersion 10.0.2625, SHA-256
+- `MSO.DLL` (Office XP, FileVersion 10.0.2625, SHA-256
   `14b7a79ad2cd96524671f8a63d63ed665253efcf02da74a814fec83f33225134`): used only for the
   MsoAnimationType to Agent animation name table (section 6).
-- `$BENTWIRE_SOURCES/*.ACS`: used only to show that the Office palette is embedded there.
+- the Agent 2.0 Office character files (`*.ACS`, section 1.1 of `docs/sources.md`): used only to show that the Office palette is embedded there.
 
 ### 2.4 Prior public work (lead only, everything below re-verified)
 
@@ -159,11 +153,10 @@ Personal Tutor); 17 Microsoft Bob actors plus ZSPEAKER and ZVISIBLE (format v1.0
   middle of this run, so REA's single-target tools were unusable; REA `search_strings` was
   used once before that). Targeted disassembly with capstone. No Windows binary was run.
 - A throwaway clean-room Python parser
-  (`scratchpad/actparse.py`, `lz.py`, `coverage.py`, `render.py`) parses every
+  (`actparse.py`, `lz.py`, `coverage.py`, `render.py`) parses every
   file completely, decodes every bitmap, walks every WMF record stream, validates every
   cross reference and computes a byte coverage map. Proof renders (Clippit rest pose from
-  WMF, Genius rest pose from bitmaps) are in `scratchpad/*.png` and are not part
-  of this repo.
+  WMF, Genius rest pose from bitmaps) are not part of this repo.
 - No decompiled Microsoft code is reproduced here. Algorithms are described in prose.
 
 ## 4. File format
@@ -710,9 +703,9 @@ animation names of the table above, so it is derived, not taken from Office 97 c
 
 ## 7. Verification results
 
-Commands (scratchpad `act/`):
+Commands (reference scripts, not public):
 
-- `python3 -I scripts/actparse.py scripts * *.ACT *.ACP`
+- `python3 -I scripts/actparse.py scripts <the 37 collection files> <the 9 CD .ACT> <the 9 CD .ACP>`
   : 55 of 55 files parse (37 collection files, 9 CD .ACT, 9 CD .ACP). Report in
   `out/parse_report.txt`.
 - `python3 -I scripts/coverage.py scripts <same files>` : every file 0 unexplained bytes,

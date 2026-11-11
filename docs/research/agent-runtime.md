@@ -6,8 +6,7 @@ sibling files `acs-format.md` and `office-assistant.md`.
 
 ## 0. Sources, conventions and evidence
 
-**Binaries.** Microsoft Agent 2.0 runtime, version 2.00.0.3427, extracted to the
-session scratchpad (`msagent/msagent/`):
+**Binaries.** Microsoft Agent 2.0 runtime, version 2.00.0.3427:
 
 | Binary | Role here |
 |---|---|
@@ -34,8 +33,7 @@ The REA Evidence IDs are:
 - agentdpv decompile: `ev_e40a52829394900a...`
 
 **Documentation.**
-- a public archive was not reachable from the fetch tool in this environment, so no
-  Wayback URLs could be used.
+- Archived copies of the old MSDN pages were not reachable in this environment.
 - The official SDK text is still published by Microsoft at
   `https://learn.microsoft.com/en-us/windows/win32/lwef/` ("Legacy Windows
   Environment Features", Microsoft Agent). It is the same SDK text as the old MSDN
@@ -1233,6 +1231,6 @@ block until RequestComplete. Status values as in R-Q-5.
     (agentsvr!0x0102ce71 to 0x0102d490) were not read.
 - **U-14** The table that maps error codes 0x800420xx and 0x800421xx to strings
   10120 and up was not located. All such pairings in this file are by meaning.
-- **U-12** Docs could not be fetched from the Wayback Machine. All [DOC] citations
+- **U-12** Archived copies of the old docs could not be read. All [DOC] citations
   use the learn.microsoft.com copy, as collected by a subagent. Slugs not
   individually re-verified: restart-event and shutdown-event returned 404 there.

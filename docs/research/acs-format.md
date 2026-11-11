@@ -50,8 +50,7 @@ both. Fields that rest on public documentation only are marked **unverified**.
   few flag bits. The per-image "checksum" dword is unknown, but it is never read
   by the runtime, so it is safe to ignore.
 
-Parser and tools (throwaway, scratchpad):
-`$BENTWIRE_REFERENCE/acs.py`
+Parser and tools (throwaway reference scripts, not public): `acs.py`
 (run as `python3 -I acs.py FILE...`), plus `checks.py` (semantic cross-checks) and
 `render.py` (frame to PNG) in the same directory.
 
@@ -598,7 +597,7 @@ to 6, "a" to 4), but they are names, not behaviour.
 
 ## 6. Per-file verification results
 
-Command: `python3 -I acs.py $BENTWIRE_SOURCES/*.ACS $BENTWIRE_SOURCES/*.acs`
+Command: `python3 -I acs.py <the 12 ACS files of docs/sources.md section 1.1>`
 (output saved as `tools/all.txt`). Result: exit 0, 0 anomalies, and `gaps: []`
 and `overlaps: []` for all 12 files. `checks.py` reports the cross-checks quoted
 in this document (output in `tools/checks.txt`).

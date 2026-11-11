@@ -30,10 +30,10 @@ code is reproduced and no extracted images or sounds are included.
   including its last `/` (or `\` for local paths) plus the file name from the ACF.
   The data provider only reads animations from the cache; per the SDK, playing an
   animation that was not fetched fails (agentsvr.exe not traced for this).
-- Verified: a throwaway parser decodes all 4 ACF and 86 ACA files that survive in the
-  Wayback Machine with zero unexplained bytes; all 796 image regions equal the opaque pixels
+- Verified: a throwaway parser decodes all 4 ACF and 86 ACA files that survive in public
+  archive copies with zero unexplained bytes; all 796 image regions equal the opaque pixels
   of their image; all 444 Merlin frames that exist as ACA are pixel-identical to the
-  composited frames of the user's `merlin.acs`, and sounds, branching, durations and
+  composited frames of the Agent 2.0 `merlin.acs`, and sounds, branching, durations and
   overlays agree as well.
 - Confidence: high for the ACF 0x20001 / ACA 0x20001 compressed path (sample-verified and
   binary-verified). Medium for older-version branches, uncompressed ACAs, headerless ACAs,
@@ -45,7 +45,7 @@ code is reproduced and no extracted images or sounds are included.
 | Name | Meaning | Evidence |
 |---|---|---|
 | .ACF | "Agent Character File (HTTP format)", the character definition | agentdpv.dll registry script: `.acf` and `.aca` map to ProgID `Agent.Character.2`, described as "Microsoft Agent Character File (HTTP format)" |
-| .ACA | per-animation file of Agent 2.0 | same registry script; every animation file on Microsoft's server (`*.aca`); ACE.EXE strings `.aca`, `.acf` |
+| .ACA | per-animation file of Agent 2.0 | same registry script; every animation file of the web characters (`*.aca`); ACE.EXE strings `.aca`, `.acf` |
 | .AAF | name used by the 2.0 SDK docs ("separate character data (.ACF) and animation (.AAF) files"); community wiki says .AAF is the Agent 1.5 animation format | techshelps mirror of the SDK docs; agentpedia "List of file formats" (lead only) |
 | .ACS | single-file format (other researcher's topic) | agentdp2.dll handles `.acs` (magic 0xABCDABC3) |
 
@@ -57,51 +57,39 @@ found (see section 3).
 
 ## 3. Samples and provenance
 
-All downloads are Microsoft's own freely distributed web characters, fetched from the
-Wayback Machine with the `id_` form (raw bytes): `(public archive copy)<ts>id_/<url>`.
+All samples are Microsoft's own freely distributed Agent 2.0 web characters (public archive
+copies). Product: Microsoft Agent 2.0 web characters, ACF and ACA version 0x20001.
 
-ACF files (identical bytes at both locations, so the files did not change 1999 to 2006):
+ACF files (a second, later copy of each is byte-identical, so the files did not change
+between 1999 and 2006):
 
-| Character | Original URL | Wayback timestamp | Size | SHA-256 |
-|---|---|---|---|---|
-| Genie | `http://agent.microsoft.com/agent2/chars/genie/genie.acf` | 20000407195309 | 8325 | `3d94ea569c8d8bbb99d7cdf500d32db44b70e686c912edb39617eaabab5bbccb` |
-| Merlin | `http://agent.microsoft.com/agent2/chars/merlin/merlin.acf` | 19990508214516 | 9051 | `ae62f4c6ed914d2d9c2caea6ff39f8cde68eaca821c80116f7372e4377acbd7f` |
-| Peedy | `http://agent.microsoft.com/agent2/chars/peedy/peedy.acf` | 19990508222229 | 7386 | `42ad3b2ad3328020f1380e7f0696fc39834a34c6b52b67977db9a39715cb61e5` |
-| Robby | `http://agent.microsoft.com/agent2/chars/robby/robby.acf` | 20000511173803 | 8672 | `a4d3e0a4ffe4f65311b8ca8ae5ceace6e28d6c7cfacdc3fdac855653cf66bbe0` |
+| Character | File | Size | SHA-256 |
+|---|---|---|---|
+| Genie | `genie.acf` | 8325 | `3d94ea569c8d8bbb99d7cdf500d32db44b70e686c912edb39617eaabab5bbccb` |
+| Merlin | `merlin.acf` | 9051 | `ae62f4c6ed914d2d9c2caea6ff39f8cde68eaca821c80116f7372e4377acbd7f` |
+| Peedy | `peedy.acf` | 7386 | `42ad3b2ad3328020f1380e7f0696fc39834a34c6b52b67977db9a39715cb61e5` |
+| Robby | `robby.acf` | 8672 | `a4d3e0a4ffe4f65311b8ca8ae5ceace6e28d6c7cfacdc3fdac855653cf66bbe0` |
 
-Second copies, byte-identical: `http://www.microsoft.com/msagent/chars/{genie,merlin,peedy,robby}/<name>.acf`
-(timestamps 20060621202418, 20060621202614, 20060221035407, 20060708024144).
-
-ACA files: `http://agent.microsoft.com/agent2/chars/<char>/<File>.aca`, captured between
-2000-02-29 and 2002-05-26 (one CDX timestamp per URL, from
-`(public archive copy)`).
-86 files, 3,419,499 bytes. Only part of each character survives:
+ACA files: `<File>.aca` next to the ACF, 86 files, 3,419,499 bytes. Only part of each
+character survives:
 
 - genie (12 of 76): Announce, Blink, Explain, GestureRight, Greet, Hide, Idle1_1, Pleased, RestPose, Show, Think, Uncertain
 - merlin (45 of 73): Acknowledge, Alert, Announce, Blink, Confused, Congratulate, Congratulate_2, Decline, DontRecognize, Explain, GestureDown, GestureLeft, GestureRight, GestureUp, GetAttention, GetAttentionReturn, Greet, Hearing_1, Hearing_3, Hearing_4, Hide, Idle1_1..Idle1_4, Idle2_2, LookDownBlink, LookDownReturn, LookLeft, LookLeftReturn, LookRightBlink, LookUpBlink, MoveDown, MoveLeft, MoveRight, MoveUp, Pleased, RestPose, Sad, Show, StartListening, Think, Uncertain, Wave, WriteReturn
 - peedy (13 of 85): Announce, Blink, Explain, GestureLeft, GestureRight, Idle1_1, Pleased, RestPose, Search, Show, Think, Uncertain, Wave
 - robby (16 of 68): DontRecognize, Greet, Hearing_2, Hearing_3, MoveDown, MoveRight, MoveUp, Pleased, Process, Processing, RestPose, Sad, Show, Think, Uncertain, Wave
 
-The server URLs use mixed case (`Genie/Blink.aca`, `genie/Show.aca`) while the ACF holds
-`Blink.aca`; IIS was case-insensitive. A Linux reader of a local directory must look file
-names up case-insensitively.
+The original server paths used mixed case (`Genie/Blink.aca`, `genie/Show.aca`) while the
+ACF holds `Blink.aca`; the server was case-insensitive. A Linux reader of a local directory
+must look file names up case-insensitively.
 
-Character Editor (for the writer side and the checksum): `http://agent.microsoft.com/agent2/sdk/ace.exe`,
-Wayback 20010608083800 (self-extracting CAB, unpacked with cabextract, never run). Contains
-`ACE.EXE` (Sept 1998, SHA-256 `1f2856e79f764eb8a6dfb259cc47240e929db412e10ba512790d69367cef20a2`).
+Character Editor (for the writer side and the checksum): the Agent Character Editor
+download of the Agent 2.0 SDK (self-extracting CAB, unpacked with cabextract, never run).
+Contains `ACE.EXE` (Sept 1998, SHA-256 `1f2856e79f764eb8a6dfb259cc47240e929db412e10ba512790d69367cef20a2`).
 
-Negative results: the full CDX listing of `agent.microsoft.com/agent2/chars/*`,
-`www.microsoft.com/msagent/chars/*` and `msdn.microsoft.com/msagent/*` (status 200) contains
-only the extensions .aca, .acf, .acs, .asp and .asx; a filtered CDX query for `.acf`/`.aaf`
-under `www.microsoft.com/msagent/` returned only the .acf URLs above. Queries for the
-Agent 1.5 era paths (`agent.microsoft.com/` as a whole, `www.microsoft.com/workshop/prog/agent/`,
-`/intdev/agent/`, `/workshop/imedia/agent/`) returned 504 or "temporarily offline" on every
-attempt in this session, so they are inconclusive, not negative. Result: no 1.5 (.AAF or ACF
-version < 0x20001) sample was obtained.
-
-Local scratch copies (throwaway): downloads in
-`$BENTWIRE_REFERENCE/`,
-scripts in `.../scratchpad/`.
+Negative result: no Agent 1.5 web sample (.AAF or ACF version < 0x20001) was found in the
+archive listings searched for this note; the searches for the Agent 1.5 era paths were
+inconclusive, not negative (see `agent15-format.md` section 3.2 for the 1.5 web samples
+found later).
 
 ## 4. Primitive types
 
@@ -472,18 +460,16 @@ match `merlin.acs` exactly (section 12).
 
 Throwaway parser: `scripts/agentlz.py` (decompressor), `scripts/acfparse.py` (ACF and ACA
 parser, asserts every byte is consumed), drivers `run.py`, `rgncheck.py`, `xcheck.py`,
-`xcheck2.py`, `ovl.py` in
-`$BENTWIRE_REFERENCE/`.
-All run with `python3 -I`.
+`xcheck2.py`, `ovl.py` (reference scripts, not public). All run with `python3 -I`.
 
 | Check | Command | Result |
 |---|---|---|
-| ACF full parse | `run.py <char>` for genie, merlin, peedy, robby | 4/4 ACF: decompressed size matches header, body consumed exactly |
+| ACF full parse | `run.py <char dir>` for genie, merlin, peedy, robby | 4/4 ACF: decompressed size matches header, body consumed exactly |
 | ACA full parse | same | 86/86 ACA (12 + 45 + 13 + 16): header checksum == ACF checksum, decompression exact, body consumed exactly, all indices in range |
 | Image size | same | 796/796 images are `stride * height` of the ACF size |
 | Regions | `rgncheck.py` (all 4 chars) | 796/796 regions == set of non-transparent pixels (top-down) |
 | Overlay sizes | `run.py` | 329/329 overlays: size == `((w+3)&~3) * h` |
-| ACS cross-check, frames | `xcheck.py $BENTWIRE_SOURCES/merlin.acs merlin <acs tools dir>` | GUID, palette, states equal; 444/444 frames with an image are pixel-identical to the ACS frame composited with the **last listed image drawn first**; 0 metadata mismatches (transition, return, frame count, duration, exit, branches) |
+| ACS cross-check, frames | `xcheck.py merlin.acs <merlin dir> <acs tools dir>` | GUID, palette, states equal; 444/444 frames with an image are pixel-identical to the ACS frame composited with the **last listed image drawn first**; 0 metadata mismatches (transition, return, frame count, duration, exit, branches) |
 | ACS cross-check, sounds and overlays | `xcheck2.py` (same args) | 30/30 sound uses byte-identical; 147/147 overlays have identical opaque pixels and positions |
 | Visual | rendered a few frames and an overlay composite to PNG (kept out of the repo) | correct orientation and colors, mouth placed on the face |
 
@@ -493,8 +479,7 @@ frame orders tested were "list order" and "reversed"; only reversed matches.
 ## 13. Evidence
 
 Binaries (static analysis only, never executed). Decompiled with the REA CLI
-(`rea decompile-all`, Ghidra 12.1.4) into
-`.../scratchpad/acf/rea/{agentdpv,agentctl,ace}/functions/`. The ACS researcher's earlier
+(`rea decompile-all`, Ghidra 12.1.4) into a scratch directory (not public). The ACS researcher's earlier
 REA export of agentdpv.dll (same SHA-256) was read too; all 382 function bodies are identical
 to this export (pseudocode compared by hash). Two instruction-level facts (the zone dialog's
 Yes/No return value at 0x5a964271..0x5a964281 and the seek of -4 bytes from the current

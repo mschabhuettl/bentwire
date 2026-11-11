@@ -16,7 +16,7 @@ reproduced. No Microsoft tip texts are quoted (none are stored in MSO.DLL anyway
 
 ## Method
 
-- Input: `$BENTWIRE_SOURCES/MSO.DLL`, SHA-256
+- Input: `MSO.DLL` (Office XP, 10.0.2625), SHA-256
   `14b7a79ad2cd96524671f8a63d63ed665253efcf02da74a814fec83f33225134`, x86 PE, image
   base 0x30B00000. Never executed.
 - The REA MCP server holds one active target per server, and during this work it was
@@ -29,24 +29,21 @@ reproduced. No Microsoft tip texts are quoted (none are stored in MSO.DLL anyway
   splits functions into hot and cold chunks, so every caller count below is a lower
   bound. Virtual calls were resolved by matching vtable offsets against the Agent
   typelib.
-- Work files: `$BENTWIRE_REFERENCE/mso/`
-  (scripts `pe.py`, `lst.py`, `calls.py`, `tlb.py`, `tlb2.py`; full listing `full.lst`).
-- Second pass, same method, on the files from `the Office XP files`, all read-only and never
+- Work files (not public): scripts `pe.py`, `lst.py`, `calls.py`, `tlb.py`, `tlb2.py`
+  and the full listing `full.lst`.
+- Second pass, same method, on further Office XP files (German), all read-only and never
   executed:
-  - `OBALLOON.DLL` 10.0.2607 (image base 0x324A0000): full listing in
-    `$BENTWIRE_REFERENCE/ob/ob.lst`;
-    bitmaps rendered to `.../scratchpad/ob/res/`.
-  - `MSOINTL.DLL` 10.0.2609, German 1031: string groups (type 217) parsed with
-    `.../scratchpad/intl.py`; the SDM dialog template (type 221) was decoded by hand.
+  - `OBALLOON.DLL` 10.0.2607 (image base 0x324A0000): full listing `ob.lst`; bitmaps
+    rendered to a scratch directory.
+  - `MSOINTL.DLL` 10.0.2609, German 1031: string groups (type 217) parsed with a small
+    script; the SDM dialog template (type 221) was decoded by hand.
   - `OFTIP10.HLP`, `OLTIP10.HLP`, `MSTIP10.HLP`: my own WinHelp reader with LZ77 and
-    Hall decompression, in `.../scratchpad/hlp/`.
+    Hall decompression.
 
   The OBALLOON and MSOINTL files are German builds, so captions below are German.
 - Third pass: `BLNMGR.DLL` 10.0.2607 (SHA-256
   `aa43a71da074aa1a0fe249a699d23e35c724f84ae2925a9e4291812591e0701f`, image base
-  0x324E0000), copied to and listed in
-  `$BENTWIRE_REFERENCE/bm/`
-  (`bm.lst`). Same method, never executed.
+  0x324E0000), listed in `bm.lst`. Same method, never executed.
 
 ## Architecture in one paragraph
 
@@ -909,8 +906,7 @@ Gimme token 0x63, `.aw` index files) and opens HTML Help topics (`ofmain10.chm`)
 
 ### The *TIP10.HLP files (OFTIP10, OLTIP10, MSTIP10) [obs]
 
-Structure, parsed with my own reader (scripts in
-`$BENTWIRE_REFERENCE/hlp/`):
+Structure, parsed with my own reader:
 
 - **Format:** WinHelp 4 files (magic 0x00035F3F, `|SYSTEM` minor version 33, LCID
   0x0407 German), with LZ77-compressed 4 KB topic blocks and Hall phrase compression

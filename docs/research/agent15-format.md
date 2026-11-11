@@ -42,7 +42,7 @@ It builds on two verified notes and references them for identical structures:
     Oct 1997, content identical to 1.5 Merlin) and 9 third-party 1997/98 characters
     (ACF versions 0x1001F and 0x1001E). 469 animations (467 readable, 3,807 frames,
     3,237 images).
-  - Microsoft's 1.5 web characters from the Wayback Machine: 4 ACF (Genie, Merlin,
+  - Microsoft's 1.5 web characters (public archive copies): 4 ACF (Genie, Merlin,
     Merlin with sound effects, Robby) and 12 distinct AAF files.
   - Every sector of every OLE file is accounted for (FAT, directory, mini FAT, mini
     stream or a referenced stream), every stream is referenced, and every decompressed
@@ -79,78 +79,71 @@ No 0x1001C file was found.
 
 ## 3. Sources and samples
 
-All downloads are in
-`$BENTWIRE_REFERENCE/`
-(throwaway). Nothing was executed; installers were unpacked with `cabextract` / `7z`.
+Public archive copies (throwaway, not in this repository). Nothing was executed; installers
+were unpacked with `cabextract` / `7z`.
 
 ### 3.1 OLE .ACS samples
 
-| File | Source URL | Size | SHA-256 |
+| File | Product | Size | SHA-256 |
 |---|---|---|---|
-| Merlin `Characters/merlin.acs` (dated 1997-10-29) inside `the Agent 1.5 files` | `(public archive copy)` (item "Microsoft Agent archive"; the zip holds Agent build 1.7.0.1027 binaries) | 2,920,960 | `c7e8e80dd8fab1f2315f7b4b60dca12e081e35eb5dcc0b97f659819cfccc21a8` (zip: `c091862effecec550a6e245c5f978d1ea95a98a2fea9db5a06e78ea1107fa103`) |
-| Al.acs | `(public archive copy)` | 2,217,472 | `437ccc7943cbc8d9364f07387c4a55c5e27b24a5ca604878c2dddb07da301cf9` |
-| Check.acs | same zip, `MSAgents/Check.acs` | 170,496 | `069f6a62765e43fff3bfb7092f16023544f69d571b5b2f45f2377e5946687d6e` |
-| Gourdy.acs | same zip | 426,496 | `f19dae253ad71cc64e6d152e0439f6c30945f3de5b0699ed47a9d873d0ea219c` |
-| Max.acs | same zip | 581,120 | `72b9189584b3c4925de510a3cdece910cad7eab413724517162a3be66257097a` |
-| Miku.acs | same zip | 13,824 | `3d792565767898d085323aced25cce9a37d9327fa28de2ab47720e679e11e0fc` |
-| Ozzar.acs | same zip | 4,286,464 | `0e47edee88f3cae7d0cf1c80e2869cb47c1217c8dd7c833a8ba6830ceba75165` |
-| Sharky.acs | same zip | 933,888 | `3119ae86024fb7a7c660121723ad3f23f27fdde5c70e1a139aee293eb7308260` |
-| Spaceman.acs | same zip | 442,368 | `490a5b57bf4139206525bbe7643af87ba9888bcdd7e429a234af606ec32bc580` |
-| Totem.acs | same zip | 1,033,216 | `ea2970bdb80a86e552ec9c67b08c5282ce41d43d5cbde8a26857adae1159cc40` |
+| Merlin `Characters/merlin.acs` (dated 1997-10-29) | Microsoft Agent build 1.7.0.1027 (beta) | 2,920,960 | `c7e8e80dd8fab1f2315f7b4b60dca12e081e35eb5dcc0b97f659819cfccc21a8` |
+| Al.acs | third-party Agent 1.5 character | 2,217,472 | `437ccc7943cbc8d9364f07387c4a55c5e27b24a5ca604878c2dddb07da301cf9` |
+| Check.acs | same | 170,496 | `069f6a62765e43fff3bfb7092f16023544f69d571b5b2f45f2377e5946687d6e` |
+| Gourdy.acs | same | 426,496 | `f19dae253ad71cc64e6d152e0439f6c30945f3de5b0699ed47a9d873d0ea219c` |
+| Max.acs | same | 581,120 | `72b9189584b3c4925de510a3cdece910cad7eab413724517162a3be66257097a` |
+| Miku.acs | same | 13,824 | `3d792565767898d085323aced25cce9a37d9327fa28de2ab47720e679e11e0fc` |
+| Ozzar.acs | same | 4,286,464 | `0e47edee88f3cae7d0cf1c80e2869cb47c1217c8dd7c833a8ba6830ceba75165` |
+| Sharky.acs | same | 933,888 | `3119ae86024fb7a7c660121723ad3f23f27fdde5c70e1a139aee293eb7308260` |
+| Spaceman.acs | same | 442,368 | `490a5b57bf4139206525bbe7643af87ba9888bcdd7e429a234af606ec32bc580` |
+| Totem.acs | same | 1,033,216 | `ea2970bdb80a86e552ec9c67b08c5282ce41d43d5cbde8a26857adae1159cc40` |
 
-The nine third-party files were picked from the zip listing because their sizes are
-multiples of 512 (OLE files are sector-aligned) and their dates are 1997/98. Each file's
-CRC-32 and size were checked against the zip's central directory (fetched with an HTTP
-range request): all nine match, so the copies are exactly what the archive item holds.
+The nine third-party files were picked from a public collection of Agent characters because
+their sizes are multiples of 512 (OLE files are sector-aligned) and their dates are 1997/98.
+Each file's CRC-32 and size were checked against the CRC-32 and size recorded for the
+collection: all nine match.
 
-### 3.2 1.5 web samples (Wayback Machine, raw `id_` form)
+### 3.2 1.5 web samples
 
-URL pattern: `(public archive copy)<ts>id_/http://agent.microsoft.com:80/characters/<char>/<File>`.
-Found with the CDX query
-`(public archive copy)`.
+Microsoft's Agent 1.5 web characters, `<char>/<File>` as on the original server. Several
+files exist in two copies; where they do, the copies are identical.
 
-| File | Timestamp(s) | Size | SHA-256 |
+| File | Copies | Size | SHA-256 |
 |---|---|---|---|
-| genie/genie.acf | 20000620112018, 20010430104517 (identical) | 3,425 | `39a0171111538acff830beb68f0020d09a2fe4dc579ccca23cdc9982c21a8ff0` |
-| Genie/GestureLeft.aaf | 20011227230604 | 33,744 | `fb9e36ac2168abd54a78c5cbd709028245003d97a3ae833fde5b0a16efa88406` |
-| genie/Greet.aaf | 20000304073137, 20011227230900 (identical) | 45,079 | `a3bb033bb3dcad3482b9cdc0d402e7e0a220564f0eef378dbc37544b39106655` |
-| genie/GreetReturn.aaf | 20000304122606, 20011227230955 (identical) | 22,084 | `b1896e1793ed341e890bc9aedd9ae3a4e38272c980572085679ab93d15903ddc` |
-| Genie/Hide.aaf | 20011227231047 | 19,453 | `190be70341d74ab42d3ce8aaa4d50c4ebb6ab446587f68fd5fe4729f0b6a0382` |
-| Genie/RestPose.aaf | 20011227231132 | 6,711 | `df4933a7bf10a69804a06bbf5abfd14f42ca713f99d30b8dd96207fe0beeb2c0` |
-| merlin/merlin.acf | 19990116225331, 20021028220744 (identical) | 3,473 | `3bbe638b4d6257270c5a9ebce13a97149b62af0c6f704acc30a24358551df2cb` |
-| merlin/Blink.aaf | 20000304152347 | 4,937 | `731e513cb23a2ad5ad10a676bf2852be6f8ac36de604ba434a68d107a141975a` |
-| merlin/Show.aaf | 20000304173254 | 26,881 | `8340f41767ff071b7ade8fd5cfe1eab2d066d425fd275d663ad8f8a93a46bd8c` |
-| merlinsfx/merlinsfx.acf | 19990116231045, 19991011035720 (identical) | 3,477 | `8d196dce3f7f7081fe9b24c6c3a1e20a44c21f2df3b9eb7ca63123c14778fbb3` |
-| merlinsfx/Show.aaf | 20000229072001, 20000621000318 (identical) | 31,673 | `68e3bcfc1e60e7506b6911b1233fd68490d7e22923fd2229eee7c7eeaabe91af` |
-| robby/robby.acf | 20000229214943, 20000621181743 (identical) | 3,249 | `06a70f43738ea712c549421e63f4e87dfc12c3f6578afc21d298c0142d0c3469` |
-| robby/Acknowledge.aaf | 20000229111357, 20000621063409 (identical) | 38,440 | `8725f55f1f203ff13dc2258d19d7e933a6cb400ec5e21cc81cb070984c68d900` |
-| robby/Explain.aaf | 20000229132954 | 22,130 | `4a0de52596a221f101e55a123aed6fca7c50883e3e2220fc8f85c630960d1d34` |
-| robby/Wave.aaf | 20000229162050, 20000621121142 (identical) | 40,397 | `cc845baf72c33c0d25e4a35e8e6ffa6efb426c5725f8d9d39d4cd042de9aeb6e` |
-| robby/WaveReturn.aaf | 20000229183119, 20000621151916 (identical) | 27,938 | `446bb94fc69b67c2b70cb58bb49edb44c2e91abd010513fb631fac229c31fb93` |
+| genie/genie.acf | 2 (identical) | 3,425 | `39a0171111538acff830beb68f0020d09a2fe4dc579ccca23cdc9982c21a8ff0` |
+| Genie/GestureLeft.aaf | 1 | 33,744 | `fb9e36ac2168abd54a78c5cbd709028245003d97a3ae833fde5b0a16efa88406` |
+| genie/Greet.aaf | 2 (identical) | 45,079 | `a3bb033bb3dcad3482b9cdc0d402e7e0a220564f0eef378dbc37544b39106655` |
+| genie/GreetReturn.aaf | 2 (identical) | 22,084 | `b1896e1793ed341e890bc9aedd9ae3a4e38272c980572085679ab93d15903ddc` |
+| Genie/Hide.aaf | 1 | 19,453 | `190be70341d74ab42d3ce8aaa4d50c4ebb6ab446587f68fd5fe4729f0b6a0382` |
+| Genie/RestPose.aaf | 1 | 6,711 | `df4933a7bf10a69804a06bbf5abfd14f42ca713f99d30b8dd96207fe0beeb2c0` |
+| merlin/merlin.acf | 2 (identical) | 3,473 | `3bbe638b4d6257270c5a9ebce13a97149b62af0c6f704acc30a24358551df2cb` |
+| merlin/Blink.aaf | 1 | 4,937 | `731e513cb23a2ad5ad10a676bf2852be6f8ac36de604ba434a68d107a141975a` |
+| merlin/Show.aaf | 1 | 26,881 | `8340f41767ff071b7ade8fd5cfe1eab2d066d425fd275d663ad8f8a93a46bd8c` |
+| merlinsfx/merlinsfx.acf | 2 (identical) | 3,477 | `8d196dce3f7f7081fe9b24c6c3a1e20a44c21f2df3b9eb7ca63123c14778fbb3` |
+| merlinsfx/Show.aaf | 2 (identical) | 31,673 | `68e3bcfc1e60e7506b6911b1233fd68490d7e22923fd2229eee7c7eeaabe91af` |
+| robby/robby.acf | 2 (identical) | 3,249 | `06a70f43738ea712c549421e63f4e87dfc12c3f6578afc21d298c0142d0c3469` |
+| robby/Acknowledge.aaf | 2 (identical) | 38,440 | `8725f55f1f203ff13dc2258d19d7e933a6cb400ec5e21cc81cb070984c68d900` |
+| robby/Explain.aaf | 1 | 22,130 | `4a0de52596a221f101e55a123aed6fca7c50883e3e2220fc8f85c630960d1d34` |
+| robby/Wave.aaf | 2 (identical) | 40,397 | `cc845baf72c33c0d25e4a35e8e6ffa6efb426c5725f8d9d39d4cd042de9aeb6e` |
+| robby/WaveReturn.aaf | 2 (identical) | 27,938 | `446bb94fc69b67c2b70cb58bb49edb44c2e91abd010513fb631fac229c31fb93` |
 
-The same host also has `characters/v2/{genie,merlin,peedy,robby}/` with 2.0-format ACF
-(0xABCDABC4, 0x20001) and a few ACA files; they parse with the 2.0 rules and are not
-discussed further.
+The same server also had 2.0-format ACF (0xABCDABC4, 0x20001) and a few ACA files for genie,
+merlin, peedy and robby; they parse with the 2.0 rules and are not discussed further.
 
 ### 3.3 Binaries
 
 | Binary | Source | SHA-256 |
 |---|---|---|
-| AgentDPv.dll 1.5.2.416 (Feb 1998) | `MSagent.exe` (340,112 bytes, SHA-256 `5e00fe1b303dc56e3cf556adaf23a956ccf2ab2bb42b1a50736ad5bd4f3d5208`) from `(public archive copy)`, a self-extracting CAB | `4a5de7cc6327db9e8a610451b91343aa24f270e9f7050808087d0d9760a7b6d1` |
-| agentdpv.dll 1.5.0.225 (Aug 1997) | `(public archive copy)` (zip SHA-256 `22a69838b5e8fc52b85354eefc5fce430f011b5841978d849f502eebbad2163d`) | `039e856fa12f9d029e5faa2de7c7bd0ad00807ed3c74ae09d429c26f489da506` |
-| AgentDpv.dll 1.7.0.1027 (Agent 2.0 beta) | `the Agent 1.5 files` above | `9bac229652b515dfd8bba22baade5c1daa967f4a3bf7463c9ca1ba1388682358` (not analysed) |
-| agentdpv.dll 2.00.0.3427 | the runtime given for this research | `66a6765e2693b05c7b1bb72973b32264656ffbba7c176f8a86ce0edc8358875c` |
+| AgentDPv.dll 1.5.2.416 (Feb 1998) | `MSagent.exe` (340,112 bytes, SHA-256 `5e00fe1b303dc56e3cf556adaf23a956ccf2ab2bb42b1a50736ad5bd4f3d5208`), the Agent 1.5 runtime installer, a self-extracting CAB | `4a5de7cc6327db9e8a610451b91343aa24f270e9f7050808087d0d9760a7b6d1` |
+| agentdpv.dll 1.5.0.225 (Aug 1997) | Microsoft Agent build 1.5.0.225 | `039e856fa12f9d029e5faa2de7c7bd0ad00807ed3c74ae09d429c26f489da506` |
+| AgentDpv.dll 1.7.0.1027 (Agent 2.0 beta) | Microsoft Agent build 1.7.0.1027 | `9bac229652b515dfd8bba22baade5c1daa967f4a3bf7463c9ca1ba1388682358` (not analysed) |
+| agentdpv.dll 2.00.0.3427 | the Agent 2.0 runtime | `66a6765e2693b05c7b1bb72973b32264656ffbba7c176f8a86ce0edc8358875c` |
 | agentsvr.exe 2.00.0.3427 | same | `b2aaa8618528037537fef6280d05ff3f88b2b50fc250ca04e7d4bf3fa970e7dd` |
 
 ### 3.4 Negative results
 
-- Microsoft's own 1.5 `.acs` downloads (`www.microsoft.com/workshop/prog/agent/{genie,merlin,merlinsfx,robby}.acs`,
-  `.../workshop/imedia/agent/...`) were only captured after they had been removed: every
-  capture is a 404 or an HTML redirect page (CDX queries for these exact URLs, all hosts
-  www./bare/msdn.). The 1998 download pages
-  (`www.microsoft.com/intdev/agent/agentdl.htm`, `.../workshop/prog/agent/agentdl.htm`)
-  are redirect stubs; the earliest captured `agentdl.asp` (1999-01-17) already links the
-  2.0 files.
+- Microsoft's own 1.5 `.acs` downloads of Genie, Merlin, Merlin with sound effects and
+  Robby survive in no archive copy found for this note (only error pages), and the 1998
+  download pages are redirect stubs that already point to the 2.0 files.
 - So no Microsoft-released 1.5 Genie or Robby `.acs` was found, and no 1.5-format Peedy
   file of any kind (Peedy appears only in the 2.0 `v2/` folder). Merlin from build
   1027 stands in: its streams are byte-identical to the 1.5 web AAF files that exist
@@ -467,9 +460,7 @@ called `*Return`.
 
 ## 8. Verification
 
-Throwaway scripts in
-`$BENTWIRE_REFERENCE/`,
-all run with `python3 -I` from the `agent15` directory:
+Throwaway reference scripts (not public), all run with `python3 -I`:
 - `cfb.py`: own MS-CFB reader with a sector classifier.
 - `ole15.py`: full parse of OLE files (asserts no unclassified sector, no extra stream,
   every body consumed). Output: `out/ole15_all.txt`.
@@ -485,8 +476,8 @@ all run with `python3 -I` from the `agent15` directory:
 
 | Check | Command | Result |
 |---|---|---|
-| OLE parse | `ole15.py Characters/merlin.acs *.acs` | 10 files; every sector classified (FAT, directory, mini FAT, mini stream, stream), no extra streams; 10 ACF bodies consumed exactly; 467 of 469 AAF bodies decode and are consumed exactly (2 damaged, 8.2); all 469 AAF headers: version = ACF version, checksum = ACF entry, flag 1, `17 + compressed size` = stream size; 3,807 frames, 3,237 images, 643 overlays, 60 sounds; all indices in range |
-| Web parse | `run15.py web/{genie,merlin,merlinsfx,robby}` | 4 ACF + 18 AAF downloads (12 distinct): headers 0x1001F, checksums equal to the ACF, bodies consumed exactly; in the 12 distinct AAF: 89 frames, 81 images, 35 non-empty overlays, 1 sound |
+| OLE parse | `ole15.py <the 10 files of 3.1>` | 10 files; every sector classified (FAT, directory, mini FAT, mini stream, stream), no extra streams; 10 ACF bodies consumed exactly; 467 of 469 AAF bodies decode and are consumed exactly (2 damaged, 8.2); all 469 AAF headers: version = ACF version, checksum = ACF entry, flag 1, `17 + compressed size` = stream size; 3,807 frames, 3,237 images, 643 overlays, 60 sounds; all indices in range |
+| Web parse | `run15.py <genie, merlin, merlinsfx, robby dirs>` | 4 ACF + 18 AAF copies (12 distinct): headers 0x1001F, checksums equal to the ACF, bodies consumed exactly; in the 12 distinct AAF: 89 frames, 81 images, 35 non-empty overlays, 1 sound |
 | Regions | `rgn15.py` over all of the above | 3,318 of 3,318 regions equal the non-transparent pixels |
 | Image size | both parsers | 3,318 of 3,318 images are stride x height of the character |
 | Overlay size | both parsers | 671 of 671 non-empty overlays (636 OLE, 35 web) are stride x h |
@@ -500,7 +491,7 @@ all run with `python3 -I` from the `agent15` directory:
 - `anim71.aaf` (StopListening) hits a back-reference before the start of the output after
   45,547 of 107,812 bytes, inside its third image.
 - The OLE structure around them is intact (no shared or orphan sectors, chains have the
-  expected length), and the file matches the archive's zip CRC. The damage is therefore in
+  expected length), and the file matches the CRC-32 recorded for the collection. The damage is therefore in
   the published file itself.
 - Both runtimes reject these streams: the block readers (2.0 0x5a962ba2, 1.5 0x67f9b532)
   fail on a decoder error or on any length mismatch. In the OLE path only that one
@@ -536,13 +527,13 @@ all run with `python3 -I` from the `agent15` directory:
 
 ### 8.3 Same character in 1.5 and 2.0: Merlin
 
-- **1.5 web vs 1.5 OLE:** the Wayback `merlin/Blink.aaf` and `merlin/Show.aaf` have the
+- **1.5 web vs 1.5 OLE:** the web `merlin/Blink.aaf` and `merlin/Show.aaf` have the
   same checksums as two streams of the build-1027 `merlin.acs`, and they are
   **byte-identical** to them. The web `merlin.acf` body and the OLE `char.acf` body are
   field-for-field equal (names, return animations, checksums, GUID, localized strings,
   size, flags, voice, balloon, palette, states) except the file-name column
   (`Blink.aaf` vs `anim2.aaf`). So the docfile is a container around the web files.
-- **1.5 vs 2.0 (`$BENTWIRE_SOURCES/merlin.acs`):**
+- **1.5 vs 2.0 (Agent 2.0 `merlin.acs`):**
   - Same GUID {4E574F44-B521-11D0-9E9A-00C04FD7081F}, size 128x128, transparent index
     10, identical 256-entry palette, same balloon except 28 vs 32 chars per line, same
     16 state names (1.5 mixed case, 2.0 upper case).
@@ -593,7 +584,7 @@ maps to the CLSIDs stored at 0x0100181C {D45FD2FF}, 0x0100182C {D45FD300} and 0x
 {D45FD301}; 0x0101F2B6 `CoCreateInstance` (IAT 0x01001538).
 
 AgentDPv.dll 1.5.2.416 (image base 0x67f90000; decompiled for this note with
-`rea decompile-all`, Ghidra, 470 functions, output in `scratchpad/agent15/rea/dpv416/`):
+`rea decompile-all`, Ghidra, 470 functions, output kept in a scratch directory):
 
 | Address | Role |
 |---|---|
