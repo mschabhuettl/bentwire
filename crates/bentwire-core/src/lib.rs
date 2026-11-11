@@ -6,6 +6,8 @@
 pub mod api;
 pub mod balloon;
 mod core;
+#[cfg(test)]
+mod core_tests;
 pub mod draws;
 pub mod fallback;
 pub mod geometry;
