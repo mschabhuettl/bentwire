@@ -1499,7 +1499,8 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   from hanging the daemon.
 - **A-CORE-5 Agent balloon tail and scroll.** The tail tip lies on the window edge at the
   clamped anchor coordinate, and its base (2 x tailHalf) is centred on the tip coordinate.
-  The scroll (R-BAL-9) moves one pixel at a time, evenly over `60000 / effectiveSpeed` ms.
+  The scroll (R-BAL-9) moves one pixel at a time, evenly over `60000 / effectiveSpeed` ms;
+  the outgoing top line stays drawn and slides out, and is dropped when the scroll ends.
   Reason: R-BAL-4/R-BAL-9 give lengths and duration, not these shapes.
 - **A-CORE-6 Exit runs end on a revisit.** In exit mode (B-SW-A case 1) a frame without an
   `exit` index continues normal sequencing; when that would show a frame the same exit
@@ -1523,7 +1524,8 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
 - **A-CHAR-4 Sanity limits.** The parser rejects canvas, display, cell and `sizes` sides
   above 16384, explicit layer sizes above 262144, more than 2^24 pictures per sheet and
   `scale` above 64; `compose` returns an empty picture for outputs above 2^28 pixels and
-  clamps the density to 1..64. Reason: character-format 8 sets no limits, but a hostile
+  clamps the density to 1..64. A PNG declaring more than 131072 px per side or 2^28
+  pixels is rejected from its header, before decoding. Reason: character-format 8 sets no limits, but a hostile
   file must not crash or exhaust the daemon; the largest real character is 2880 logical
   units wide.
 - **A-CONV-1 Vector actor pictures (D2).** Each used pose is rasterised by the bentwire

@@ -5,6 +5,13 @@ use std::collections::HashMap;
 use crate::Error;
 use crate::model::{Layer, Manifest, Sheet};
 
+/// Largest PNG file side and area the loader decodes (A-CHAR-4); checked from IHDR before any
+/// allocation. The largest real sheet (Will, 2x) is 8160 x 15480 = 126 M pixels.
+pub const MAX_FILE_SIDE: u64 = 131_072;
+pub const MAX_FILE_PIXELS: u64 = 1 << 28;
+/// Byte budget handed to the PNG decoder (RGBA of `MAX_FILE_PIXELS`).
+const MAX_DECODE_BYTES: usize = 4 << 28;
+
 /// Largest output picture `compose` produces (2^28 pixels, A-CHAR-4); larger requests give an
 /// empty 0 x 0 picture.
 pub const MAX_PIXELS: u64 = 1 << 28;
@@ -118,11 +125,24 @@ pub fn decode_png(bytes: &[u8]) -> Result<Image, Error> {
     let e = |x: png::DecodingError| Error::Image(x.to_string());
     let mut dec = png::Decoder::new(std::io::Cursor::new(bytes));
     dec.set_transformations(png::Transformations::IDENTITY);
+    dec.set_limits(png::Limits {
+        bytes: MAX_DECODE_BYTES,
+    });
     let info = dec.read_header_info().map_err(e)?;
+    // A-CHAR-4: check the declared size before any buffer is allocated.
+    let (iw, ih) = (info.width as u64, info.height as u64);
+    if iw > MAX_FILE_SIDE || ih > MAX_FILE_SIDE || iw * ih > MAX_FILE_PIXELS {
+        return Err(Error::Image(format!(
+            "{iw}x{ih} exceeds the decode limit ({MAX_FILE_SIDE} per side, {MAX_FILE_PIXELS} pixels)"
+        )));
+    }
     let indexed = info.color_type == png::ColorType::Indexed;
     if !indexed {
         let mut dec = png::Decoder::new(std::io::Cursor::new(bytes));
         dec.set_transformations(png::Transformations::normalize_to_color8());
+        dec.set_limits(png::Limits {
+            bytes: MAX_DECODE_BYTES,
+        });
         let mut r = dec.read_info().map_err(e)?;
         let mut buf = vec![0; r.output_buffer_size()];
         let fi = r.next_frame(&mut buf).map_err(e)?;
@@ -410,5 +430,32 @@ mod tests {
         assert_eq!(d[3], 192);
         assert_eq!(d[0], 170); // 255*128*255 / (128*255 + 128*127) = 170.3
         assert_eq!(d[2], 85);
+    }
+
+    /// A-CHAR-4 regression: a tiny PNG declaring 40000 x 40000 RGBA must be rejected from its
+    /// header, before the 6.4 GB buffer is allocated (indexed path too).
+    #[test]
+    fn huge_declared_png_is_rejected_before_allocation() {
+        fn png(w: u32, h: u32, color: u8) -> Vec<u8> {
+            let mut v = b"\x89PNG\r\n\x1a\n".to_vec();
+            let mut ihdr = b"IHDR".to_vec();
+            ihdr.extend_from_slice(&w.to_be_bytes());
+            ihdr.extend_from_slice(&h.to_be_bytes());
+            ihdr.extend_from_slice(&[8, color, 0, 0, 0]);
+            v.extend_from_slice(&13u32.to_be_bytes());
+            v.extend_from_slice(&ihdr);
+            v.extend_from_slice(&crc32fast::hash(&ihdr).to_be_bytes());
+            v.extend_from_slice(&0u32.to_be_bytes());
+            v.extend_from_slice(b"IEND");
+            v.extend_from_slice(&crc32fast::hash(b"IEND").to_be_bytes());
+            v
+        }
+        for color in [6, 3] {
+            let b = png(40000, 40000, color);
+            assert!(b.len() < 64);
+            let e = decode_png(&b).unwrap_err().to_string();
+            assert!(e.contains("decode limit"), "{e}");
+        }
+        assert!(decode_png(&png(200_000, 1, 6)).is_err());
     }
 }
