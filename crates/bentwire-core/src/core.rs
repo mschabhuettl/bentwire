@@ -570,9 +570,9 @@ impl Core {
                     Ok(m) => {
                         self.reply(token, Ok(ReplyValue::Unit));
                         if self.gallery.is_some() {
-                            self.close_gallery(false);
+                            self.close_gallery(false, false);
                         }
-                        self.switch_to(m, false);
+                        self.switch_to(m, false, false);
                     }
                 }
             }
@@ -761,6 +761,16 @@ impl Core {
                 break;
             }
             let req = self.queue.pop_front().expect("head");
+            // B-ASK-7: a Hide reaching execution closes the ask with status 3 in both
+            // modes (before the autodown dismissal of B-ASK-6).
+            if matches!(req.kind, Kind::Hide { .. }) {
+                if self.ask.as_ref().is_some_and(|a| a.id != 0) {
+                    self.close_ask(0, 3, errors::HIDDEN);
+                }
+                if self.gallery.is_some() {
+                    self.close_gallery(true, true);
+                }
+            }
             if req.sender.is_some()
                 && self
                     .ask
@@ -769,14 +779,6 @@ impl Core {
             {
                 // B-ASK-6: a later client request reaching execution dismisses.
                 self.close_ask(0, 0, "");
-            }
-            if matches!(req.kind, Kind::Hide { .. }) {
-                if self.ask.as_ref().is_some_and(|a| a.id != 0) {
-                    self.close_ask(0, 3, errors::HIDDEN);
-                }
-                if self.gallery.is_some() {
-                    self.close_gallery(true);
-                }
             }
             if req.id != 0 {
                 let (id, s) = (req.id, req.sender.clone());
@@ -1077,13 +1079,15 @@ impl Core {
         if !c.visible {
             return;
         }
-        c.visible = false;
+        if self.gallery.is_some() {
+            self.close_gallery(true, true);
+        }
+        if let Some(c) = &mut self.ch {
+            c.visible = false;
+        }
         self.hide_speech_balloon();
         if self.ask.as_ref().is_some_and(|a| a.id != 0) {
             self.close_ask(0, 3, errors::HIDDEN);
-        }
-        if self.gallery.is_some() {
-            self.close_gallery(true);
         }
         self.visibility_cause = cause;
         self.emit(Signal::Hidden { cause });
@@ -1105,6 +1109,9 @@ impl Core {
         else {
             return;
         };
+        if self.dragging {
+            return self.slide_cancelled_by_drag();
+        }
         let c = self.ch.as_ref().expect("character");
         let start = (c.x, c.y);
         if speed == 0 || !c.visible {
@@ -1172,6 +1179,22 @@ impl Core {
         self.update_output();
         self.mark_dirty();
         self.reshow_ask();
+        self.move_end_phase();
+    }
+
+    /// A drag cancels the slide (R-MOVE-2): the phase fails with Dragged, the end
+    /// phase still runs (B-Q-3) but emits no Move (the drag reports its own), and the
+    /// output and balloons are left to the drag end (B-WL-4).
+    fn slide_cancelled_by_drag(&mut self) {
+        self.fail(errors::DRAGGED);
+        if let Some(r) = &mut self.running {
+            r.move_emitted = true;
+        }
+        self.move_end_phase();
+    }
+
+    /// R-MOVE-3 end phase.
+    fn move_end_phase(&mut self) {
         self.set_stage(Stage::Anim(3));
         if !self.visible() {
             self.fail(errors::HIDDEN);
@@ -1601,7 +1624,7 @@ impl Core {
                 match self.loader.load(&id) {
                     Ok(m) => {
                         self.gallery.as_mut().unwrap().index = ni;
-                        self.switch_to(m, true);
+                        self.switch_to(m, true, false);
                         if let Some(c) = &self.ch
                             && let Ok(res) = fallback::resolve(&c.model, "Wave")
                         {
@@ -1628,15 +1651,18 @@ impl Core {
                 self.refresh_ask();
             }
             -27 => {
-                self.close_gallery(false);
+                self.close_gallery(false, false);
                 self.mark_dirty();
             }
-            _ => self.close_gallery(true),
+            _ => self.close_gallery(true, false),
         }
     }
 
     /// Close the gallery; `cancel` switches back to the original character.
-    fn close_gallery(&mut self, cancel: bool) {
+    /// Close the gallery; `cancel` switches back to the original character. With
+    /// `for_hide` (B-GAL-1: hiding closes the gallery as Cancel) the switch keeps the
+    /// visibility instead of queuing a Show, so the Hide runs on the original.
+    fn close_gallery(&mut self, cancel: bool, for_hide: bool) {
         let Some(g) = self.gallery.take() else { return };
         if self.ask.as_ref().is_some_and(|a| a.id == 0) {
             self.close_ask(0, 0, "");
@@ -1645,14 +1671,14 @@ impl Core {
             && self.ch.as_ref().is_some_and(|c| c.model.id != g.original)
             && let Ok(m) = self.loader.load(&g.original)
         {
-            self.switch_to(m, false);
+            self.switch_to(m, false, for_hide);
         }
     }
 
     // ----- character switch -----
 
     /// B-CHAR-5.
-    fn switch_to(&mut self, model: Arc<CharacterModel>, gallery: bool) {
+    fn switch_to(&mut self, model: Arc<CharacterModel>, gallery: bool, keep_visible: bool) {
         self.interrupt_all(errors::CHARACTER_CHANGED);
         if !gallery && self.ask.as_ref().is_some_and(|a| a.id != 0) {
             self.close_ask(0, 3, errors::CHARACTER_CHANGED);
@@ -1673,7 +1699,12 @@ impl Core {
         };
         self.install(model, x, y);
         self.mark_dirty();
-        if was_visible {
+        if keep_visible && was_visible {
+            if let Some(c) = &mut self.ch {
+                c.visible = true;
+            }
+            self.fast_show_picture();
+        } else if was_visible {
             self.enqueue_internal(Kind::Show {
                 fast: false,
                 cause: 4,
@@ -1774,7 +1805,7 @@ impl Core {
             return;
         }
         if self.gallery.is_some() {
-            self.close_gallery(true);
+            self.close_gallery(true, true);
         }
         self.interrupt_all(errors::HIDDEN_BY_USER);
         if self.ask.as_ref().is_some_and(|a| a.id != 0) {
@@ -1908,8 +1939,7 @@ impl Core {
             self.running.as_ref().map(|r| &r.stage),
             Some(Stage::Slide { .. })
         ) {
-            self.fail(errors::DRAGGED);
-            self.slide_finished();
+            self.slide_cancelled_by_drag();
         }
         if let Some(a) = &mut self.ask
             && a.scene.is_some()
@@ -2209,7 +2239,8 @@ impl Core {
             .filter(|n| fallback::resolve_direct(&c.model, n).is_some())
             .map(|n| n.to_string())
             .collect();
-        self.shuffle();
+        // Shuffled on first use (B-MENU-4), so loading takes no draws.
+        self.animate_pos = self.animate.len();
     }
 
     fn shuffle(&mut self) {

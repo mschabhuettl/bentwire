@@ -3,6 +3,9 @@
 use crate::api::{Draws, Ms, Output};
 use crate::model::{Branch, CharacterModel, Exit, Family, Frame, Transition};
 
+/// Frames consumed per timer callback before a 0 ms cycle yields.
+const MAX_STEPS: u32 = 1000;
+
 /// Logical picture of the player.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Pic {
@@ -461,8 +464,17 @@ impl Player {
     /// Process frames that are due at `now` (several for `ms = 0` frames).
     fn after_show(&mut self, now: Ms, env: &mut Env) -> bool {
         let mut done = false;
+        let mut steps = 0;
         while let Some(r) = self.run {
             if r.deadline > now {
+                break;
+            }
+            steps += 1;
+            if steps > MAX_STEPS {
+                // A cycle of 0 ms frames: yield instead of spinning (A-CORE-4).
+                if let Some(r) = &mut self.run {
+                    r.deadline = now + 10;
+                }
                 break;
             }
             done |= self.step(now, env);
@@ -550,6 +562,7 @@ impl Player {
         let frames = &env.model.animations[r.anim].frames;
         let mut drawn: Option<usize> = None;
         let target = r.role == Role::Target;
+        let mut steps = 0;
         loop {
             if r.next >= frames.len() {
                 if r.due <= now {
@@ -572,7 +585,8 @@ impl Player {
                 }
                 break;
             }
-            if r.due > now + 14 {
+            steps += 1;
+            if r.due > now + 14 || steps > MAX_STEPS {
                 break;
             }
             let i = r.next;
@@ -1022,6 +1036,23 @@ pub(crate) mod tests {
         h.p.tick(100, &mut env);
         assert_eq!(h.p.picture(), Pic::Frame(0, 1));
         assert_eq!(h.p.deadline(), Some(120));
+    }
+
+    #[test]
+    fn zero_ms_cycles_do_not_spin() {
+        let mut a = fr(0);
+        a.branches = vec![Branch::Prob { target: 0, p: 100 }];
+        let mut h = H::new(agent(vec![anim("A", vec![a])]), vec![0; 5000]);
+        h.play(0, "A");
+        assert_eq!(h.p.deadline(), Some(10));
+        let mut o = pf(0, 1);
+        o.branches = vec![Branch::Prob {
+            target: 0,
+            p: 32768,
+        }];
+        let mut h = H::new(o97(vec![anim("A", vec![o])]), vec![]);
+        h.play(0, "A");
+        assert_eq!(h.p.deadline(), Some(14));
     }
 
     #[test]

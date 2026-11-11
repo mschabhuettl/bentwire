@@ -1479,11 +1479,19 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   applies). A program Hide that reaches execution closes the gallery as Cancel; Stop and
   StopAll do not touch the gallery. A state member choice always takes a draw, also for
   a single member (`rand() % n`). The Speak alternative is drawn when the request starts.
-  Reason: the spec is silent; these are the simplest consistent readings.
+  A Hide reaching execution closes an autodown ask with status 3 (the B-ASK-7 row wins
+  over B-ASK-6). A drag that cancels a slide (or is running when the slide would start)
+  fails it with `Dragged`; the end phase still plays Speaking but emits no Move, and the
+  output and the ask balloon wait for the drag end. Hiding while the gallery shows
+  another character switches back without a Show, so the Hide runs on the original.
+  The Animate! list is shuffled on first use, not at load. Reason: the spec is silent;
+  these are the simplest consistent readings.
 - **A-CORE-4 office97 switch details.** The transition check (B-SW-O steps 2 to 4) also
   runs when the previous animation ended normally, not after Showing, and chains at most
-  8 clips per switch. Reason: MSO97 checks when the queued animation starts; the cap
-  prevents a cyclic table from looping.
+  8 clips per switch. Both steppers consume at most 1000 frames per timer callback; a
+  cycle of 0 ms frames then yields (agent: 10 ms, office97: the 14 ms minimum tick).
+  Reason: MSO97 checks when the queued animation starts; the caps prevent cyclic data
+  from hanging the daemon.
 - **A-CORE-5 Agent balloon tail and scroll.** The tail tip lies on the window edge at the
   clamped anchor coordinate, and its base (2 x tailHalf) is centred on the tip coordinate.
   The scroll (R-BAL-9) moves one pixel at a time, evenly over `60000 / effectiveSpeed` ms.

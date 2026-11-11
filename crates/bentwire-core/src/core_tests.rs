@@ -2176,3 +2176,139 @@ fn r_ob_2_text_colours() {
     assert_eq!(s.text[0].runs[0].color, [0, 0, 0]);
     assert_eq!(s.labels[0].lines[0].runs[0].color, [0, 0, 0x80]);
 }
+
+#[test]
+fn b_ask_7_autodown_hide_closes_with_status_3() {
+    let mut t = T::visible(character("c", 100));
+    let id = t.req(Call::Ask(ask("autodown")));
+    t.req(Call::Hide { fast: true });
+    assert_eq!(ask_complete(&t, id).unwrap().0, 0);
+    assert_eq!(
+        t.complete_of(id).unwrap(),
+        (t.now, 3, errors::HIDDEN.to_string())
+    );
+}
+
+#[test]
+fn r_move_2_drag_cancel_keeps_output_and_emits_no_target_move() {
+    let mut t = T::with(
+        vec![character("c", 0)],
+        Some(StateFile {
+            character: "c".into(),
+            left: 500,
+            top: 500,
+            visible: true,
+        }),
+        vec![],
+    );
+    t.ev(Event::Outputs(vec![
+        output(1920, 1080),
+        OutputInfo {
+            id: 2,
+            rect: Rect::new(1920, 0, 1920, 1080),
+            scale: 1.0,
+        },
+    ]));
+    t.advance(1000);
+    let id = t.req(Call::MoveTo {
+        x: 1500,
+        y: 500,
+        speed: 1000,
+    });
+    t.advance(t.now + 80);
+    let (x, y) = t.pos();
+    t.press(PointerKind::Press, Surface::Character, 1, x + 5, y + 5);
+    t.press(PointerKind::Motion, Surface::Character, 1, x + 2500, y + 5);
+    t.advance(t.now + 2000);
+    let (_, st, reason) = t.complete_of(id).unwrap();
+    assert_eq!((st, reason.as_str()), (1, errors::DRAGGED));
+    // No Move to the target, and the output is not recomputed during the drag.
+    assert_eq!(t.count(|s| matches!(s, Signal::Move { cause: 2, .. })), 0);
+    assert_eq!(t.core.scene().character.unwrap().output, Some(1));
+    t.press(PointerKind::Release, Surface::Character, 1, x + 2500, y + 5);
+    assert_eq!(t.count(|s| matches!(s, Signal::Move { cause: 1, .. })), 1);
+    assert_eq!(t.core.scene().character.unwrap().output, Some(2));
+    // A slide that would begin while a drag runs fails with Dragged at once.
+    let (x, y) = t.pos();
+    t.now += 1000;
+    t.press(PointerKind::Press, Surface::Character, 1, x + 5, y + 5);
+    t.press(PointerKind::Motion, Surface::Character, 1, x + 50, y + 5);
+    let id = t.req(Call::MoveTo {
+        x: 0,
+        y: 0,
+        speed: 1000,
+    });
+    t.advance(t.now + 100);
+    assert_eq!(t.complete_of(id).unwrap().2, errors::DRAGGED);
+    assert_ne!(t.pos(), (0, 0));
+}
+
+fn gallery_open(t: &mut T) {
+    let (x, y) = t.pos();
+    t.press(PointerKind::Press, Surface::Character, 2, x + 1, y + 1);
+    t.press(PointerKind::Release, Surface::Character, 2, x + 1, y + 1);
+    t.ev(Event::Menu(MenuInput::Activate(3)));
+}
+
+#[test]
+fn b_gal_1_hide_closes_as_cancel() {
+    let st = StateFile {
+        character: "a".into(),
+        left: 500,
+        top: 500,
+        visible: true,
+    };
+    // User hide after Next: back to the original, which hides with cause 7.
+    let mut t = T::with(
+        vec![character("a", 100), character("b", 100)],
+        Some(st.clone()),
+        vec![],
+    );
+    t.advance(1000);
+    gallery_open(&mut t);
+    t.ev(Event::Key {
+        key: Key::Char('n'),
+        modifiers: 0,
+    });
+    assert_eq!(t.core.properties().character, "b");
+    t.advance(t.now + 1000);
+    let (x, y) = t.pos();
+    t.press(PointerKind::Press, Surface::Character, 2, x + 1, y + 1);
+    t.press(PointerKind::Release, Surface::Character, 2, x + 1, y + 1);
+    t.ev(Event::Menu(MenuInput::Activate(0)));
+    assert_eq!(t.core.properties().character, "a");
+    assert!(t.core.scene().office_balloon.is_none());
+    t.advance(t.now + 1000);
+    assert!(
+        t.signals()
+            .iter()
+            .any(|(_, s)| *s == Signal::Hidden { cause: 7 })
+    );
+    assert!(!t.core.properties().visible);
+    t.advance(t.now + 10_000);
+    assert!(!t.core.properties().visible);
+    // Program Hide after Next: back to the original, hidden with cause 3, not re-shown.
+    let mut t = T::with(
+        vec![character("a", 100), character("b", 100)],
+        Some(st),
+        vec![],
+    );
+    t.advance(1000);
+    gallery_open(&mut t);
+    t.ev(Event::Key {
+        key: Key::Char('n'),
+        modifiers: 0,
+    });
+    t.advance(t.now + 1000);
+    let id = t.req(Call::Hide { fast: false });
+    t.advance(t.now + 1000);
+    assert_eq!(t.core.properties().character, "a");
+    assert_eq!(t.complete_of(id).unwrap().1, 0);
+    assert!(
+        t.signals()
+            .iter()
+            .any(|(_, s)| *s == Signal::Hidden { cause: 3 })
+    );
+    t.advance(t.now + 10_000);
+    assert!(!t.core.properties().visible);
+}
