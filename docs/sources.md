@@ -1,5 +1,8 @@
 # Sources
 
+Note: the research documents cite the original download URLs, many of which are now dead;
+the Wayback Machine links given here resolve.
+
 Every file the `classics` pack (repository `bentwire-classics`) is generated from, and every
 Microsoft binary that was analysed to write `docs/spec.md`, `docs/character-format.md` and
 `docs/research/`. Nothing listed here is part of this repository.
