@@ -213,3 +213,58 @@ fn act_fixtures_accepted_by_research_parser() {
     std::fs::remove_dir_all(&dir).ok();
     std::fs::remove_dir_all(&out).ok();
 }
+
+/// Resource start and a section offset (header word `k` of the 8 section offsets).
+fn section(b: &[u8], k: usize) -> (usize, usize) {
+    let res = u32::from_le_bytes(b[10..14].try_into().unwrap()) as usize;
+    let o = res + 0x26 + 4 * k;
+    (
+        res,
+        res + u32::from_le_bytes(b[o..o + 4].try_into().unwrap()) as usize,
+    )
+}
+
+#[test]
+fn act_rejects_payload_entries_sharing_a_non_mnak_blob() {
+    // review finding: repeated offsets must not multiply a WMF (memory, quadratic time)
+    let mut b = fx::wmf_actor().to_bytes();
+    let (_, idx) = section(&b, 1);
+    let first: [u8; 4] = b[idx..idx + 4].try_into().unwrap();
+    b[idx + 4..idx + 8].copy_from_slice(&first);
+    assert!(matches!(
+        act::parse(&b),
+        Err(ActError::Payload { index: 0 | 1, .. })
+    ));
+}
+
+#[test]
+fn act_rejects_duplicate_sub_image_and_dcik_sub_index() {
+    // MNAK entries 0 and 1 (sub 0 and 1): make both sub 0
+    let mut b = fx::bitmap_actor().to_bytes();
+    let (_, idx) = section(&b, 1);
+    b[idx + 7] &= 0x3F;
+    assert!(matches!(
+        act::parse(&b),
+        Err(ActError::Payload { index: 1, .. })
+    ));
+    // DCIK entry 2 with sub index 1
+    let mut b = fx::bitmap_actor().to_bytes();
+    b[idx + 11] |= 0x40;
+    assert!(act::parse(&b).is_err());
+}
+
+#[test]
+fn act_rejects_group_entries_used_twice() {
+    // string groups 1 and 8: point group 8 at group 1's entry
+    let mut b = fx::bitmap_actor().to_bytes();
+    let (_, sidx) = section(&b, 7);
+    let first_g1: [u8; 2] = b[sidx + 4 + 4..sidx + 4 + 6].try_into().unwrap();
+    b[sidx + 4 + 6 + 4..sidx + 4 + 6 + 6].copy_from_slice(&first_g1);
+    assert!(matches!(
+        act::parse(&b),
+        Err(ActError::Invalid {
+            what: "group index",
+            ..
+        })
+    ));
+}

@@ -485,21 +485,43 @@ fn parse_payloads(r: &[u8], s: &Sections) -> Result<Vec<Payload>, ActError> {
     }
     let data = &r[s.pay_data..s.pay_index];
     let mut packs: HashMap<usize, Vec<Bitmap>> = HashMap::new();
+    // Runtime rule: a blob ends at the first later entry with a different offset
+    // (computed in one reverse pass).
+    let mut ends = vec![usize::MAX; npay];
+    for i in (0..npay).rev() {
+        let o = (ent[i + 1] & OFFSET_MASK) as usize;
+        ends[i] = if o != (ent[i] & OFFSET_MASK) as usize || i + 1 == npay {
+            o
+        } else {
+            ends[i + 1]
+        };
+    }
     let mut out = Vec::with_capacity(npay);
+    let mut subs_seen = 0u8;
     for i in 0..npay {
         let perr = |detail: String| ActError::Payload { index: i, detail };
         let off = (ent[i] & OFFSET_MASK) as usize;
         let sub = (ent[i] >> 30) as usize;
-        // Runtime rule: the blob ends at the first later entry with a different offset.
-        let next = ent[i + 1..]
-            .iter()
-            .map(|e| (e & OFFSET_MASK) as usize)
-            .find(|&o| o != off)
-            .ok_or_else(|| perr("no end offset".into()))?;
+        // Entries may share a blob only as distinct sub-images of one MNAK pack.
+        if i == 0 || (ent[i - 1] & OFFSET_MASK) as usize != off {
+            subs_seen = 0;
+        }
+        if subs_seen & (1 << sub) != 0 {
+            return Err(perr("duplicate payload index entry".into()));
+        }
+        subs_seen |= 1 << sub;
+        let shared = (i > 0 && (ent[i - 1] & OFFSET_MASK) as usize == off)
+            || (ent[i + 1] & OFFSET_MASK) as usize == off;
+        let next = ends[i];
         if next <= off {
             return Err(perr("offsets not ascending".into()));
         }
         let b = slice(data, off, next - off, "payload")?;
+        if shared && !b.starts_with(b"MNAK") {
+            return Err(perr(
+                "several index entries share a blob that is not MNAK".into(),
+            ));
+        }
         let p = if b.starts_with(&WMF_PLACEABLE_KEY) {
             if sub != 0 {
                 return Err(perr("WMF with sub index".into()));
@@ -792,6 +814,7 @@ fn parse_groups(
     }
     let nent = (len - 4) / 6 - gc;
     let mut used = vec![false; nent];
+    let mut total = 0usize;
     let mut out = Vec::with_capacity(gc);
     let mut last: i32 = -1;
     for g in 0..gc {
@@ -811,6 +834,9 @@ fn parse_groups(
         }
         let mut vs = Vec::with_capacity(cnt);
         for (j, u) in used.iter_mut().enumerate().skip(first).take(cnt) {
+            if *u {
+                return Err(invalid("group index", format!("entry {j} used twice")));
+            }
             let e = index + 4 + 6 * (gc + j);
             let off = u32_at(r, e, "group entry")? as usize;
             let sz = usize::from(u16_at(r, e + 4, "group entry")?);
@@ -819,6 +845,15 @@ fn parse_groups(
                 .ok_or_else(|| invalid("group index", format!("group {id} blob beyond index")))?;
             vs.push(&r[start..start + sz]);
             *u = true;
+            // Blobs are disjoint in every sample; bounding the total keeps entries that
+            // point at one blob from multiplying memory.
+            total += sz;
+            if total > index - data {
+                return Err(invalid(
+                    "group index",
+                    "entries overlap (total size exceeds data)",
+                ));
+            }
         }
         out.push((id, vs));
     }
