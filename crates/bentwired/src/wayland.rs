@@ -129,9 +129,7 @@ struct WlState {
     relative: RelativePointerState,
     rel_pointer: Option<ZwpRelativePointerV1>,
     /// Global pointer position during a grab (B-WL-7, A-DESK-5).
-    grab_pos: Option<(f64, f64)>,
-    /// A relative-pointer event arrived since the press: `grab_pos` follows the deltas.
-    grab_rel: bool,
+    grab_pos: Option<GrabPos>,
 }
 
 /// A wl_display.sync after a margin commit (B-WL-7).
@@ -241,7 +239,6 @@ impl Wayland {
             relative: RelativePointerState::bind(&globals, &qh),
             rel_pointer: None,
             grab_pos: None,
-            grab_rel: false,
         };
         let mut queue = queue;
         // Two roundtrips: globals, then output and seat details.
@@ -992,22 +989,20 @@ impl PointerHandler for WlState {
             // last grab position (it carries no new coordinates).
             match &ev.kind {
                 PointerEventKind::Press { .. } if matches!(kind, SurfKind::Core(_)) => {
-                    self.grab_pos = Some(pos);
-                    self.grab_rel = false;
+                    self.grab_pos = Some(GrabPos::new(pos));
                 }
                 PointerEventKind::Motion { .. } => {
-                    if let (Some(g), Some(_)) = (self.grab_pos, &self.grab) {
-                        pos = grab_motion(g, self.grab_rel, local, origin);
-                        self.grab_pos = Some(pos);
+                    if let (Some(g), Some(_)) = (&mut self.grab_pos, &self.grab) {
+                        pos = g.motion(local, origin);
                         log::debug!(
-                            "grab motion rel={} local={local:?} applied={origin:?} -> {pos:?}",
-                            self.grab_rel
+                            "grab motion delta={:?} local={local:?} applied={origin:?} -> {pos:?}",
+                            g.delta
                         );
                     }
                 }
                 PointerEventKind::Release { .. } => {
-                    if let (Some(g), Some(_)) = (self.grab_pos, &self.grab) {
-                        pos = g;
+                    if let (Some(g), Some(_)) = (&self.grab_pos, &self.grab) {
+                        pos = g.pos;
                     }
                 }
                 _ => {}
@@ -1074,21 +1069,56 @@ impl PointerHandler for WlState {
     }
 }
 
+/// B-WL-7: pointer position during an implicit grab. The press position and the sum of
+/// relative-pointer deltas since the press are kept apart from the last reported position,
+/// so absolute motion never feeds into the relative sum (the protocol does not order
+/// wl_pointer.motion and relative_motion).
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct GrabPos {
+    press: (f64, f64),
+    /// Sum of relative deltas; `None` until the first relative event of the grab.
+    delta: Option<(f64, f64)>,
+    /// Last reported global position (a release reuses it).
+    pos: (f64, f64),
+}
+
+impl GrabPos {
+    fn new(press: (f64, f64)) -> Self {
+        Self {
+            press,
+            delta: None,
+            pos: press,
+        }
+    }
+
+    fn relative(&mut self, d: (f64, f64)) {
+        let s = self.delta.get_or_insert((0.0, 0.0));
+        s.0 += d.0;
+        s.1 += d.1;
+        self.pos = (self.press.0 + s.0, self.press.1 + s.1);
+    }
+
+    fn motion(&mut self, local: (f64, f64), applied: (i32, i32)) -> (f64, f64) {
+        self.pos = grab_motion(self.press, self.delta, local, applied);
+        self.pos
+    }
+}
+
 /// B-WL-7: global position for a motion during a grab. With relative-pointer events
-/// since the press, `grab` (press position plus deltas) is used as is: sway reports
-/// surface-local positions relative to the press-time surface position. Without them
-/// (KWin nested, no manager) the absolute motion maps with the applied origin, which
-/// compensates margins the compositor has not applied yet.
+/// since the press, the press position plus their sum is used and the motion's own
+/// coordinates are ignored: sway reports surface-local positions relative to the
+/// press-time surface position. Without them (KWin nested, no manager) the absolute
+/// motion maps with the applied origin, which compensates margins the compositor has not
+/// applied yet.
 fn grab_motion(
-    grab: (f64, f64),
-    relative: bool,
+    press: (f64, f64),
+    delta: Option<(f64, f64)>,
     local: (f64, f64),
     applied: (i32, i32),
 ) -> (f64, f64) {
-    if relative {
-        grab
-    } else {
-        (applied.0 as f64 + local.0, applied.1 as f64 + local.1)
+    match delta {
+        Some(d) => (press.0 + d.0, press.1 + d.1),
+        None => (applied.0 as f64 + local.0, applied.1 as f64 + local.1),
     }
 }
 
@@ -1122,9 +1152,7 @@ impl RelativePointerHandler for WlState {
         e: RelativeMotionEvent,
     ) {
         if let Some(g) = &mut self.grab_pos {
-            g.0 += e.delta.0;
-            g.1 += e.delta.1;
-            self.grab_rel = true;
+            g.relative(e.delta);
         }
     }
 }
@@ -1174,18 +1202,32 @@ mod tests {
         // drag by +50 px while the margin moves to 150: sway reports local 100 (relative to
         // the press-time origin) with applied 150. The deltas give 200, not 250.
         assert_eq!(
-            grab_motion((200.0, 120.0), true, (100.0, 20.0), (150, 100)),
+            grab_motion((150.0, 120.0), Some((50.0, 0.0)), (100.0, 20.0), (150, 100)),
             (200.0, 120.0)
         );
         // Absolute mode, margin pending: pointer at global 160 seen before the margin move
         // was applied (applied 100, local 60) and after it (applied 150, local 10).
         assert_eq!(
-            grab_motion((150.0, 120.0), false, (60.0, 20.0), (100, 100)),
+            grab_motion((150.0, 120.0), None, (60.0, 20.0), (100, 100)),
             (160.0, 120.0)
         );
         assert_eq!(
-            grab_motion((160.0, 120.0), false, (10.0, 20.0), (150, 100)),
+            grab_motion((150.0, 120.0), None, (10.0, 20.0), (150, 100)),
             (160.0, 120.0)
         );
+    }
+
+    #[test]
+    fn b_wl_7_absolute_motion_before_first_relative_event() {
+        // Press at (150, 120); the absolute motion of a +50 px move arrives before its
+        // relative event. The delta must not count twice.
+        let mut g = GrabPos::new((150.0, 120.0));
+        assert_eq!(g.motion((100.0, 20.0), (100, 100)), (200.0, 120.0));
+        g.relative((50.0, 0.0));
+        assert_eq!(g.pos, (200.0, 120.0));
+        // The next motion follows press plus deltas, whatever it reports (sway quirk).
+        g.relative((10.0, 0.0));
+        assert_eq!(g.motion((110.0, 20.0), (150, 100)), (210.0, 120.0));
+        assert_eq!(g.pos, (210.0, 120.0));
     }
 }
