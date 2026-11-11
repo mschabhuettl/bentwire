@@ -55,6 +55,7 @@ through `sh -c`, with the JSON input Claude Code sends, and checks:
   `RequestStart` in `--trace` after `Test1.Advance`);
 - that the hooks print nothing;
 - that four hooks with a 5 s CLI return in milliseconds;
+- the python3 fallback for reading the hook input (on a `PATH` without `jq`);
 - the notification filter, the opt-out, and silence without a daemon.
 
 It needs `dbus-run-session`, `gdbus` and `jq`. `BENTWIRE_TEST_KEEP=1` keeps the

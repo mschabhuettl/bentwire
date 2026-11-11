@@ -25,9 +25,11 @@ hook_cmd() {
 }
 
 # fire <event> <json>: runs the hook as Claude Code would (sh -c, input on stdin);
-# stdout goes to $BW_DIR/hook.out
+# stdout goes to $BW_DIR/hook.out; HOOK_PATH replaces PATH for the hook only
 fire() {
-    printf '%s' "$2" | sh -c "$(hook_cmd "$1")" >>"$BW_DIR/hook.out"
+    local cmd
+    cmd=$(hook_cmd "$1")
+    printf '%s' "$2" | PATH=${HOOK_PATH:-$PATH} sh -c "$cmd" >>"$BW_DIR/hook.out"
 }
 
 bw_start_daemon
@@ -56,6 +58,21 @@ bw_check "matcher covers Edit and Write" sh -c \
 bw_advance 3000
 bw_check "daemon started Congratulate" bw_started '^play Congratulate$'
 bw_check "hooks print nothing" test ! -s "$BW_DIR/hook.out"
+
+echo "hook input read with python3 when jq is missing"
+mkdir -p "$BW_DIR/nojq"
+for f in /usr/bin/* /bin/*; do
+    n=${f##*/}
+    [ "$n" = jq ] || [ -e "$BW_DIR/nojq/$n" ] || ln -s "$f" "$BW_DIR/nojq/$n"
+done
+: >"$BW_LOG"
+HOOK_PATH=$BW_DIR/nojq fire Notification "{$SESSION,\"hook_event_name\":\"Notification\",\"notification_type\":\"auth_success\",\"message\":\"ok\"}"
+HOOK_PATH=$BW_DIR/nojq fire Notification "{$SESSION,\"hook_event_name\":\"Notification\",\"notification_type\":\"permission_prompt\",\"message\":\"Claude needs your permission to use Würfel \\\"x\\\"\"}"
+bw_wait 10 bw_has '^say '
+sleep 1
+bw_check "jq is really missing on that PATH" sh -c "PATH='$BW_DIR/nojq'; ! command -v jq"
+bw_check "python3 fallback: message with quotes and umlaut said" bw_has '^say Claude needs your permission to use Würfel "x"$'
+bw_check "python3 fallback: notification type filtered" test "$(bw_count '^say ')" -eq 1
 
 echo "events stay in order"
 cat >"$BW_DIR/delay" <<EOF
