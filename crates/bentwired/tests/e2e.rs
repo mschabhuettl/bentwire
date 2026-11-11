@@ -765,6 +765,25 @@ fn b_ask_7_b_char_5_character_switch_closes_ask() {
 }
 
 #[test]
+fn r_speak_1_builtin_placeholder_say_wait_completes() {
+    // Only the builtin pack: its Speaking animation must end, or phase 1 never does.
+    let mut e = Env::new("bisay");
+    let builtin = repo().join("characters/builtin");
+    e.start_raw(&["--characters", builtin.to_str().unwrap()]);
+    e.advance(3000);
+    assert_eq!(e.character(), "bentwire-placeholder");
+    let mut c = e.client();
+    let w = e.cli_bg(&["say", "hello", "--wait"]);
+    let (code, _, se) = e.finish_advancing(w);
+    assert_eq!(code, 0, "{se}");
+    e.advance(10000);
+    c.drain(200);
+    let m = c.members();
+    assert!(m.iter().any(|s| s == "BalloonShown"), "{m:?}");
+    assert!(m.iter().any(|s| s == "BalloonHidden"), "{m:?}");
+}
+
+#[test]
 fn b_gal_1_gallery_next_cancel_and_ok() {
     let mut e = Env::new("gal");
     let builtin = repo().join("characters/builtin");

@@ -370,6 +370,7 @@ fn pose(f: impl FnOnce(&mut Pose)) -> Pose {
 }
 
 /// A loop of `frames` that repeats until exit, then returns to rest (transition "exit").
+/// Only for idle animations: a request phase waits for its animation to reach END.
 fn looping(name: &'static str, frames: Vec<(Pose, u32)>) -> Anim {
     let n = frames.len() as u32;
     let mut f = frames;
@@ -469,8 +470,9 @@ fn animations() -> Vec<Anim> {
         });
         vec![(pose(|p| p.rot = rot), 100), (g, 900), (REST, 100)]
     };
+    // Ends on the moving pose, which stays shown during the slide (R-MOVE-1).
     let mv = |rot: (f64, f64), dx: f64, dy: f64| {
-        looping(
+        anim(
             "",
             vec![
                 (
@@ -572,7 +574,10 @@ fn animations() -> Vec<Anim> {
         anim("IdleSpin", spin.clone()),
         Anim {
             mouths: true,
-            ..named("Speak", looping("", speak_frames.clone()))
+            ..anim(
+                "Speak",
+                speak_frames.iter().copied().chain([(REST, 100)]).collect(),
+            )
         },
         Anim {
             mouths: true,
@@ -589,28 +594,26 @@ fn animations() -> Vec<Anim> {
         anim("GestureRight", gesture(1, 0, TILT_R)),
         anim("GestureUp", gesture(0, -1, REST.rot)),
         anim("GestureDown", gesture(0, 1, REST.rot)),
-        named(
+        anim(
             "Hearing_1",
-            looping(
-                "",
-                vec![
-                    (
-                        pose(|p| {
-                            p.rot = TILT_R;
-                            p.eyes = Eyes::Wide;
-                            p.look = (1.0, 0.0);
-                        }),
-                        400,
-                    ),
-                    (
-                        pose(|p| {
-                            p.rot = TILT_R;
-                            p.look = (1.0, 0.0);
-                        }),
-                        300,
-                    ),
-                ],
-            ),
+            vec![
+                (
+                    pose(|p| {
+                        p.rot = TILT_R;
+                        p.eyes = Eyes::Wide;
+                        p.look = (1.0, 0.0);
+                    }),
+                    400,
+                ),
+                (
+                    pose(|p| {
+                        p.rot = TILT_R;
+                        p.look = (1.0, 0.0);
+                    }),
+                    300,
+                ),
+                (REST, 100),
+            ],
         ),
         anim(
             "Alert",

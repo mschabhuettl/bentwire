@@ -87,3 +87,59 @@ fn committed_builtin_matches_generator() {
     let c = Character::load(&dir).unwrap();
     assert!(c.warnings.is_empty());
 }
+
+/// Every animation that is not only an IdlingLevel member reaches END in normal mode under
+/// any draw sequence: no reachable cycle (e.g. a 100% back-branch), so request phases such
+/// as Speak (R-SPEAK-1) end.
+#[test]
+fn non_idle_animations_reach_end_in_normal_mode() {
+    use bentwire_character::model::Branch;
+    let c = placeholder().unwrap().load().unwrap();
+    let m = &c.manifest;
+    let idle: Vec<&String> = m
+        .states
+        .iter()
+        .filter(|(s, _)| s.starts_with("IdlingLevel"))
+        .flat_map(|(_, l)| l)
+        .collect();
+    let used_elsewhere = |n: &String| {
+        m.states
+            .iter()
+            .any(|(s, l)| !s.starts_with("IdlingLevel") && l.contains(n))
+    };
+    let mut checked = 0;
+    for a in &m.animations {
+        if idle.contains(&&a.name) && !used_elsewhere(&a.name) {
+            continue;
+        }
+        let n = a.frames.len();
+        // Successors of frame i in normal mode; `n` stands for END.
+        let next = |i: usize| -> Vec<usize> {
+            let mut v = Vec::new();
+            let mut sum = 0;
+            for b in &a.frames[i].branch {
+                if let Branch::Random { target, p } = *b {
+                    if p > 0 {
+                        v.push(target as usize);
+                    }
+                    sum += p;
+                }
+            }
+            if sum < 100 {
+                v.push(i + 1);
+            }
+            v
+        };
+        // Depth-first over all paths; a path longer than n frames has a cycle.
+        let mut stack = vec![(0usize, 0usize)];
+        while let Some((i, depth)) = stack.pop() {
+            if i >= n {
+                continue;
+            }
+            assert!(depth < n, "{}: a draw sequence never reaches END", a.name);
+            stack.extend(next(i).into_iter().map(|j| (j, depth + 1)));
+        }
+        checked += 1;
+    }
+    assert!(checked > 30, "only {checked} animations checked");
+}
