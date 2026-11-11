@@ -125,19 +125,24 @@ unknown keys are ignored.
 
 State (character, position, visibility) is kept in `~/.local/state/bentwire/state.toml`.
 
-**Balloon font.** The word balloon of `say` uses the font the character file names; for
-the Microsoft characters that is "MS Sans Serif" (Arial for `qmark`). bentwire bundles only
-Tahoma (used by the Office balloon and the menu) and looks every other family up through
-fontconfig, which falls back to its default sans-serif font (often DejaVu Sans) when the
-family is not installed. For the classic look, set `balloon_font = "Tahoma"`: every
-character's balloon then uses the bundled Tahoma.
+**Balloon font.** The word balloon of `say` uses the character's own font: "MS Sans Serif"
+13 px for the Microsoft Agent characters; Office 97 actors name no font and get the same
+default. bentwire looks that family up through fontconfig, which falls back to `sans-serif`
+(DejaVu Sans on most Linux systems) when it is not installed. The Office balloon (`ask`)
+and the menu always use the bundled Tahoma (Wine's free replacement), so mixed fonts are
+expected. To make the word balloon look like the original, set one font for all
+characters: `balloon_font = "Tahoma"` uses the bundled font and needs no installed fonts
+(any fontconfig family works too). The daemon rereads the file on `SIGHUP` or at the next
+start.
 
-**Requests are queued.** `show`, `hide`, `play`, `say`, `ask`, `moveto` and `gestureat` go
-into one queue per character and run strictly in order, as in Microsoft Agent. An `ask`
-sent right after a `say` therefore appears only when the `say` has finished. Use
-`bentwire stop --all` first to drop what is still queued. While an `ask` balloon is open,
-the queue goes on; a `say` or a second `ask` waits until the balloon is answered (with
-`--mode autodown` the open balloon is dismissed instead).
+**Requests run one after another.** `show`, `hide`, `play`, `say`, `ask`, `moveto` and
+`gestureat` go into one queue per character, as in Microsoft Agent. An `ask` sent while a
+`say` is still speaking waits until the text has been fully shown, then plays the ask's
+animation (default `Explain`, `--animation ""` for none) and opens the Office balloon. The
+word balloon hides on its own 1.5 s after the text ends, so both balloons can be visible
+for a moment. While the Office balloon is open the queue goes on, but a later `say` or
+`ask` waits until the balloon is answered (with `--mode autodown` the open balloon is
+dismissed instead). `bentwire stop --all` drops everything still queued.
 
 ## Importing your own character files
 
