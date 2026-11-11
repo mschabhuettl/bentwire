@@ -335,10 +335,7 @@ for e in [e for e in m if "label" in e][:4]:
     stop_daemon
 }
 
-gif_drag() { # drag the character across the desktop
-    # The drag goes through Test1.Pointer while the real pointer moves along: a drag
-    # follows relative-pointer deltas (B-WL-7), and the nested KWin passes none on from
-    # the outer sway (absolute or relative virtual-pointer motion alike).
+gif_drag() { # press on the character and drag it across the desktop with the pointer
     start_daemon "$1" en true 900 380
     snapshot "$T/a.json"
     sgrim -t ppm "$T/g.ppm"
@@ -347,17 +344,19 @@ gif_drag() { # drag the character across the desktop
     record_start drag "0 0 $W $H"
     vp "move $px $py"
     sleep 0.3
-    $TEST Pointer suii press 1 "$px" "$py" >/dev/null
+    vp "press 1"
     local i nx ny
     # each step stays on screen for several recorder frames (see "frames" in shot.py)
     for i in $(seq 1 30); do
         nx=$((px - i * 20)) ny=$((py - (i * (30 - i)) / 3))
         vp "move $nx $ny"
-        $TEST Pointer suii motion 1 "$nx" "$ny" >/dev/null
         sleep 0.08
     done
-    $TEST Pointer suii release 1 "$nx" "$ny" >/dev/null
+    vp "release 1"
     sleep 0.5
+    snapshot "$T/a.json"
+    python3 -I -c 'import json, sys; s = json.load(open(sys.argv[1])); sys.exit(s["left"] > 700)' "$T/a.json" \
+        || { echo "the drag did not move the character"; exit 1; }
     record_stop "$OUT/drag.gif" 500 1500
     stop_daemon
 }
