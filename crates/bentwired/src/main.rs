@@ -1,21 +1,22 @@
-// Until the core adapter and the Wayland backend use every engine type.
-#![allow(dead_code)]
-
 mod app;
 mod args;
 mod audio;
 mod config;
 mod dbus;
 mod discovery;
-mod engine;
-mod layout;
-mod stub;
+mod library;
+mod model;
+mod present;
 
-use app::{App, Backend, BackendEvent, Clock};
+use app::{App, Backend, Clock};
+use bentwire_core::Core;
+use bentwire_core::api::{CoreInit, Event, LocaleEnv, OutputInfo, Rect, Scene, StateFile};
 use calloop::signals::{Signal as UnixSignal, Signals};
-use engine::{Engine, Output, Scene};
+use present::Rendered;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::process::ExitCode;
+use std::rc::Rc;
 use std::time::Instant;
 use zbus::blocking::{Connection, MessageIterator};
 use zbus::fdo::{RequestNameFlags, RequestNameReply};
@@ -24,8 +25,8 @@ use zbus::fdo::{RequestNameFlags, RequestNameReply};
 struct Headless;
 
 impl Backend for Headless {
-    fn present(&mut self, _scene: &Scene, _outputs: &[Output]) {}
-    fn poll(&mut self) -> Vec<BackendEvent> {
+    fn present(&mut self, _r: &Rendered, _scene: &Scene) {}
+    fn poll(&mut self) -> Vec<Event> {
         Vec::new()
     }
 }
@@ -51,6 +52,17 @@ fn main() -> ExitCode {
     }
 }
 
+/// Local hour for office97 daypart branches; `date` avoids a time-zone dependency.
+fn local_hour() -> u8 {
+    std::process::Command::new("date")
+        .arg("+%H")
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .and_then(|s| s.trim().parse().ok())
+        .unwrap_or(12)
+}
+
 fn run(args: args::Args) -> Result<(), String> {
     let mut event_loop: calloop::EventLoop<App> =
         calloop::EventLoop::try_new().map_err(|e| e.to_string())?;
@@ -61,7 +73,15 @@ fn run(args: args::Args) -> Result<(), String> {
         .handle()
         .insert_source(signals, |ev, _, app: &mut App| match ev.signal() {
             UnixSignal::SIGHUP => app.reload(),
-            _ => app.quit = true,
+            // B-RUN-1: save (the core's Quit emits PersistState) and exit 0.
+            _ => {
+                app.event(Event::Call {
+                    token: u64::MAX,
+                    sender: String::new(),
+                    call: bentwire_core::api::Call::Quit,
+                });
+                app.quit = true;
+            }
         })
         .map_err(|e| e.to_string())?;
 
@@ -99,54 +119,73 @@ fn run(args: args::Args) -> Result<(), String> {
         })
         .map_err(|e| e.to_string())?;
 
-    let outputs: Vec<Output> = args
+    let outputs: Vec<OutputInfo> = args
         .outputs
         .iter()
         .enumerate()
-        .map(|(i, o)| Output {
+        .map(|(i, o)| OutputInfo {
             id: i as u32,
-            x: o.x,
-            y: o.y,
-            w: o.w,
-            h: o.h,
+            rect: Rect::new(o.x, o.y, o.w as i32, o.h as i32),
             scale: o.scale,
         })
         .collect();
-    let mut engine: Box<dyn Engine> = Box::new(stub::Stub::new());
-    if let Some(d) = &args.draws {
-        let text = std::fs::read_to_string(d).map_err(|e| format!("{}: {e}", d.display()))?;
-        let draws = text
-            .split_whitespace()
-            .map(|t| {
-                t.parse::<u32>()
-                    .map_err(|_| format!("{}: bad draw {t:?}", d.display()))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        engine.set_draws(draws);
-    }
-    let clock = if args.headless {
-        Clock::Fake(0)
-    } else {
-        Clock::Real(Instant::now())
-    };
-    engine.set_outputs(clock.now(), &outputs);
-
-    // B-CHAR-4 startup selection.
-    let candidates = discovery::startup_candidates(
-        &entries,
-        state.character.as_deref(),
-        config.character.as_deref(),
-    );
-    for id in &candidates {
-        let e = entries
-            .iter()
-            .find(|e| &e.id == id)
-            .expect("candidate exists");
-        match engine.select(clock.now(), Some(e)) {
-            Ok(()) => break,
-            Err(err) => log::warn!("character {id}: {}", err.message),
+    let draws: Box<dyn bentwire_core::api::Draws> = match (&args.draws, args.seed) {
+        (Some(d), _) => {
+            let text = std::fs::read_to_string(d).map_err(|e| format!("{}: {e}", d.display()))?;
+            let v = text
+                .split_whitespace()
+                .map(|t| {
+                    t.parse::<u32>()
+                        .map_err(|_| format!("{}: bad draw {t:?}", d.display()))
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            Box::new(bentwire_core::draws::ScriptedDraws::new(v))
         }
-    }
+        (None, Some(seed)) => Box::new(bentwire_core::draws::SplitMix64::new(seed)),
+        (None, None) => {
+            let seed = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos() as u64)
+                .unwrap_or(1);
+            Box::new(bentwire_core::draws::SplitMix64::new(seed))
+        }
+    };
+    let lib: library::Shared = Rc::new(RefCell::new(library::Library {
+        entries,
+        loaded: HashMap::new(),
+    }));
+    let catalog = lib.borrow().catalog();
+    let env = |k: &str| std::env::var(k).ok().filter(|v| !v.is_empty());
+    let state_file = state.character.clone().map(|c| StateFile {
+        character: c,
+        left: state.left.unwrap_or(0),
+        top: state.top.unwrap_or(0),
+        visible: state.visible.unwrap_or(true),
+    });
+    let headless = args.headless;
+    // A-FONT-1: headless output must not depend on the machine's fonts.
+    let fonts = || {
+        if headless {
+            bentwire_render::font::Fonts::bundled()
+        } else {
+            bentwire_render::font::Fonts::with_system()
+        }
+    };
+    let core = Core::new(CoreInit {
+        config: config.to_core(),
+        locale: LocaleEnv {
+            lc_all: env("LC_ALL"),
+            lc_messages: env("LC_MESSAGES"),
+            lang: env("LANG"),
+        },
+        state: state_file,
+        catalog,
+        loader: Box::new(library::Loader(lib.clone())),
+        metrics: Box::new(fonts()),
+        draws,
+        outputs: outputs.clone(),
+        local_hour: local_hour(),
+    });
     let trace = match &args.trace {
         Some(p) => Some(std::fs::File::create(p).map_err(|e| format!("{}: {e}", p.display()))?),
         None => None,
@@ -154,36 +193,51 @@ fn run(args: args::Args) -> Result<(), String> {
     if let Some(d) = &args.dump_frames {
         std::fs::create_dir_all(d).map_err(|e| format!("{}: {e}", d.display()))?;
     }
-    let german = config.german();
+    let theme = discovery::find_theme(&roots).and_then(|dir| {
+        bentwire_render::theme::Theme::load(&dir)
+            .map_err(|e| log::warn!("balloon theme {}: {}", dir.display(), e.0))
+            .ok()
+    });
     let mut app = App {
-        engine,
+        core,
+        lib,
         conn: conn.clone(),
-        clock,
-        test: args.headless || args.test_interface,
-        test_full: args.headless,
+        clock: if headless {
+            Clock::Fake(0)
+        } else {
+            Clock::Real(Instant::now())
+        },
+        test: headless || args.test_interface,
+        test_full: headless,
         next_output_id: outputs.len() as u32,
         outputs,
         backend: Box::new(Headless),
+        audio: if headless || args.no_audio {
+            None
+        } else {
+            audio::Audio::open()
+        },
+        fonts: fonts(),
+        theme,
         trace,
         dump_frames: args.dump_frames.clone(),
         dump_seq: 0,
-        entries,
         roots_cli: args.characters.clone(),
-        config,
-        german,
+        config_paths: config.character_paths.clone(),
         state_path,
-        writer: Default::default(),
-        write_at: None,
-        wall: Instant::now(),
-        last_scene: Scene::default(),
-        last_char_props: None,
-        last_agent_props: HashMap::new(),
+        next_token: 0,
+        pending: HashMap::new(),
+        last_scene: None,
+        rendered: Rendered::default(),
+        last_props: None,
         quit: false,
         menu_serial: 0,
+        grab: None,
+        deferred: Vec::new(),
     };
-    app.writer.last_written = Some(state.clone());
-    startup_position(&mut app, &state);
-    app.flush();
+    let now = app.clock.now();
+    let out = app.core.start(now);
+    app.process(out);
 
     while !app.quit {
         let timeout = app.timeout();
@@ -193,29 +247,6 @@ fn run(args: args::Args) -> Result<(), String> {
         app.backend_events();
         app.tick();
     }
-    app.write_state(true);
     let _ = conn.release_name(dbus::BUS_NAME);
     Ok(())
-}
-
-/// B-CFG-2 / B-CFG-3: restore or choose the position, then show if visible.
-fn startup_position(app: &mut App, state: &config::State) {
-    let Some(p) = app.engine.props() else { return };
-    let (left, top) = match (state.left, state.top) {
-        (Some(l), Some(t)) => (l, t),
-        _ => match app.outputs.first() {
-            Some(o) => (
-                o.x + o.w as i32 - 48 - p.width as i32,
-                o.y + o.h as i32 - 96 - p.height as i32,
-            ),
-            None => (0, 0),
-        },
-    };
-    app.engine.set_position(left, top);
-    if state.visible.unwrap_or(true) {
-        let now = app.clock.now();
-        if let Err(e) = app.engine.call(now, "", engine::Method::Show(false)) {
-            log::warn!("startup Show: {}", e.message);
-        }
-    }
 }

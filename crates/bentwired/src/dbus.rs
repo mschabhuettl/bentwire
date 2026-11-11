@@ -2,7 +2,10 @@
 //! through zbus's object server, so that the daemon controls the order of replies and
 //! signals (B-Q-1) and can address signals to one unique name (B-Q-2).
 
-use crate::engine::{AskSpec, Buttons, CallError, CharacterProps, E_INVALID_ARGS, Method, Signal};
+use bentwire_core::api::{
+    AskButtons as Buttons, AskSpec, Call as CoreCall, MethodError as CallError, Properties, Signal,
+    errors,
+};
 use std::collections::HashMap;
 use zbus::blocking::Connection;
 use zbus::message::{Header, Message, Type};
@@ -26,15 +29,11 @@ pub enum TestCall {
     AddOutput(String),
     RemoveOutput(u32),
     Snapshot,
-    Answer(i32),
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Call {
-    ListCharacters,
-    Select(String),
-    Quit,
-    Char(Method),
+    Core(CoreCall),
     Test(TestCall),
     Get(String, String),
     GetAll(String),
@@ -43,14 +42,15 @@ pub enum Call {
     GetMachineId,
 }
 
-pub struct Incoming {
-    pub msg: Message,
-    pub sender: String,
-    pub call: Result<Call, CallError>,
+pub fn err(name: &str, message: impl Into<String>) -> CallError {
+    CallError {
+        name: name.into(),
+        message: message.into(),
+    }
 }
 
 fn invalid(msg: impl Into<String>) -> CallError {
-    CallError::new(E_INVALID_ARGS, msg)
+    err(errors::INVALID_ARGS, msg)
 }
 
 fn body<T>(msg: &Message) -> Result<T, CallError>
@@ -79,7 +79,7 @@ pub fn parse(msg: &Message, test: bool, test_full: bool) -> Option<Result<Call, 
         .map(|m| m.as_str().to_string())
         .unwrap_or_default();
     let unknown_method = || {
-        Err(CallError::new(
+        Err(err(
             "org.freedesktop.DBus.Error.UnknownMethod",
             format!("no method {iface}.{member} on {path}"),
         ))
@@ -89,7 +89,7 @@ pub fn parse(msg: &Message, test: bool, test_full: bool) -> Option<Result<Call, 
         AGENT_PATH | CHAR_PATH | "/" | "/org" | "/org/bentwire"
     ) || (test && path == TEST_PATH);
     if !known_path {
-        return Some(Err(CallError::new(
+        return Some(Err(err(
             "org.freedesktop.DBus.Error.UnknownObject",
             format!("no object {path}"),
         )));
@@ -110,41 +110,45 @@ pub fn parse(msg: &Message, test: bool, test_full: bool) -> Option<Result<Call, 
             (PROPS_IFACE, "Set") => {
                 let (i, n, v): (String, String, OwnedValue) = body(msg)?;
                 if path != CHAR_PATH || i != CHAR_IFACE {
-                    return Err(CallError::new(
+                    return Err(err(
                         "org.freedesktop.DBus.Error.PropertyReadOnly",
                         format!("{i}.{n} is read-only"),
                     ));
                 }
                 if n != "IdleOn" {
-                    return Err(CallError::new(
+                    return Err(err(
                         "org.freedesktop.DBus.Error.PropertyReadOnly",
                         format!("{n} is read-only"),
                     ));
                 }
                 let b = bool::try_from(&*v).map_err(|_| invalid("IdleOn takes a boolean"))?;
-                Call::Char(Method::SetIdleOn(b))
+                Call::Core(CoreCall::SetIdleOn(b))
             }
             (AGENT_IFACE, m) if path == AGENT_PATH => match m {
-                "ListCharacters" => Call::ListCharacters,
-                "Select" => Call::Select(body::<(String,)>(msg)?.0),
-                "Quit" => Call::Quit,
+                "ListCharacters" => Call::Core(CoreCall::ListCharacters),
+                "Select" => Call::Core(CoreCall::Select(body::<(String,)>(msg)?.0)),
+                "Quit" => Call::Core(CoreCall::Quit),
                 _ => return unknown_method(),
             },
-            (CHAR_IFACE, m) if path == CHAR_PATH => Call::Char(match m {
-                "Show" => Method::Show(body::<(bool,)>(msg)?.0),
-                "Hide" => Method::Hide(body::<(bool,)>(msg)?.0),
-                "Play" => Method::Play(body::<(String,)>(msg)?.0),
-                "Speak" => Method::Speak(body::<(String,)>(msg)?.0),
-                "Ask" => Method::Ask(parse_ask(&body::<(HashMap<String, OwnedValue>,)>(msg)?.0)?),
+            (CHAR_IFACE, m) if path == CHAR_PATH => Call::Core(match m {
+                "Show" => CoreCall::Show {
+                    fast: body::<(bool,)>(msg)?.0,
+                },
+                "Hide" => CoreCall::Hide {
+                    fast: body::<(bool,)>(msg)?.0,
+                },
+                "Play" => CoreCall::Play(body::<(String,)>(msg)?.0),
+                "Speak" => CoreCall::Speak(body::<(String,)>(msg)?.0),
+                "Ask" => CoreCall::Ask(parse_ask(&body::<(HashMap<String, OwnedValue>,)>(msg)?.0)?),
                 "MoveTo" => {
                     let (x, y, s): (i32, i32, u32) = body(msg)?;
-                    Method::MoveTo(x, y, s)
+                    CoreCall::MoveTo { x, y, speed: s }
                 }
                 "GestureAt" => {
                     let (x, y): (i32, i32) = body(msg)?;
-                    Method::GestureAt(x, y)
+                    CoreCall::GestureAt { x, y }
                 }
-                "Stop" => Method::Stop(body::<(u32,)>(msg)?.0),
+                "Stop" => CoreCall::Stop(body::<(u32,)>(msg)?.0),
                 "StopAll" => {
                     let t = body::<(Vec<String>,)>(msg)?.0;
                     if let Some(bad) = t
@@ -153,21 +157,20 @@ pub fn parse(msg: &Message, test: bool, test_full: bool) -> Option<Result<Call, 
                     {
                         return Err(invalid(format!("unknown request type {bad:?} (B-Q-5)")));
                     }
-                    Method::StopAll(t)
+                    CoreCall::StopAll(t)
                 }
                 _ => return unknown_method(),
             }),
             (TEST_IFACE, m) if test && path == TEST_PATH => Call::Test(match m {
                 "Pointer" => {
                     let (k, b, x, y): (String, u32, i32, i32) = body(msg)?;
-                    if crate::engine::PointerKind::parse(&k).is_none() {
+                    if !["press", "release", "motion", "leave"].contains(&k.as_str()) {
                         return Err(invalid(format!("unknown pointer kind {k:?}")));
                     }
                     TestCall::Pointer(k, b, x, y)
                 }
                 "Key" => TestCall::Key(body::<(String,)>(msg)?.0),
                 "Snapshot" => TestCall::Snapshot,
-                "Answer" => TestCall::Answer(body::<(i32,)>(msg)?.0),
                 "Advance" if test_full => TestCall::Advance(body::<(u32,)>(msg)?.0),
                 "SetDraws" if test_full => TestCall::SetDraws(body::<(Vec<u32>,)>(msg)?.0),
                 "AddOutput" if test_full => TestCall::AddOutput(body::<(String,)>(msg)?.0),
@@ -237,26 +240,121 @@ pub fn reply<B: serde::Serialize + zbus::zvariant::DynamicType>(
     }
 }
 
+pub fn signal_member(s: &Signal) -> &'static str {
+    match s {
+        Signal::RequestStart { .. } => "RequestStart",
+        Signal::RequestComplete { .. } => "RequestComplete",
+        Signal::AskComplete { .. } => "AskComplete",
+        Signal::Bookmark { .. } => "Bookmark",
+        Signal::Click { .. } => "Click",
+        Signal::DblClick { .. } => "DblClick",
+        Signal::DragStart { .. } => "DragStart",
+        Signal::DragComplete { .. } => "DragComplete",
+        Signal::Move { .. } => "Move",
+        Signal::Shown { .. } => "Shown",
+        Signal::Hidden { .. } => "Hidden",
+        Signal::IdleStart => "IdleStart",
+        Signal::IdleComplete => "IdleComplete",
+        Signal::BalloonShown => "BalloonShown",
+        Signal::BalloonHidden => "BalloonHidden",
+    }
+}
+
+pub fn signal_args(s: &Signal) -> serde_json::Value {
+    use serde_json::json;
+    match s {
+        Signal::RequestStart { id } => json!([id]),
+        Signal::RequestComplete { id, status, reason } => json!([id, status, reason]),
+        Signal::AskComplete {
+            id,
+            result,
+            checked,
+        } => json!([id, result, checked]),
+        Signal::Bookmark { n } => json!([n]),
+        Signal::Click {
+            button,
+            modifiers,
+            x,
+            y,
+            from_tray,
+        }
+        | Signal::DblClick {
+            button,
+            modifiers,
+            x,
+            y,
+            from_tray,
+        } => {
+            json!([button, modifiers, x, y, from_tray])
+        }
+        Signal::DragStart {
+            button,
+            modifiers,
+            x,
+            y,
+        }
+        | Signal::DragComplete {
+            button,
+            modifiers,
+            x,
+            y,
+        } => json!([button, modifiers, x, y]),
+        Signal::Move { x, y, cause } => json!([x, y, cause]),
+        Signal::Shown { cause } | Signal::Hidden { cause } => json!([cause]),
+        _ => json!([]),
+    }
+}
+
 pub fn emit(conn: &Connection, dest: Option<&str>, s: &Signal) {
-    let m = s.member();
+    let m = signal_member(s);
     let r = match s {
-        Signal::RequestStart(a) => conn.emit_signal(dest, CHAR_PATH, CHAR_IFACE, m, &(a,)),
-        Signal::RequestComplete(a, b, c) => {
-            conn.emit_signal(dest, CHAR_PATH, CHAR_IFACE, m, &(a, b, c))
+        Signal::RequestStart { id } => conn.emit_signal(dest, CHAR_PATH, CHAR_IFACE, m, &(id,)),
+        Signal::RequestComplete { id, status, reason } => {
+            conn.emit_signal(dest, CHAR_PATH, CHAR_IFACE, m, &(id, status, reason))
         }
-        Signal::AskComplete(a, b, c) => {
-            conn.emit_signal(dest, CHAR_PATH, CHAR_IFACE, m, &(a, b, c))
+        Signal::AskComplete {
+            id,
+            result,
+            checked,
+        } => conn.emit_signal(dest, CHAR_PATH, CHAR_IFACE, m, &(id, result, checked)),
+        Signal::Bookmark { n } => conn.emit_signal(dest, CHAR_PATH, CHAR_IFACE, m, &(n,)),
+        Signal::Click {
+            button,
+            modifiers,
+            x,
+            y,
+            from_tray,
         }
-        Signal::Bookmark(a) => conn.emit_signal(dest, CHAR_PATH, CHAR_IFACE, m, &(a,)),
-        Signal::Click(a, b, c, d, e) | Signal::DblClick(a, b, c, d, e) => {
-            conn.emit_signal(dest, CHAR_PATH, CHAR_IFACE, m, &(a, b, c, d, e))
+        | Signal::DblClick {
+            button,
+            modifiers,
+            x,
+            y,
+            from_tray,
+        } => conn.emit_signal(
+            dest,
+            CHAR_PATH,
+            CHAR_IFACE,
+            m,
+            &(button, modifiers, x, y, from_tray),
+        ),
+        Signal::DragStart {
+            button,
+            modifiers,
+            x,
+            y,
         }
-        Signal::DragStart(a, b, c, d) | Signal::DragComplete(a, b, c, d) => {
-            conn.emit_signal(dest, CHAR_PATH, CHAR_IFACE, m, &(a, b, c, d))
+        | Signal::DragComplete {
+            button,
+            modifiers,
+            x,
+            y,
+        } => conn.emit_signal(dest, CHAR_PATH, CHAR_IFACE, m, &(button, modifiers, x, y)),
+        Signal::Move { x, y, cause } => {
+            conn.emit_signal(dest, CHAR_PATH, CHAR_IFACE, m, &(x, y, cause))
         }
-        Signal::Move(a, b, c) => conn.emit_signal(dest, CHAR_PATH, CHAR_IFACE, m, &(a, b, c)),
-        Signal::Shown(a) | Signal::Hidden(a) => {
-            conn.emit_signal(dest, CHAR_PATH, CHAR_IFACE, m, &(a,))
+        Signal::Shown { cause } | Signal::Hidden { cause } => {
+            conn.emit_signal(dest, CHAR_PATH, CHAR_IFACE, m, &(cause,))
         }
         _ => conn.emit_signal(dest, CHAR_PATH, CHAR_IFACE, m, &()),
     };
@@ -265,9 +363,9 @@ pub fn emit(conn: &Connection, dest: Option<&str>, s: &Signal) {
     }
 }
 
-pub fn char_props_map(p: &CharacterProps) -> HashMap<&'static str, Value<'static>> {
+pub fn char_props_map(p: &Properties) -> HashMap<&'static str, Value<'static>> {
     let mut m = HashMap::new();
-    m.insert("Id", Value::from(p.id.clone()));
+    m.insert("Id", Value::from(p.character.clone()));
     m.insert("Name", Value::from(p.name.clone()));
     m.insert("Description", Value::from(p.description.clone()));
     m.insert("Visible", Value::from(p.visible));
@@ -396,7 +494,7 @@ pub fn introspect(path: &str, test: bool, test_full: bool) -> String {
         }
         TEST_PATH if test => {
             let mut s = String::from(
-                r#"<interface name="org.bentwire.Test1"><method name="Pointer"><arg type="s" direction="in"/><arg type="u" direction="in"/><arg type="i" direction="in"/><arg type="i" direction="in"/></method><method name="Key"><arg type="s" direction="in"/></method><method name="Snapshot"><arg type="s" direction="out"/></method><method name="Answer"><arg type="i" direction="in"/></method>"#,
+                r#"<interface name="org.bentwire.Test1"><method name="Pointer"><arg type="s" direction="in"/><arg type="u" direction="in"/><arg type="i" direction="in"/><arg type="i" direction="in"/></method><method name="Key"><arg type="s" direction="in"/></method><method name="Snapshot"><arg type="s" direction="out"/></method>"#,
             );
             if test_full {
                 s += r#"<method name="Advance"><arg type="u" direction="in"/></method><method name="SetDraws"><arg type="au" direction="in"/></method><method name="AddOutput"><arg type="s" direction="in"/><arg type="u" direction="out"/></method><method name="RemoveOutput"><arg type="u" direction="in"/></method>"#;
@@ -483,9 +581,9 @@ mod tests {
             Some(Buttons::Custom(vec!["X".into(), "Y".into()]))
         );
         m.insert("heading".into(), OwnedValue::from(3u32));
-        assert_eq!(parse_ask(&m).unwrap_err().name, E_INVALID_ARGS);
+        assert_eq!(parse_ask(&m).unwrap_err().name, errors::INVALID_ARGS);
         m.remove("heading");
         m.insert("bogus".into(), OwnedValue::from(3u32));
-        assert_eq!(parse_ask(&m).unwrap_err().name, E_INVALID_ARGS);
+        assert_eq!(parse_ask(&m).unwrap_err().name, errors::INVALID_ARGS);
     }
 }

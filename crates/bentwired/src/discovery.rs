@@ -1,5 +1,5 @@
-//! Character discovery: search roots, packs and the cheap check (B-CHAR-1, A-PACK-1),
-//! display names (B-CHAR-3) and startup selection (B-CHAR-4, A-CHAR-1).
+//! Character discovery: search roots, packs and the cheap check (B-CHAR-1, A-PACK-1).
+//! Display names and startup selection are the core's (B-CHAR-3, B-CHAR-4).
 
 use serde::Deserialize;
 use std::collections::BTreeMap;
@@ -99,6 +99,37 @@ fn scan_dir(dir: &Path, allow_packs: bool) -> Vec<Entry> {
     out
 }
 
+/// A-THEME-1: the first `balloon-themes/<id>/theme.toml` of a pack under the roots,
+/// visited in the same order as characters.
+pub fn find_theme(roots: &[PathBuf]) -> Option<PathBuf> {
+    let theme_in = |pack: &Path| {
+        sorted_children(&pack.join("balloon-themes"))
+            .into_iter()
+            .find(|d| d.join("theme.toml").is_file())
+    };
+    for root in roots {
+        if root.join("pack.toml").is_file() {
+            if let Some(t) = theme_in(root) {
+                return Some(t);
+            }
+            continue;
+        }
+        let chars = if root.file_name().is_some_and(|n| n == "characters") {
+            root.clone()
+        } else {
+            root.join("characters")
+        };
+        for p in sorted_children(&chars) {
+            if p.join("pack.toml").is_file()
+                && let Some(t) = theme_in(&p)
+            {
+                return Some(t);
+            }
+        }
+    }
+    None
+}
+
 fn entry_id(path: &Path) -> String {
     let name = path.file_name().unwrap_or_default().to_string_lossy();
     name.strip_suffix(".bwc")
@@ -141,54 +172,6 @@ fn check(path: &Path) -> Option<Entry> {
             None
         }
     }
-}
-
-fn primary(tag: &str) -> &str {
-    tag.split(['-', '_']).next().unwrap_or("")
-}
-
-/// B-CHAR-3: (name, description) for UI language `lang`, each chosen independently.
-pub fn display_names(info: &[Info], lang: &str) -> (String, String) {
-    let pick = |field: fn(&Info) -> &str| -> String {
-        let nonempty = |i: &&Info| !field(i).is_empty();
-        info.iter()
-            .filter(nonempty)
-            .find(|i| i.lang.eq_ignore_ascii_case(lang))
-            .or_else(|| {
-                info.iter()
-                    .filter(nonempty)
-                    .rfind(|i| primary(&i.lang).eq_ignore_ascii_case(primary(lang)))
-            })
-            .or_else(|| {
-                info.iter()
-                    .filter(nonempty)
-                    .rfind(|i| primary(&i.lang).eq_ignore_ascii_case("en"))
-            })
-            .map(|i| field(i).to_string())
-            .unwrap_or_default()
-    };
-    (pick(|i| &i.name), pick(|i| &i.description))
-}
-
-/// B-CHAR-4 candidate order (duplicates removed); the caller loads them in turn.
-pub fn startup_candidates(
-    entries: &[Entry],
-    state: Option<&str>,
-    config: Option<&str>,
-) -> Vec<String> {
-    let mut v: Vec<String> = Vec::new();
-    for id in [state, config, Some("clippit")].into_iter().flatten() {
-        let id = id.to_ascii_lowercase();
-        if entries.iter().any(|e| e.id == id) && !v.contains(&id) {
-            v.push(id);
-        }
-    }
-    for e in entries {
-        if !v.contains(&e.id) {
-            v.push(e.id.clone());
-        }
-    }
-    v
 }
 
 #[cfg(test)]
@@ -238,45 +221,11 @@ mod tests {
         assert_eq!(ids, ["alpha", "beta", "gamma", "zed"]);
         assert_eq!(e[0].path, pack.join("alpha"));
         assert_eq!(e[3].info[0].name, "N-Zed");
-    }
-
-    #[test]
-    fn b_char_3_display_names() {
-        let i = |lang: &str, name: &str| Info {
-            lang: lang.into(),
-            name: name.into(),
-            description: String::new(),
-        };
-        let info = vec![
-            i("en-US", "A"),
-            i("de-DE", "B"),
-            i("de-AT", "C"),
-            i("en", "D"),
-        ];
-        assert_eq!(display_names(&info, "de-DE").0, "B");
-        assert_eq!(display_names(&info, "de").0, "C");
-        assert_eq!(display_names(&info, "fr").0, "D");
-        assert_eq!(display_names(&[i("fr", "F")], "de").0, "");
-        let info = vec![i("de", ""), i("en", "E")];
-        assert_eq!(display_names(&info, "de").0, "E");
-    }
-
-    #[test]
-    fn b_char_4_a_char_1_startup_order() {
-        let mk = |id: &str| Entry {
-            id: id.into(),
-            path: PathBuf::new(),
-            info: vec![],
-        };
-        let e = vec![mk("a"), mk("bentwire-placeholder"), mk("clippit")];
-        assert_eq!(
-            startup_candidates(&e, Some("gone"), Some("A")),
-            ["a", "clippit", "bentwire-placeholder"]
-        );
-        let only = vec![mk("bentwire-placeholder")];
-        assert_eq!(
-            startup_candidates(&only, None, None),
-            ["bentwire-placeholder"]
-        );
+        // A-THEME-1: a theme in the first root's pack.
+        assert_eq!(find_theme(&[r1.clone(), r2.clone()]), None);
+        let t = pack.join("balloon-themes/office");
+        std::fs::create_dir_all(&t).unwrap();
+        std::fs::write(t.join("theme.toml"), "").unwrap();
+        assert_eq!(find_theme(&[r2.clone(), r1.clone()]), Some(t));
     }
 }

@@ -1,12 +1,19 @@
-//! The daemon: one thread owns the engine and drives it from D-Bus calls, the clock,
-//! the backend's input and Unix signals. Replies and signals are sent from here, in
-//! order (B-Q-1).
+//! The daemon: one thread owns the core and drives it from D-Bus calls, the clock, the
+//! backend's input and Unix signals. Replies and signals are sent from here, in the
+//! order the core returns them (B-Q-1).
 
-use crate::config::{self, Config, State, StateWriter};
+use crate::config::{self, State};
 use crate::dbus::{self, Call, TestCall};
-use crate::discovery::{self, Entry};
-use crate::engine::*;
-use crate::layout;
+use crate::discovery;
+use crate::library::Shared;
+use crate::present::{self, Hit, Rendered};
+use bentwire_core::Core;
+use bentwire_core::api::{
+    self, Event, Key, MenuInput, Output, OutputInfo, PointerEvent, PointerKind, Properties,
+    ReplyValue, Scene,
+};
+use bentwire_render::font::Fonts;
+use bentwire_render::theme::Theme;
 use std::collections::HashMap;
 use std::io::Write;
 use std::path::PathBuf;
@@ -29,43 +36,43 @@ impl Clock {
     }
 }
 
-/// What the backend tells the app; also used for Test1 input.
-pub enum BackendEvent {
-    Input(Input),
-    Outputs(Vec<Output>),
-}
-
+/// Backends (Wayland, headless) present surfaces and report input as core events.
 pub trait Backend {
-    fn present(&mut self, scene: &Scene, outputs: &[Output]);
+    fn present(&mut self, r: &Rendered, scene: &Scene);
     /// Events gathered since the last call.
-    fn poll(&mut self) -> Vec<BackendEvent>;
+    fn poll(&mut self) -> Vec<Event>;
 }
 
 pub struct App {
-    pub engine: Box<dyn Engine>,
+    pub core: Core,
+    pub lib: Shared,
     pub conn: Connection,
     pub clock: Clock,
     pub test: bool,
     pub test_full: bool,
-    pub outputs: Vec<Output>,
+    pub outputs: Vec<OutputInfo>,
     pub next_output_id: u32,
     pub backend: Box<dyn Backend>,
+    pub audio: Option<crate::audio::Audio>,
+    pub fonts: Fonts,
+    pub theme: Option<Theme>,
     pub trace: Option<std::fs::File>,
     pub dump_frames: Option<PathBuf>,
     pub dump_seq: u64,
-    pub entries: Vec<Entry>,
     pub roots_cli: Vec<PathBuf>,
-    pub config: Config,
-    pub german: bool,
+    pub config_paths: Vec<PathBuf>,
     pub state_path: PathBuf,
-    pub writer: StateWriter,
-    pub write_at: Option<u64>,
-    pub wall: Instant,
-    pub last_scene: Scene,
-    pub last_char_props: Option<HashMap<&'static str, Value<'static>>>,
-    pub last_agent_props: HashMap<&'static str, Value<'static>>,
+    pub next_token: u64,
+    pub pending: HashMap<u64, Message>,
+    pub last_scene: Option<Scene>,
+    pub rendered: Rendered,
+    pub last_props: Option<Properties>,
     pub quit: bool,
     pub menu_serial: u32,
+    /// Surface holding the implicit grab of a Test1 press.
+    pub grab: Option<Hit>,
+    /// Events raised while processing a batch, fed in after it.
+    pub deferred: Vec<Event>,
 }
 
 impl App {
@@ -77,8 +84,11 @@ impl App {
         }
     }
 
-    pub fn current_id(&self) -> String {
-        self.engine.props().map(|p| p.id).unwrap_or_default()
+    /// Feed one event to the core and process what comes out.
+    pub fn event(&mut self, ev: Event) {
+        let now = self.clock.now();
+        let out = self.core.handle(now, ev);
+        self.process(out);
     }
 
     pub fn handle_dbus(&mut self, msg: Message) {
@@ -86,8 +96,6 @@ impl App {
             return;
         };
         let h = msg.header();
-        let sender = h.sender().map(|s| s.to_string()).unwrap_or_default();
-        let now = self.clock.now();
         let call = match parsed {
             Ok(c) => c,
             Err(e) => return dbus::reply_error(&self.conn, &h, &e),
@@ -104,268 +112,359 @@ impl App {
                 &h,
                 &(dbus::introspect(&p, self.test, self.test_full),),
             ),
-            Call::Get(iface, name) => match self
-                .prop_map(&iface)
-                .and_then(|m| m.get(name.as_str()).cloned())
-            {
-                Some(v) => dbus::reply(&conn, &h, &(v,)),
-                None => dbus::reply_error(
-                    &conn,
-                    &h,
-                    &CallError::new(
-                        "org.freedesktop.DBus.Error.UnknownProperty",
-                        format!("no property {iface}.{name}"),
+            Call::Get(iface, name) => {
+                match self
+                    .prop_map(&iface)
+                    .and_then(|m| m.get(name.as_str()).cloned())
+                {
+                    Some(v) => dbus::reply(&conn, &h, &(v,)),
+                    None => dbus::reply_error(
+                        &conn,
+                        &h,
+                        &dbus::err(
+                            "org.freedesktop.DBus.Error.UnknownProperty",
+                            format!("no property {iface}.{name}"),
+                        ),
                     ),
-                ),
-            },
+                }
+            }
             Call::GetAll(iface) => {
                 let m = self.prop_map(&iface).unwrap_or_default();
                 dbus::reply(&conn, &h, &(m,))
             }
-            Call::ListCharacters => {
-                let lang = if self.german { "de" } else { "en" };
-                let v: Vec<(String, String, String)> = self
-                    .entries
-                    .iter()
-                    .map(|e| {
-                        let (n, d) = discovery::display_names(&e.info, lang);
-                        (e.id.clone(), n, d)
-                    })
-                    .collect();
-                dbus::reply(&conn, &h, &(v,))
+            Call::Core(c) => {
+                let token = self.next_token;
+                self.next_token += 1;
+                let sender = h.sender().map(|s| s.to_string()).unwrap_or_default();
+                self.pending.insert(token, msg.clone());
+                self.event(Event::Call {
+                    token,
+                    sender,
+                    call: c,
+                });
             }
-            Call::Select(id) => {
-                let id = id.to_ascii_lowercase();
-                match self.entries.iter().find(|e| e.id == id).cloned() {
-                    None => dbus::reply_error(
-                        &conn,
-                        &h,
-                        &CallError::new(E_NO_SUCH_CHARACTER, format!("no character {id:?}")),
-                    ),
-                    Some(e) => match self.engine.select(now, Some(&e)) {
-                        Ok(()) => dbus::reply(&conn, &h, &()),
-                        Err(err) => dbus::reply_error(&conn, &h, &err),
-                    },
-                }
-            }
-            Call::Quit => {
-                dbus::reply(&conn, &h, &());
-                self.quit = true;
-            }
-            Call::Char(m) => match self.engine.call(now, &sender, m) {
-                Ok(0) => dbus::reply(&conn, &h, &()),
-                Ok(id) => dbus::reply(&conn, &h, &(id,)),
-                Err(e) => dbus::reply_error(&conn, &h, &e),
-            },
-            Call::Test(t) => self.handle_test(&h, t),
+            Call::Test(t) => self.handle_test(&msg, t),
         }
-        self.flush();
     }
 
-    fn handle_test(&mut self, h: &zbus::message::Header<'_>, t: TestCall) {
+    fn handle_test(&mut self, msg: &Message, t: TestCall) {
         let conn = self.conn.clone();
-        let now = self.clock.now();
+        let h = msg.header();
         match t {
             TestCall::Advance(ms) => {
-                // Step through every deadline so timers fire in order.
-                let target = now + ms as u64;
-                loop {
-                    let next = self.engine.next_deadline().filter(|d| *d <= target);
-                    let step = next.unwrap_or(target).max(self.clock.now());
-                    self.clock = Clock::Fake(step);
-                    self.engine.advance(step);
-                    self.flush();
-                    if next.is_none() || step >= target {
-                        break;
-                    }
+                let target = self.clock.now() + ms as u64;
+                // Deadline by deadline, so traces carry the exact time of each step.
+                while let Some(d) = self.core.next_deadline().filter(|d| *d <= target) {
+                    self.clock = Clock::Fake(d.max(self.clock.now()));
+                    let out = self.core.tick(d);
+                    self.process(out);
                 }
                 self.clock = Clock::Fake(target);
-                self.engine.advance(target);
-                dbus::reply(&conn, h, &());
+                let out = self.core.advance_to(target);
+                self.process(out);
+                dbus::reply(&conn, &h, &());
             }
             TestCall::Pointer(kind, button, x, y) => {
-                dbus::reply(&conn, h, &());
-                let kind = PointerKind::parse(&kind).expect("validated in dbus::parse");
-                self.engine.input(
-                    now,
-                    Input::Pointer {
-                        kind,
-                        button,
-                        x,
-                        y,
-                        modifiers: 0,
-                    },
-                );
+                dbus::reply(&conn, &h, &());
+                let kind = match kind.as_str() {
+                    "press" => PointerKind::Press,
+                    "release" => PointerKind::Release,
+                    "motion" => PointerKind::Motion,
+                    _ => PointerKind::Leave,
+                };
+                self.synthetic_pointer(kind, button, x, y);
             }
-            TestCall::Key(k) => {
-                dbus::reply(&conn, h, &());
-                self.engine.input(now, Input::Key(k));
-            }
+            TestCall::Key(k) => match parse_key(&k) {
+                Some((key, modifiers)) => {
+                    dbus::reply(&conn, &h, &());
+                    self.event(Event::Key { key, modifiers });
+                }
+                None => dbus::reply_error(
+                    &conn,
+                    &h,
+                    &dbus::err(api::errors::INVALID_ARGS, format!("unknown key {k:?}")),
+                ),
+            },
             TestCall::SetDraws(d) => {
-                self.engine.set_draws(d);
-                dbus::reply(&conn, h, &());
+                self.core
+                    .set_draws(Box::new(bentwire_core::draws::ScriptedDraws::new(d)));
+                dbus::reply(&conn, &h, &());
             }
             TestCall::AddOutput(spec) => match crate::args::parse_output(&spec) {
                 Ok(o) => {
                     let id = self.next_output_id;
                     self.next_output_id += 1;
-                    self.outputs.push(Output {
+                    self.outputs.push(OutputInfo {
                         id,
-                        x: o.x,
-                        y: o.y,
-                        w: o.w,
-                        h: o.h,
+                        rect: api::Rect::new(o.x, o.y, o.w as i32, o.h as i32),
                         scale: o.scale,
                     });
-                    dbus::reply(&conn, h, &(id,));
-                    let outs = self.outputs.clone();
+                    dbus::reply(&conn, &h, &(id,));
                     self.trace(serde_json::json!({"type": "output_added", "id": id, "spec": spec}));
-                    self.engine.set_outputs(now, &outs);
+                    self.event(Event::Outputs(self.outputs.clone()));
                 }
-                Err(e) => dbus::reply_error(&conn, h, &CallError::new(E_INVALID_ARGS, e)),
+                Err(e) => dbus::reply_error(&conn, &h, &dbus::err(api::errors::INVALID_ARGS, e)),
             },
             TestCall::RemoveOutput(id) => {
                 if !self.outputs.iter().any(|o| o.id == id) {
                     return dbus::reply_error(
                         &conn,
-                        h,
-                        &CallError::new(E_INVALID_ARGS, format!("no output {id}")),
+                        &h,
+                        &dbus::err(api::errors::INVALID_ARGS, format!("no output {id}")),
                     );
                 }
                 self.outputs.retain(|o| o.id != id);
-                dbus::reply(&conn, h, &());
-                let outs = self.outputs.clone();
+                dbus::reply(&conn, &h, &());
                 self.trace(serde_json::json!({"type": "output_removed", "id": id}));
-                self.engine.set_outputs(now, &outs);
+                self.event(Event::Outputs(self.outputs.clone()));
             }
             TestCall::Snapshot => {
                 let s = self.snapshot();
-                dbus::reply(&conn, h, &(s,));
-            }
-            TestCall::Answer(r) => {
-                dbus::reply(&conn, h, &());
-                self.engine.answer(now, r);
+                dbus::reply(&conn, &h, &(s,));
             }
         }
     }
 
+    /// A Test1 pointer event: hit-tested like a compositor would, with an implicit grab
+    /// from press to release, and menu clicks mapped to items (B-WL-5, B-WL-9).
+    pub fn synthetic_pointer(&mut self, kind: PointerKind, button: u32, x: i32, y: i32) {
+        let target = match kind {
+            PointerKind::Press => {
+                let h = present::hit(&self.rendered, x, y);
+                self.menu_serial += 1;
+                if self.rendered.menu.is_some() && !matches!(h, Some(Hit::Menu(_))) {
+                    // A press outside the grabbed popup: popup_done.
+                    return self.event(Event::Menu(MenuInput::Dismiss));
+                }
+                self.grab = h;
+                h
+            }
+            PointerKind::Release => self.grab.take().map(|g| match g {
+                Hit::Menu(_) => match present::hit(&self.rendered, x, y) {
+                    Some(Hit::Menu(i)) => Hit::Menu(i),
+                    _ => Hit::Menu(None),
+                },
+                other => other,
+            }),
+            _ => self.grab.or_else(|| present::hit(&self.rendered, x, y)),
+        };
+        match target {
+            Some(Hit::Menu(i)) => match kind {
+                PointerKind::Release => {
+                    if let Some(i) = i {
+                        self.event(Event::Menu(MenuInput::Activate(i)))
+                    }
+                }
+                PointerKind::Motion => self.event(Event::Menu(MenuInput::Hover(i))),
+                _ => {}
+            },
+            Some(Hit::Surface(surface)) => self.event(Event::Pointer(PointerEvent {
+                kind,
+                surface,
+                button,
+                modifiers: 0,
+                x,
+                y,
+            })),
+            None => {}
+        }
+    }
+
     pub fn snapshot(&self) -> String {
-        let scene = self.engine.scene();
-        let surfaces: Vec<_> = scene
-            .surfaces
-            .iter()
-            .map(|s| {
-                serde_json::json!({
-                    "kind": s.kind,
-                    "x": s.x, "y": s.y, "w": s.w, "h": s.h,
-                    "mapped": true,
-                    "output": layout::output_for(&self.outputs, s.x, s.y, s.w, s.h).map(|o| o.id),
-                })
+        use serde_json::json;
+        let s = self.last_scene.clone().unwrap_or_else(|| self.core.scene());
+        let r = &self.rendered;
+        let rect = |q: api::Rect| json!({"x": q.x, "y": q.y, "w": q.w, "h": q.h});
+        let mut surfaces = Vec::new();
+        if let Some(c) = &r.character {
+            surfaces.push(
+                json!({"kind": "character", "x": c.x, "y": c.y, "w": c.buf.w,
+                "h": c.buf.h, "mapped": true, "output": c.output, "buffer_scale": c.buf.scale}),
+            );
+        }
+        if let Some(b) = &r.balloon {
+            let kind = if b.office {
+                "office_balloon"
+            } else {
+                "agent_balloon"
+            };
+            surfaces.push(
+                json!({"kind": kind, "x": b.x, "y": b.y, "w": b.buf.w, "h": b.buf.h,
+                "mapped": true}),
+            );
+        }
+        if let Some(m) = &r.menu {
+            surfaces.push(
+                json!({"kind": "menu", "x": m.x, "y": m.y, "w": m.buf.w, "h": m.buf.h,
+                "mapped": true}),
+            );
+        }
+        let office = s.office_balloon.as_ref().map(|b| {
+            json!({
+                "buttons": b.buttons.iter().map(|x| json!({"caption": x.caption,
+                    "rect": rect(x.rect), "state": format!("{:?}", x.state)})).collect::<Vec<_>>(),
+                "labels": b.labels.iter().map(|x| json!({"rect": rect(x.rect),
+                    "clickable": x.clickable})).collect::<Vec<_>>(),
+                "checkboxes": b.checkboxes.iter().map(|x| json!({"rect": rect(x.rect),
+                    "checked": x.checked})).collect::<Vec<_>>(),
             })
-            .collect();
-        let p = self.engine.props();
-        serde_json::json!({
-            "character": p.as_ref().map(|p| p.id.clone()),
-            "visible": p.as_ref().map(|p| p.visible),
-            "left": p.as_ref().map(|p| p.left),
-            "top": p.as_ref().map(|p| p.top),
-            "keyboard_interactivity": if scene.keyboard { "on_demand" } else { "none" },
+        });
+        let menu = r.menu.as_ref().map(|m| {
+            m.entries
+                .iter()
+                .zip(&m.geometry.items)
+                .map(|(e, q)| match e {
+                    api::MenuEntry::Item { label, .. } => {
+                        json!({"label": label, "x": m.x + q.x, "y": m.y + q.y, "w": q.w, "h": q.h})
+                    }
+                    api::MenuEntry::Separator => json!({"separator": true}),
+                })
+                .collect::<Vec<_>>()
+        });
+        let p = self.core.properties();
+        json!({
+            "character": p.character,
+            "visible": p.visible,
+            "left": p.left,
+            "top": p.top,
+            "keyboard_interactivity": if r.keyboard { "on_demand" } else { "none" },
             "surfaces": surfaces,
-            "outputs": self.outputs.iter().map(|o| serde_json::json!({"id": o.id, "x": o.x, "y": o.y, "w": o.w, "h": o.h, "scale": o.scale})).collect::<Vec<_>>(),
+            "office_balloon": office,
+            "agent_balloon_lines": s.agent_balloon.as_ref().map(|b| b.lines.clone()),
+            "menu": menu,
+            "tray": {"title": s.tray.title, "tooltip": s.tray.tooltip},
+            "outputs": self.outputs.iter().map(|o| json!({"id": o.id, "x": o.rect.x,
+                "y": o.rect.y, "w": o.rect.w, "h": o.rect.h, "scale": o.scale})).collect::<Vec<_>>(),
         })
         .to_string()
     }
 
     fn prop_map(&self, iface: &str) -> Option<HashMap<&'static str, Value<'static>>> {
+        let p = self.core.properties();
         match iface {
-            dbus::AGENT_IFACE => Some(dbus::agent_props_map(&self.current_id())),
-            dbus::CHAR_IFACE => Some(dbus::char_props_map(
-                &self.engine.props().unwrap_or_default(),
-            )),
+            dbus::AGENT_IFACE => Some(dbus::agent_props_map(&p.character)),
+            dbus::CHAR_IFACE => Some(dbus::char_props_map(&p)),
             _ => None,
         }
     }
 
     pub fn backend_events(&mut self) {
         for ev in self.backend.poll() {
-            let now = self.clock.now();
-            match ev {
-                BackendEvent::Input(i) => self.engine.input(now, i),
-                BackendEvent::Outputs(o) => {
-                    self.outputs = o;
-                    let outs = self.outputs.clone();
-                    self.engine.set_outputs(now, &outs);
-                }
+            if let Event::Outputs(o) = &ev {
+                self.outputs = o.clone();
             }
+            self.event(ev);
         }
-        self.flush();
     }
 
-    /// Send what the engine produced, update properties, present the scene.
-    pub fn flush(&mut self) {
-        let effects = self.engine.drain();
-        for e in effects {
-            match e {
-                Effect::Signal(dest, s) => {
-                    self.trace(serde_json::json!({"type": "signal", "member": s.member(), "args": s.args_json(), "dest": dest}));
-                    match dest.as_deref() {
-                        // Requests the daemon made itself (startup Show) have no client.
-                        Some("") => {}
-                        d => dbus::emit(&self.conn, d, &s),
+    /// Run the core's outputs in order, then update properties and the scene.
+    pub fn process(&mut self, out: Vec<Output>) {
+        for o in out {
+            match o {
+                Output::Reply { token, result } => {
+                    let Some(msg) = self.pending.remove(&token) else {
+                        continue;
+                    };
+                    let h = msg.header();
+                    match result {
+                        Ok(ReplyValue::Unit) => dbus::reply(&self.conn, &h, &()),
+                        Ok(ReplyValue::RequestId(id)) => dbus::reply(&self.conn, &h, &(id,)),
+                        Ok(ReplyValue::Characters(v)) => dbus::reply(&self.conn, &h, &(v,)),
+                        Err(e) => dbus::reply_error(&self.conn, &h, &e),
                     }
                 }
-                Effect::SoundStart { sound, duration_ms } => {
-                    self.trace(serde_json::json!({"type": "sound_start", "sound": sound, "duration_ms": duration_ms}));
-                    crate::audio::start(&sound);
+                Output::Signal { target, signal } => {
+                    self.trace(serde_json::json!({"type": "signal",
+                        "member": dbus::signal_member(&signal),
+                        "args": dbus::signal_args(&signal), "dest": target}));
+                    dbus::emit(&self.conn, target.as_deref(), &signal);
                 }
-                Effect::SoundStop => {
+                Output::SoundStart { sound } => self.start_sound(&sound),
+                Output::SoundStop => {
                     self.trace(serde_json::json!({"type": "sound_stop"}));
-                    crate::audio::stop();
+                    if let Some(a) = &mut self.audio {
+                        a.stop();
+                    }
                 }
-                Effect::OpenOptions => open_options(),
-                Effect::Persist => self.schedule_state(),
+                Output::PersistState(s) => {
+                    let st = State {
+                        character: Some(s.character).filter(|c| !c.is_empty()),
+                        left: Some(s.left),
+                        top: Some(s.top),
+                        visible: Some(s.visible),
+                    };
+                    if let Err(e) = st.save(&self.state_path) {
+                        log::warn!("writing {}: {e}", self.state_path.display());
+                    }
+                }
+                Output::OpenConfig => open_options(),
+                Output::Quit => self.quit = true,
             }
         }
-        // Properties.
-        let agent = dbus::agent_props_map(&self.current_id());
-        dbus::emit_props_changed(
-            &self.conn,
-            dbus::AGENT_PATH,
-            dbus::AGENT_IFACE,
-            &self.last_agent_props,
-            &agent,
-        );
-        if agent != self.last_agent_props {
-            self.schedule_state();
+        self.update();
+        for ev in std::mem::take(&mut self.deferred) {
+            self.event(ev);
         }
-        self.last_agent_props = agent;
-        let ch = self.engine.props().map(|p| dbus::char_props_map(&p));
-        if let (Some(old), Some(new)) = (&self.last_char_props, &ch) {
-            dbus::emit_props_changed(&self.conn, dbus::CHAR_PATH, dbus::CHAR_IFACE, old, new);
-            let keys = ["Left", "Top", "Visible"];
-            if keys.iter().any(|k| old.get(k) != new.get(k)) {
-                self.schedule_state();
-            }
-        } else if let Some(new) = &ch {
+    }
+
+    /// Sounds are logged with their decoded duration (T-4); a failure is reported to
+    /// the core so completion does not wait for it (R-ANIM-8).
+    fn start_sound(&mut self, sound: &str) {
+        let id = self.core.properties().character;
+        let pcm = self
+            .lib
+            .borrow()
+            .get(&id)
+            .and_then(|c| c.sound(sound).cloned());
+        let dur = pcm.as_ref().map(|p| p.duration_ms());
+        self.trace(serde_json::json!({"type": "sound_start", "sound": sound, "duration_ms": dur}));
+        let ok = match (&mut self.audio, pcm) {
+            (Some(a), Some(p)) => a.play(&p),
+            (None, Some(_)) => true,
+            (_, None) => false,
+        };
+        if !ok {
+            log::warn!("sound {sound} could not be played");
+            self.deferred.push(Event::SoundFailed);
+        }
+    }
+
+    /// PropertiesChanged and the scene, after every batch of outputs.
+    fn update(&mut self) {
+        let p = self.core.properties();
+        if let Some(old) = &self.last_props
+            && old != &p
+        {
+            dbus::emit_props_changed(
+                &self.conn,
+                dbus::AGENT_PATH,
+                dbus::AGENT_IFACE,
+                &dbus::agent_props_map(&old.character),
+                &dbus::agent_props_map(&p.character),
+            );
             dbus::emit_props_changed(
                 &self.conn,
                 dbus::CHAR_PATH,
                 dbus::CHAR_IFACE,
-                &HashMap::new(),
-                new,
+                &dbus::char_props_map(old),
+                &dbus::char_props_map(&p),
             );
         }
-        self.last_char_props = ch;
-        // Scene.
-        let scene = self.engine.scene();
-        if scene != self.last_scene {
-            for r in layout::requests(&self.last_scene, &scene, &self.outputs, self.menu_serial) {
-                self.trace(r);
-            }
-            self.backend.present(&scene, &self.outputs);
-            self.dump(&scene);
-            self.last_scene = scene;
+        self.last_props = Some(p);
+        let scene = self.core.scene();
+        if self.last_scene.as_ref() == Some(&scene) {
+            return;
         }
+        let r = present::render(&scene, &self.lib.borrow(), &self.fonts, self.theme.as_ref());
+        for q in present::requests(&self.rendered, &r, &scene.outputs, self.menu_serial) {
+            self.trace(q);
+        }
+        if r != self.rendered {
+            self.backend.present(&r, &scene);
+            self.dump(&scene);
+        }
+        self.rendered = r;
+        self.last_scene = Some(scene);
     }
 
     fn dump(&mut self, scene: &Scene) {
@@ -373,107 +472,102 @@ impl App {
             return;
         };
         self.dump_seq += 1;
-        for o in &self.outputs {
-            let (w, h, rgba) = layout::compose(scene, o);
+        for o in &scene.outputs {
+            let k = bentwire_render::scene::buffer_scale(o.scale);
+            let pic = present::character_picture(scene, &self.lib.borrow(), k);
+            let img = bentwire_render::scene::compose_output(
+                scene,
+                o,
+                pic.as_ref(),
+                &self.fonts,
+                self.theme.as_ref(),
+            );
             let p = dir.join(format!(
                 "{:06}-t{:08}-out{}.png",
                 self.dump_seq,
                 self.clock.now(),
                 o.id
             ));
-            if let Err(e) = write_png(&p, w, h, &rgba) {
+            if let Err(e) = bentwire_render::scene::write_png(&p, &img) {
                 log::warn!("dump {}: {e}", p.display());
             }
         }
     }
 
-    pub fn current_state(&self) -> State {
-        let p = self.engine.props();
-        State {
-            character: p.as_ref().map(|p| p.id.clone()).filter(|s| !s.is_empty()),
-            left: p.as_ref().map(|p| p.left),
-            top: p.as_ref().map(|p| p.top),
-            visible: p.as_ref().map(|p| p.visible),
-        }
-    }
-
-    fn wall_ms(&self) -> u64 {
-        self.wall.elapsed().as_millis() as u64
-    }
-
-    fn schedule_state(&mut self) {
-        let s = self.current_state();
-        let due = self.writer.due(&s, self.wall_ms());
-        self.write_at = match (self.write_at, due) {
-            (Some(a), Some(b)) => Some(a.min(b)),
-            (a, b) => a.or(b),
-        };
-    }
-
-    /// Write the state file if due (B-CFG-2). `force` at exit.
-    pub fn write_state(&mut self, force: bool) {
-        let now = self.wall_ms();
-        if !force && self.write_at.is_none_or(|t| t > now) {
-            return;
-        }
-        self.write_at = None;
-        let s = self.current_state();
-        if !force && self.writer.due(&s, now).is_none() {
-            return;
-        }
-        if let Err(e) = s.save(&self.state_path) {
-            log::warn!("writing {}: {e}", self.state_path.display());
-        }
-        self.writer.written(s, now);
-    }
-
-    /// Time until the next thing to do, for the event loop's timeout.
+    /// Time until the next core deadline (real clock only).
     pub fn timeout(&self) -> Option<Duration> {
-        let mut t: Option<u64> = None;
-        if let Clock::Real(_) = self.clock
-            && let Some(d) = self.engine.next_deadline()
-        {
-            t = Some(d.saturating_sub(self.clock.now()));
+        match self.clock {
+            Clock::Real(_) => self
+                .core
+                .next_deadline()
+                .map(|d| Duration::from_millis(d.saturating_sub(self.clock.now()))),
+            Clock::Fake(_) => None,
         }
-        if let Some(w) = self.write_at {
-            let d = w.saturating_sub(self.wall_ms());
-            t = Some(t.map_or(d, |x| x.min(d)));
-        }
-        t.map(Duration::from_millis)
     }
 
-    /// Advance the real clock (no-op for the fake clock) and write state if due.
+    /// Run due timers on the real clock.
     pub fn tick(&mut self) {
         if let Clock::Real(_) = self.clock {
             let now = self.clock.now();
-            self.engine.advance(now);
-            self.flush();
+            if self.core.next_deadline().is_some_and(|d| d <= now) {
+                let out = self.core.tick(now);
+                self.process(out);
+            }
         }
-        self.write_state(false);
     }
 
     /// SIGHUP: reload config and rediscover characters (B-CFG-1).
     pub fn reload(&mut self) {
-        match Config::load(&config::config_path()) {
+        match config::Config::load(&config::config_path()) {
             Ok(c) => {
-                self.config = c;
-                self.german = self.config.german();
+                self.config_paths = c.character_paths.clone();
+                self.event(Event::Config(c.to_core()));
             }
             Err(e) => log::warn!("config not reloaded: {e}"),
         }
-        let roots = discovery::roots(&self.roots_cli, &self.config.character_paths);
-        self.entries = discovery::discover(&roots);
-        log::info!("reloaded: {} characters", self.entries.len());
+        let roots = discovery::roots(&self.roots_cli, &self.config_paths);
+        let entries = discovery::discover(&roots);
+        log::info!("reloaded: {} characters", entries.len());
+        self.lib.borrow_mut().entries = entries;
+        let catalog = self.lib.borrow().catalog();
+        self.event(Event::Catalog(catalog));
     }
 }
 
-pub fn write_png(path: &std::path::Path, w: u32, h: u32, rgba: &[u8]) -> Result<(), String> {
-    let f = std::fs::File::create(path).map_err(|e| e.to_string())?;
-    let mut enc = png::Encoder::new(std::io::BufWriter::new(f), w, h);
-    enc.set_color(png::ColorType::Rgba);
-    enc.set_depth(png::BitDepth::Eight);
-    let mut wr = enc.write_header().map_err(|e| e.to_string())?;
-    wr.write_image_data(rgba).map_err(|e| e.to_string())
+/// `Test1.Key` names: `Escape`, `Enter` (`Return`), `Tab`, `space`, `Up`, `Down`, `Left`,
+/// `Right`, or one character; `Alt+`, `Ctrl+` and `Shift+` prefixes set modifiers.
+pub fn parse_key(s: &str) -> Option<(Key, u32)> {
+    let mut mods = 0;
+    let mut rest = s;
+    'prefix: loop {
+        for (p, m) in [("shift+", 1), ("ctrl+", 2), ("alt+", 4)] {
+            if rest.len() > p.len() && rest[..p.len()].eq_ignore_ascii_case(p) {
+                mods |= m;
+                rest = &rest[p.len()..];
+                continue 'prefix;
+            }
+        }
+        break;
+    }
+    let key = match rest.to_ascii_lowercase().as_str() {
+        "escape" | "esc" => Key::Escape,
+        "enter" | "return" => Key::Enter,
+        "tab" => Key::Tab,
+        "space" => Key::Space,
+        "up" => Key::Up,
+        "down" => Key::Down,
+        "left" => Key::Left,
+        "right" => Key::Right,
+        _ => {
+            let mut it = rest.chars();
+            let c = it.next()?;
+            if it.next().is_some() {
+                return None;
+            }
+            Key::Char(c)
+        }
+    };
+    Some((key, mods))
 }
 
 /// B-MENU-3: write a default config if none exists, then xdg-open it.
@@ -489,5 +583,20 @@ fn open_options() {
     }
     if let Err(e) = std::process::Command::new("xdg-open").arg(&p).spawn() {
         log::warn!("xdg-open {}: {e}", p.display());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn t_4_key_names() {
+        assert_eq!(parse_key("Escape"), Some((Key::Escape, 0)));
+        assert_eq!(parse_key("Return"), Some((Key::Enter, 0)));
+        assert_eq!(parse_key("Alt+n"), Some((Key::Char('n'), 4)));
+        assert_eq!(parse_key("ä"), Some((Key::Char('ä'), 0)));
+        assert_eq!(parse_key("+"), Some((Key::Char('+'), 0)));
+        assert_eq!(parse_key("bogus"), None);
     }
 }

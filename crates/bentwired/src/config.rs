@@ -63,15 +63,21 @@ impl Config {
         }
     }
 
-    /// B-L10N-1: true for German.
-    pub fn german(&self) -> bool {
-        match self.language.as_str() {
-            "de" => true,
-            "en" => false,
-            _ => ["LC_ALL", "LC_MESSAGES", "LANG"]
-                .iter()
-                .find_map(|k| std::env::var(k).ok().filter(|v| !v.is_empty()))
-                .is_some_and(|v| v.starts_with("de")),
+    pub fn to_core(&self) -> bentwire_core::api::Config {
+        use bentwire_core::api::LanguageSetting;
+        bentwire_core::api::Config {
+            character: self.character.clone(),
+            language: match self.language.as_str() {
+                "de" => LanguageSetting::De,
+                "en" => LanguageSetting::En,
+                _ => LanguageSetting::Auto,
+            },
+            sound_effects: self.sound_effects,
+            balloon: self.balloon,
+            balloon_font: self.balloon_font.clone(),
+            speaking_speed: self.speaking_speed,
+            idle: self.idle,
+            double_click_ms: self.double_click_ms,
         }
     }
 }
@@ -141,31 +147,6 @@ pub fn data_dirs() -> Vec<PathBuf> {
         .collect()
 }
 
-/// Rate limit for the state file: at most one write per second after a change (B-CFG-2).
-#[derive(Debug, Default)]
-pub struct StateWriter {
-    pub last_written: Option<State>,
-    pub last_write_ms: Option<u64>,
-}
-
-impl StateWriter {
-    /// Returns the time at which `state` should be written, or None if it is unchanged.
-    pub fn due(&self, state: &State, now_ms: u64) -> Option<u64> {
-        if self.last_written.as_ref() == Some(state) {
-            return None;
-        }
-        Some(match self.last_write_ms {
-            Some(t) if now_ms < t + 1000 => t + 1000,
-            _ => now_ms,
-        })
-    }
-
-    pub fn written(&mut self, state: State, now_ms: u64) {
-        self.last_written = Some(state);
-        self.last_write_ms = Some(now_ms);
-    }
-}
-
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
@@ -194,7 +175,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn b_cfg_2_state_round_trip_and_rate_limit() {
+    fn b_cfg_2_state_round_trip() {
         let dir = tempdir();
         let p = dir.join("sub/state.toml");
         let s = State {
@@ -205,13 +186,6 @@ pub(crate) mod tests {
         };
         s.save(&p).unwrap();
         assert_eq!(State::load(&p), s);
-        let mut w = StateWriter::default();
-        assert_eq!(w.due(&s, 100), Some(100));
-        w.written(s.clone(), 100);
-        assert_eq!(w.due(&s, 200), None);
-        let s2 = State { left: Some(1), ..s };
-        assert_eq!(w.due(&s2, 200), Some(1100));
-        assert_eq!(w.due(&s2, 1500), Some(1500));
     }
 
     pub(crate) fn tempdir() -> PathBuf {

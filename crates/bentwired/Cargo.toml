@@ -20,3 +20,4 @@ calloop = { version = "0.14", features = ["signals"] }
 log = "0.4"
 env_logger = { version = "0.11", default-features = false, features = ["auto-color", "humantime"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
+rodio = { version = "0.21", default-features = false, features = ["playback"] }
