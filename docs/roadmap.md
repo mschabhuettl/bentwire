@@ -1,7 +1,7 @@
 # Roadmap
 
 Planned for 0.2. Nothing here is promised for a date; the list says what is known to be
-missing or unproven after 0.1.0.
+missing or unproven after 0.1.1.
 
 ## Performance
 
@@ -30,3 +30,6 @@ missing or unproven after 0.1.0.
 ## Tests
 
 - **Watch the shell integration test that failed once** (`clients/shell/test.sh`).
+- **Findings from testing on a real Plasma desktop** by hand: the points listed under
+  "Known gaps" in the [README](../README.md#known-gaps) that the automated runs cannot
+  prove.

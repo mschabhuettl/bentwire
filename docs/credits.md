@@ -9,9 +9,7 @@ http://www.lebeausoftware.org/software/fileformats.aspx, as "MSAgent File Format
 v1.6": http://www.lebeausoftware.org/download.aspx?ID=25001fc7-18e9-49a4-90dc-21e8ff46aa1d.
 
 Link check on 2026-11-11: the link above resolves and its download is the 66,633-byte v1.6
-document. The link in the release brief
-(`download.aspx?ID=6b0d3f5d-1d0d-4e45-89ac-4bb6a9ebdf5e`) answers HTTP 200 but shows an empty
-entry, and its download ends on the site's error page, so it is not used here.
+document.
 
 `docs/research/acs-format.md` section 9 compared the shipped reader code and the 12 sample
 files with v1.3 of the specification. The points below were checked again against v1.6 and
