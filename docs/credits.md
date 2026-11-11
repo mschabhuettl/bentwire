@@ -44,9 +44,10 @@ replacements, copyright the Wine project (https://gitlab.winehq.org/wine/wine), 
 
 ## KDE Plasma artwork in the screenshots and GIFs
 
-The screenshots and animated GIFs of bentwire on a KDE Plasma 6 desktop (they are kept in
+The screenshots and animated GIFs of bentwire on a KDE Plasma 6 desktop (`docs/screenshots/`
+here, `screenshots/` in
 [bentwire-classics](https://github.com/mschabhuettl/bentwire-classics)) show KDE artwork in
-its default configuration. None of it is part of this repository.
+its default configuration. The artwork appears only inside these images.
 
 - **Wallpaper "Sub-Arctic"**, the Plasma 6.6 default wallpaper, by Krystian Zajdel,
   licensed under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) (the
