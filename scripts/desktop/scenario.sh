@@ -161,6 +161,18 @@ sleep 0.5
 shot show
 check "character on screen at ($X,$Y)" shown_at "$X" "$Y"
 
+echo "1b. context menu (xdg_popup on the layer surface)"
+$TEST Pointer suii press 2 "$((X + 16))" "$((Y + 16))" >/dev/null
+$TEST Pointer suii release 2 "$((X + 16))" "$((Y + 16))" >/dev/null
+check "menu popup configured with a buffer" wait_for 5 snap 's["backend"]["menu"] is not None and s["backend"]["menu"]["configured"] and s["backend"]["menu"]["buffer_attached"]'
+sleep 0.3
+shot menu
+if [ "$COMP" = sway ]; then
+    check "menu on screen" python3 -I "$REPO/scripts/desktop/bbox.py" "$T/$SHOT-menu.ppm" --menu x
+fi
+$TEST Key s Escape >/dev/null
+check "Esc closes the menu" wait_for 5 snap 's["backend"]["menu"] is None'
+
 echo "2. play"
 check "play Wave --wait" "$BIN/bentwire" play Wave --wait
 

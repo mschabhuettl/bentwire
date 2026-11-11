@@ -535,10 +535,6 @@ impl WlState {
             return;
         };
         if self.menu.is_none() {
-            let Some(seat) = self.seat.clone() else {
-                log::warn!("menu: no seat");
-                return;
-            };
             let Ok(pos) = XdgPositioner::new(&self.xdg) else {
                 return;
             };
@@ -561,7 +557,11 @@ impl WlState {
             if let Some(c) = &self.ch {
                 c.layer.get_popup(popup.xdg_popup());
             }
-            popup.xdg_popup().grab(&seat, self.press_serial);
+            // Grabbed with the serial of the opening press. A menu opened by a synthetic
+            // Test1 click has no serial and is shown without a grab.
+            if let (Some(seat), true) = (&self.seat, self.press_serial != 0) {
+                popup.xdg_popup().grab(seat, self.press_serial);
+            }
             popup.wl_surface().commit();
             self.menu = Some(MenuSurf {
                 popup,

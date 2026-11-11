@@ -2,6 +2,7 @@
 
 usage: bbox.py FILE.ppm --expect x0,y0,x1,y1|none
        bbox.py FILE.ppm --balloon agent|office
+       bbox.py FILE.ppm --menu x
 The test character (crates/bentwired/tests/fixtures) draws opaque squares in pure red,
 green, blue or yellow; balloons are filled with #FFFFE1 (Agent default) or #FFFFCC
 (Office).
@@ -46,6 +47,11 @@ def main():
         want = None if arg == "none" else tuple(int(v) for v in arg.split(","))
         print(f"    character bbox {got}, expected {want}")
         return got == want
+    if mode == "--menu":
+        # The XP menu: white background inside a #ACA899 border (render menu.rs).
+        n = px.count(b"\xac\xa8\x99")
+        print(f"    {n} menu border pixels")
+        return n > 100
     if mode == "--balloon":
         n = px.count(BALLOON[arg])
         print(f"    {n} balloon pixels")
