@@ -323,6 +323,12 @@ fn t_2_core_player_matches_interpreter_b() {
                             if endless {
                                 core6_loop.push(name)
                             } else {
+                                // A-CORE-6 may only end an exit run whose END is
+                                // unreachable; interpreter B reaching END is a finding.
+                                failures.push(format!(
+                                    "{name} seed {seed} mode {mode}: exit run ended by \
+                                     A-CORE-6 although interpreter B reaches END"
+                                ));
                                 core6_end.push(name)
                             }
                         }
