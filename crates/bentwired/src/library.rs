@@ -91,3 +91,173 @@ pub fn picture(c: &Character, p: &Picture, density: u32) -> RgbaImage {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    //! BRIEF "Done when" 4: the daemon's own discovery, loader and model adapter load
+    //! every character of a pack, and the core plays it.
+    use super::*;
+    use bentwire_core::Core;
+    use bentwire_core::api::{
+        Call, Config, CoreInit, Event, LocaleEnv, Output, OutputInfo, Rect, ReplyValue, Signal,
+    };
+    use std::path::{Path, PathBuf};
+
+    /// Loads every character under `root` the way bentwired does, selects each in a
+    /// headless core, plays Showing (or the first animation) for a while and returns the
+    /// number of characters and the failures.
+    fn load_and_play_all(root: &Path) -> (usize, Vec<String>) {
+        let entries = crate::discovery::discover(&[root.to_path_buf()]);
+        let n = entries.len();
+        let lib: Shared = Rc::new(RefCell::new(Library {
+            entries,
+            loaded: HashMap::new(),
+        }));
+        let catalog = lib.borrow().catalog();
+        let ids: Vec<String> = catalog.iter().map(|c| c.id.clone()).collect();
+        let mut core = Core::new(CoreInit {
+            config: Config::default(),
+            locale: LocaleEnv::default(),
+            state: None,
+            catalog,
+            loader: Box::new(Loader(lib.clone())),
+            metrics: Box::new(bentwire_render::font::Fonts::bundled()),
+            draws: Box::new(bentwire_core::draws::SplitMix64::new(1)),
+            outputs: vec![OutputInfo {
+                id: 0,
+                rect: Rect::new(0, 0, 1920, 1080),
+                scale: 1.0,
+            }],
+            local_hour: 12,
+        });
+        let mut now = 0;
+        core.start(now);
+        let mut failures = Vec::new();
+        let mut token = 0;
+        let mut call = |core: &mut Core, now: u64, c: Call| {
+            token += 1;
+            let out = core.handle(
+                now,
+                Event::Call {
+                    token,
+                    sender: ":test".into(),
+                    call: c,
+                },
+            );
+            let started: Vec<u32> = out
+                .iter()
+                .filter_map(|o| match o {
+                    Output::Signal {
+                        signal: Signal::RequestStart { id },
+                        ..
+                    } => Some(*id),
+                    _ => None,
+                })
+                .collect();
+            let reply = out.into_iter().find_map(|o| match o {
+                Output::Reply { token: t, result } if t == token => Some(result),
+                _ => None,
+            });
+            (reply, started)
+        };
+        for id in ids {
+            now += 10_000;
+            core.advance_to(now);
+            match call(&mut core, now, Call::Select(id.clone())).0 {
+                Some(Ok(_)) => {}
+                other => {
+                    failures.push(format!("{id}: Select gave {other:?}"));
+                    continue;
+                }
+            }
+            if lib.borrow().get(&id).is_none() {
+                failures.push(format!("{id}: not loaded through the daemon's loader"));
+                continue;
+            }
+            let props = core.properties();
+            let name = ["Showing", "Show"]
+                .into_iter()
+                .find(|n| {
+                    props
+                        .animation_names
+                        .iter()
+                        .any(|a| a.eq_ignore_ascii_case(n))
+                })
+                .map(String::from)
+                .or_else(|| props.animation_names.first().cloned());
+            let Some(name) = name else {
+                failures.push(format!("{id}: no animations"));
+                continue;
+            };
+            let (reply, at_once) = call(&mut core, now, Call::Play(name.clone()));
+            let rid = match reply {
+                Some(Ok(ReplyValue::RequestId(r))) => r,
+                other => {
+                    failures.push(format!("{id}: Play {name} gave {other:?}"));
+                    continue;
+                }
+            };
+            // Up to 30 s for the request to start behind the switch's Show, then 3 s of frames; looping animations may not complete, so only a
+            // started request and a drawable picture are required.
+            let mut started = at_once.contains(&rid);
+            for step in 0..300 {
+                if started && step >= 30 {
+                    break;
+                }
+                now += 100;
+                for o in core.advance_to(now) {
+                    if let Output::Signal {
+                        signal: Signal::RequestStart { id: r },
+                        ..
+                    } = o
+                        && r == rid
+                    {
+                        started = true;
+                    }
+                }
+                let scene = core.scene();
+                if let Some(ch) = &scene.character {
+                    let c = lib.borrow().get(&id).cloned().unwrap();
+                    let pic = picture(&c, &ch.picture, 1);
+                    if pic.width != ch.width || pic.height != ch.height {
+                        failures.push(format!(
+                            "{id}: picture {}x{} for display {}x{}",
+                            pic.width, pic.height, ch.width, ch.height
+                        ));
+                        break;
+                    }
+                }
+            }
+            if !started {
+                failures.push(format!("{id}: Play {name} never started"));
+            }
+            call(&mut core, now, Call::Stop(0));
+        }
+        (n, failures)
+    }
+
+    #[test]
+    fn a_char_1_done_when_4_every_builtin_character_loads_and_plays() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../characters/builtin");
+        let (n, failures) = load_and_play_all(&root);
+        assert!(n >= 1, "no characters in {}", root.display());
+        assert!(failures.is_empty(), "{failures:#?}");
+    }
+
+    /// Every character of every pack under $BENTWIRE_PACKS (a `characters/` directory,
+    /// e.g. the repo's) through the daemon's loader and the core (A-TEST-1).
+    #[test]
+    #[ignore = "needs BENTWIRE_PACKS=<characters dir>"]
+    fn done_when_4_every_pack_character_loads_and_plays() {
+        let Some(dir) = std::env::var_os("BENTWIRE_PACKS") else {
+            panic!("NOT RUN: set BENTWIRE_PACKS to a characters/ directory with packs");
+        };
+        let (n, failures) = load_and_play_all(&PathBuf::from(dir));
+        eprintln!(
+            "{n} characters loaded and played, {} failures",
+            failures.len()
+        );
+        assert!(n > 0, "no characters found");
+        assert!(failures.is_empty(), "{failures:#?}");
+    }
+}

@@ -438,11 +438,12 @@ impl App {
             .and_then(|c| c.sound(sound).cloned());
         let dur = pcm.as_ref().map(|p| p.duration_ms());
         self.trace(serde_json::json!({"type": "sound_start", "sound": sound, "duration_ms": dur}));
-        let ok = match (&mut self.audio, pcm) {
-            (Some(a), Some(p)) => a.play(&p),
-            (None, Some(_)) => self.silent,
-            (_, None) => false,
+        let decoded = pcm.is_some();
+        let device = match (&mut self.audio, pcm) {
+            (Some(a), Some(p)) => Some(a.play(&p)),
+            _ => None,
         };
+        let ok = sound_played(device, self.silent, decoded);
         if !ok {
             log::warn!("sound {sound} could not be played");
             self.deferred.push(Event::SoundFailed);
@@ -602,6 +603,13 @@ fn call_args(c: &api::Call) -> serde_json::Value {
     }
 }
 
+/// R-ANIM-8: does a started sound count as playing? `device` is the audio device's
+/// result, None without a device. Without a device only an intentionally silent daemon
+/// (headless, `--no-audio`) keeps the sound's timing; a missing device is a failure.
+fn sound_played(device: Option<bool>, silent: bool, decoded: bool) -> bool {
+    decoded && device.unwrap_or(silent)
+}
+
 /// `Test1.Key` names: `Escape`, `Enter` (`Return`), `Tab`, `space`, `Up`, `Down`, `Left`,
 /// `Right`, or one character; `Alt+`, `Ctrl+` and `Shift+` prefixes set modifiers.
 pub fn parse_key(s: &str) -> Option<(Key, u32)> {
@@ -661,6 +669,18 @@ fn open_options() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn r_anim_8_sound_failed_without_device() {
+        assert!(sound_played(Some(true), false, true));
+        assert!(!sound_played(Some(false), false, true));
+        // Audio device failed to open: SoundFailed.
+        assert!(!sound_played(None, false, true));
+        // Headless or --no-audio: the sound keeps its timing.
+        assert!(sound_played(None, true, true));
+        // Not decodable: always failed.
+        assert!(!sound_played(None, true, false));
+    }
 
     #[test]
     fn t_4_key_names() {
