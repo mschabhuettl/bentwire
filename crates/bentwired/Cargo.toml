@@ -10,3 +10,13 @@ publish = false
 bentwire-character.workspace = true
 bentwire-core.workspace = true
 bentwire-render.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+png.workspace = true
+sha2.workspace = true
+zbus = "5"
+calloop = { version = "0.14", features = ["signals"] }
+log = "0.4"
+env_logger = { version = "0.11", default-features = false, features = ["auto-color", "humantime"] }
+zip = { version = "2", default-features = false, features = ["deflate"] }

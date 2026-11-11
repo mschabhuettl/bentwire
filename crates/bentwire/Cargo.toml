@@ -8,3 +8,5 @@ publish = false
 
 [dependencies]
 bentwire-convert.workspace = true
+serde.workspace = true
+zbus = "5"
