@@ -1581,8 +1581,9 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   destination pixel's palette colour, then snapped by W-COL-1; operations that read the
   destination leave transparent pixels transparent. TextOut glyphs and their opaque
   background ignore ROP2, as in GDI. Only 4 Hoverbot records use a code other than
-  R2_COPYPEN. Reason: Office 97 applied it to palette indices of its own back
-  buffer, which bentwire does not have.
+  R2_COPYPEN; they fill with a white brush and a null pen, which is the identity under
+  any reading (0 pixels change in 197 poses). Reason: Office 97 applied it to palette
+  indices of its own back buffer, which bentwire does not have.
 - **W-TEXT-1 TextOut.** Every face name (Albertus Medium, Courier New in the samples) is
   drawn with the bundled Wine Tahoma (the bold file for weight >= 600), bytes as cp1252,
   glyph outlines filled aliased with the nonzero rule. A negative lfHeight is the em
@@ -1631,6 +1632,17 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   SIGHUP keeps the previous config (logged). SIGTERM and SIGINT run the core's `Quit`
   (which saves the state) and exit 0. The tray's dbusmenu labels turn the `&` mnemonic
   into dbusmenu's `_`. Reason: robustness; dbusmenu has its own mnemonic syntax.
+- **A-ACT-1 ACT parser strictness.** `agent_formats::act` reads only the first pack item
+  (every sample has one; MSO97 also takes the first). Beyond the runtime's checks
+  (act-format 4) it rejects: payload index entries that share a blob unless they are
+  distinct sub-images of one `MNAK` pack; a group index entry referenced twice; group
+  blobs whose total size exceeds their data section; `MNAK` packs with 0 or more than 64
+  images; a declared LZ size above 256 MiB; LZ streams whose bits run past the blob end
+  (the runtime reads past it). Leniencies kept from the runtime: `mtSize` and the
+  placeable checksum are ignored, RLE output is truncated to stride x height, a RIFF blob
+  may be one pad byte longer than its size field. Reason: no sample needs any of the
+  rejected forms (all 55 parse and match the research parser), and each could make a
+  small file allocate gigabytes or take minutes.
 
 ## 4. Reconciliation
 
