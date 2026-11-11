@@ -349,11 +349,12 @@ gif_drag() { # drag the character across the desktop
     sleep 0.3
     $TEST Pointer suii press 1 "$px" "$py" >/dev/null
     local i nx ny
-    for i in $(seq 1 40); do
-        nx=$((px - i * 15)) ny=$((py - (i * (40 - i)) / 4))
+    # each step stays on screen for several recorder frames (see "frames" in shot.py)
+    for i in $(seq 1 30); do
+        nx=$((px - i * 20)) ny=$((py - (i * (30 - i)) / 3))
         vp "move $nx $ny"
         $TEST Pointer suii motion 1 "$nx" "$ny" >/dev/null
-        sleep 0.03
+        sleep 0.08
     done
     $TEST Pointer suii release 1 "$nx" "$ny" >/dev/null
     sleep 0.5
