@@ -1425,6 +1425,30 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   `label_frames`) and `[icons]` (alert, tip, info, warning, query, critical; 32 x 32).
   Masks are folded into alpha. A button strip is used when its height equals the button
   height; anything missing falls back to B-REN-2.
+- **A-FMT-1 Reader limits** (agent-formats). Decompressed ACF and ACA/AAF bodies above
+  256 MiB, images and regions above 10,000,000 bytes (the runtime's image cap), and
+  strings above 0x1000000 units (the 2.0 limit, also applied to 1.5 data) are errors.
+  Counts are checked against the remaining bytes before allocating. Reason: hostile input
+  must not exhaust memory; real files are far below these limits.
+- **A-FMT-2 Strict records.** Every ACS block and record and every ACF and ACA/AAF body
+  must be consumed exactly; decoded pixels must be exactly `stride * height` and regions
+  exactly their declared size (the runtime ignores the decoder's result and can show stale
+  bytes). ACA/AAF image and overlay sizes must equal `stride * height` of their picture.
+  Regions must be RDH_RECTANGLES with `32 + 16 * nCount == size`. Bytes after the
+  compressed block of an ACF or ACA file are ignored. Reason: every sample satisfies
+  these rules and the research parsers enforce them; anything else is corrupt, not a
+  variant to guess about.
+- **A-FMT-3 Edge cases without samples.** ACS image kind 0 is "no image" and nothing after
+  the kind byte is read; other kinds and compression flags other than 0/1 are errors. Raw
+  ACS images use `stride * height` bytes and ignore the data size (as the runtime does).
+  Mouth type above 6 is an error in ACA/AAF too (the ACS rule). Strings that are not valid
+  UTF-16 are errors. Reason: follow the runtime where the research traced it, fail loudly
+  where it did not.
+- **A-FMT-4 Per-animation failure.** In Agent 1.5 OLE files each animation stream is parsed
+  on its own and a missing or damaged stream is reported for that animation only; the
+  web loader reports missing files, unparsable files and stale checksums per animation.
+  OLE streams' checksums are not compared (the runtime does not). Reason: the runtime
+  loads animations lazily (agent15-format 8.2).
 
 ## 4. Reconciliation
 
