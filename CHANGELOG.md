@@ -7,6 +7,35 @@ D-Bus API (`org.bentwire.Agent1`) and the character format (`format = 1`) are fr
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-11
+
+A cleanup release: no new daemon features. The matching classics pack is
+[bentwire-classics 2026.11.1](https://github.com/mschabhuettl/bentwire-classics/releases/tag/2026.11.1).
+
+### Added
+
+- [CONTRIBUTING.md](https://github.com/mschabhuettl/bentwire/blob/v0.1.1/CONTRIBUTING.md):
+  build, tests, the real-data test setup, the desktop scenario, screenshots and conventions.
+- A gallery: `scripts/gallery.sh` renders every character in its rest pose at 1x on a
+  transparent background, byte-identical on every run; `docs/gallery/` holds the `builtin`
+  pack's image.
+- `docs/sources.md` lists the sources of the new classics characters Genie, Peedy, Robby
+  (Agent 2.0) and Ozzar (Agent 1.5).
+
+### Changed
+
+- **Breaking for the real-data test setup:** the real-data tests, `scripts/oracle-check.sh`
+  and the classics `regenerate.sh` take the original files from `BENTWIRE_SOURCES` (one or
+  more directories with your own copies, in any layout, found by file name and checked by
+  SHA-256) and the reference parsers from `BENTWIRE_REFERENCE`. The two variables of 0.1.0
+  are gone.
+- The repository history was rewritten once before republishing: private traces and
+  internal planning files were removed from every commit. `docs/sources.md` and
+  `docs/research/` now give product, version, file name, size and SHA-256 of each source
+  file, and no download locations.
+- The README follows a new layout (header with badges, features, quick start, contents),
+  with a short note to Microsoft.
+
 ## [0.1.0] - 2026-11-11
 
 First release.
@@ -33,5 +62,6 @@ First release.
 - Configuration file `~/.config/bentwire/config.toml`, reloaded on `SIGHUP`.
 - Documentation: behaviour spec, format research, sources, credits, decisions, roadmap.
 
-[Unreleased]: https://github.com/mschabhuettl/bentwire/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/mschabhuettl/bentwire/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/mschabhuettl/bentwire/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/mschabhuettl/bentwire/releases/tag/v0.1.0
