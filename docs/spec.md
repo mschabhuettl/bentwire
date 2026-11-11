@@ -7,7 +7,7 @@ turns every rule into a test.
 ## 0. How to read this
 
 **Inputs.** The build session gets this file together with:
-- `docs/idea-de.md`: decisions and scope, in German;
+- the project's decisions and scope (not published);
 - `docs/character-format.md`: the character format, cited as **character-format**;
 - the research reports in `docs/research/`, cited by file name without `.md`:
   agent-runtime, office-assistant, acs-format, acf-aaf-format, agent15-format,
@@ -35,8 +35,8 @@ A rule that rests only on [INF], or that chooses where the evidence is silent, i
 **bentwire decision** with its reason. The build MUST NOT reopen such a rule without new
 evidence.
 
-**Character format status.** character-format calls itself a draft. However, bentwire.md
-records its recommendations D1 to D8 as accepted on 2026-11-11. This spec treats D1 to D8
+**Character format status.** character-format calls itself a draft. However, the project's
+decisions (not published) record its recommendations D1 to D8 as accepted on 2026-11-11. This spec treats D1 to D8
 as decided and refers to the character-format sections by number. Its audio section
 (character-format 6) may still be changing; this spec depends only on "the daemon decodes
 FLAC and PCM WAVE" (D1 B).
@@ -50,7 +50,7 @@ FLAC and PCM WAVE" (D1 B).
 
 ## 1. Scope
 
-### 1.1 In v1 (from bentwire.md "Umfang der ersten Version")
+### 1.1 In v1 (from the project's decisions, not published)
 
 - `bentwired`, a Wayland overlay daemon (layer-shell, KDE Plasma first). It provides:
   - animations with both interpreter families;
@@ -831,8 +831,9 @@ and `BalloonShown` is emitted (= agent-runtime R-BAL-7). During a drag it is not
 **B-LIP-2 Text-only Speak moves no mouth.** (Closes agent-runtime U-1 and R-LIP-3 [INF].)
 **bentwire decision.**
 - During text-only Speak the character holds its speaking frame without a mouth overlay.
-- Reason: no mouth-setting call exists on the server's text pacer path. bentwire.md
-  limits the table to optional TTS, and "Originaltreue vor Features" applies.
+- Reason: no mouth-setting call exists on the server's text pacer path. The project's
+  decisions (not published) limit the table to optional TTS, and faithfulness to the
+  original comes before features.
 
 ### 3.9 `ask`: Ask and the Office balloon
 
@@ -1230,7 +1231,7 @@ gallery). The first step that finds something wins:
    message names the request and lists the chain that was tried.
 
 The Agent behaviour for an unknown name is a raised error ([DOC] `play-method`). Steps 3
-and 4 are a **bentwire decision** (bentwire.md, office-assistant 1: "fallback map"), so
+and 4 are a **bentwire decision** (the project's decisions, office-assistant 1: "fallback map"), so
 that clients written for Office names work with every character.
 
 | Requested (XP name) | Fallback chain |
@@ -1694,9 +1695,9 @@ every Agent1/Character1 call the core answered, with `id` (request id) or `error
 | 15 | Office placement: R-OB-17 candidate rectangles vs R-OB-27 window positions | Checked: identical geometry (window = body + 16 on the tail side, 4 px gap, 12 px reach). | Agree. |
 | 16 | Snooze caption: office-assistant R-OB-11 ("&Erneut erinnern", strings 112 to 127) vs R-OB-32 ("Er&neut erinnern", ids 112 to 126) | OBALLOON.DLL string 122 is `&Erneut erinnern`. 127 is `&Hilfe`, which is not a button set member. | R-OB-11 is right. B-L10N-2 uses the verbatim string. |
 | 17 | Office animation names in office97 manifests: D6 (XP names, accepted) vs the prototype output (Office 97 type-library names, e.g. `Greeting = ["Greeting.1", …]`) | The converter is still to be built. | Daemon accepts both through the alias table (B-FB-1 step 3, B-O97-5). |
-| 18 | Character-format status "draft, nothing decided" vs bentwire.md "D1 to D8 accepted" | bentwire.md is newer. | D1 to D8 decided (section 0). |
+| 18 | Character-format status "draft, nothing decided" vs the project's decisions "D1 to D8 accepted" | The decisions are newer. | D1 to D8 decided (section 0). |
 | 19 | Office report's name scan ("courtney, earl, rover lack about 20 each; qmark showed no names") | A rescan with the ACS parser: courtney lacks 24, earl 20, rover 24, merlin 14, qmark 34 of the 35 names (qmark has 13 animations, e.g. Welcome, PointLeft). | Scan replaced; B-FB-2 vectors come from it. office-assistant's open qmark item is closed. |
-| 20 | Scope: agent-runtime 7.2/7.3 "keep" list (Think, Wait, Load/Unload, Commands, Balloon.Style) vs bentwire.md v1 scope (8 commands) | bentwire.md is the owner's decision. | Out of v1 (1.2); Load/Unload become Select (one character at a time). |
+| 20 | Scope: agent-runtime 7.2/7.3 "keep" list (Think, Wait, Load/Unload, Commands, Balloon.Style) vs the v1 scope in the project's decisions (8 commands) | The scope is the owner's decision. | Out of v1 (1.2); Load/Unload become Select (one character at a time). |
 | 21 | R-MOVE-2 timer period `Speed / 25` gives 0 for Speed < 25 | Win32 timers have a 10 ms minimum. | B-MOVE-1 floor of 10 ms. |
 | 22 | Error code to string pairings (agent-runtime U-14, by meaning only) | Not proven. | No numeric codes are exposed; section 5.4 uses names. Their meaning is the documented one, not the code. |
 | 23 | R-UI-3 menu order (item 3 [INF]) and the separator ([DOC] "only if both exist") | Partly inferred. | B-MENU-1 (bentwire decision). |
@@ -1842,7 +1843,7 @@ Exit status:
 
 **T-0 Repo boundary.**
 - The code repo holds no Microsoft-derived data: no characters, no frames and no golden
-  hashes made from them (bentwire.md).
+  hashes made from them (the project's decisions (not published)).
 - CI tests use synthetic characters written for the tests (manifests plus tiny PNGs and
   WAVs) and a bundled free font for every metric vector (B-BAL-2, B-OB-1). Pick one font
   and pin it by hash.
@@ -1921,9 +1922,9 @@ in the build log; not a spec decision):
 If K1 fails on KWin, the backend clamps only the requested margins so the surface stays
 on its output, leaves the model position unchanged, and logs this once.
 
-**T-7 Faithfulness review.** No recordings of the original exist (bentwire.md). The
-behaviour is checked against this spec only. Each bentwire decision is listed in the
-build's README so it can be revisited when evidence appears.
+**T-7 Faithfulness review.** No recordings of the original exist (the project's decisions (not published)). The
+behaviour is checked against this spec only. Each bentwire decision is listed in
+`docs/decisions.md` so it can be revisited when evidence appears.
 
 ## 7. Open points
 
