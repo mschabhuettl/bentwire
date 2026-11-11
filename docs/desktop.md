@@ -8,9 +8,10 @@ desktop checks cover, and what could not be verified on the headless build machi
 ```sh
 cargo build --release -p bentwired -p bentwire
 install -Dm755 target/release/bentwired target/release/bentwire -t ~/.local/bin/
-# characters: copy or symlink the packs (A-PACK-1)
+# characters: copy or symlink the packs (A-PACK-1); classics is its own repository
 mkdir -p ~/.local/share/bentwire/characters
-cp -r characters/builtin characters/classics ~/.local/share/bentwire/characters/
+cp -r characters/builtin ~/.local/share/bentwire/characters/
+git clone https://github.com/mschabhuettl/bentwire-classics ~/.local/share/bentwire/characters/classics
 # D-Bus activation, so `bentwire ...` starts the daemon on demand (B-RUN-1)
 install -Dm644 packaging/dbus/org.bentwire.Agent.service -t ~/.local/share/dbus-1/services/
 sed -i "s|^Exec=.*|Exec=$HOME/.local/bin/bentwired|" ~/.local/share/dbus-1/services/org.bentwire.Agent.service
