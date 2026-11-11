@@ -28,7 +28,7 @@ usage: bentwire <command> [args]
   animations
   status
   quit
-  convert <source> <dest>
+  convert <source> <dest> [--palette OFFICE.ACS|MSO97.DLL] [--lang TAG] [--codepage LABEL]
 ";
 
 /// B-L10N-2 CLI result names for results -1..-15.
@@ -472,9 +472,9 @@ fn run(args: &[String]) -> Result<(), Fail> {
             Client::new(false)?.call::<_, ()>(AGENT_PATH, AGENT_IFACE, "Quit", &())
         }
         "convert" => {
-            let o = Opts::parse(rest, &[], &[])?;
+            let o = Opts::parse(rest, &[], &["--palette", "--lang", "--codepage"])?;
             o.npos(2, "<source> <dest>")?;
-            convert(&o.positional[0], &o.positional[1])
+            convert(&o)
         }
         "help" | "--help" | "-h" => {
             print!("{USAGE}");
@@ -484,11 +484,16 @@ fn run(args: &[String]) -> Result<(), Fail> {
     }
 }
 
-fn convert(_src: &str, _dest: &str) -> Result<(), Fail> {
-    Err(Fail::Exit(
-        1,
-        Some("convert is not available in this build yet".into()),
-    ))
+/// Local conversion (character-format 10); a `.bwc` destination writes a ZIP.
+fn convert(o: &Opts) -> Result<(), Fail> {
+    let opts = bentwire_convert::ConvertOptions {
+        office_palette: o.value("--palette").map(Into::into),
+        lang: o.value("--lang").map(Into::into),
+        codepage: o.value("--codepage").map(Into::into),
+    };
+    let (src, dest) = (&o.positional[0], &o.positional[1]);
+    bentwire_convert::convert_with(src.as_ref(), dest.as_ref(), &opts)
+        .map_err(|e| Fail::Exit(1, Some(format!("{src}: {e}"))))
 }
 
 fn main() -> ExitCode {

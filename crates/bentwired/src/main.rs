@@ -7,6 +7,7 @@ mod discovery;
 mod library;
 mod model;
 mod present;
+mod tray;
 mod wayland;
 
 use app::{App, Backend, Clock};
@@ -244,6 +245,20 @@ fn run(args: args::Args) -> Result<(), String> {
             None
         } else {
             audio::Audio::open()
+        },
+        tray: if headless || args.no_tray {
+            None
+        } else {
+            let (tx, rx) = calloop::channel::channel();
+            event_loop
+                .handle()
+                .insert_source(rx, |ev, _, app: &mut App| {
+                    if let calloop::channel::Event::Msg(t) = ev {
+                        app.event(Event::Tray(t));
+                    }
+                })
+                .map_err(|e| e.to_string())?;
+            tray::Tray::spawn(tx)
         },
         fonts: fonts(),
         theme,

@@ -60,6 +60,7 @@ pub struct App {
     pub next_output_id: u32,
     pub backend: Box<dyn Backend>,
     pub audio: Option<crate::audio::Audio>,
+    pub tray: Option<crate::tray::Tray>,
     pub fonts: Fonts,
     pub theme: Option<Theme>,
     pub trace: Option<std::fs::File>,
@@ -461,6 +462,14 @@ impl App {
         let scene = self.core.scene();
         if self.last_scene.as_ref() == Some(&scene) {
             return;
+        }
+        if let Some(t) = &mut self.tray {
+            let icon = scene.tray.icon_character.as_ref().and_then(|id| {
+                let lib = self.lib.borrow();
+                let i = lib.get(id)?.icon.as_ref()?;
+                Some(crate::tray::sni_icon(i.width, i.height, &i.data))
+            });
+            t.update(&scene.tray, icon);
         }
         let r = present::render(&scene, &self.lib.borrow(), &self.fonts, self.theme.as_ref());
         for q in present::requests(&self.rendered, &r, &scene.outputs, self.menu_serial) {

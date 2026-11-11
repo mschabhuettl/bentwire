@@ -1,0 +1,16 @@
+# Optional systemd user unit. Install into ~/.config/systemd/user/ (or
+# /usr/lib/systemd/user/), adjust ExecStart, then: systemctl --user enable --now bentwired
+[Unit]
+Description=bentwire desktop character
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=dbus
+BusName=org.bentwire.Agent
+ExecStart=/usr/bin/bentwired
+# bentwired exits 1 when the name is taken ("already running"); do not loop on that.
+Restart=on-abnormal
+
+[Install]
+WantedBy=graphical-session.target

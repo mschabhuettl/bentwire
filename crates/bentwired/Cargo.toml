@@ -22,5 +22,6 @@ env_logger = { version = "0.11", default-features = false, features = ["auto-col
 zip = { version = "2", default-features = false, features = ["deflate"] }
 rodio = { version = "0.21", default-features = false, features = ["playback"] }
 smithay-client-toolkit = "0.21"
+ksni = { version = "0.3", default-features = false, features = ["blocking", "async-io"] }
 wayland-client = "0.31"
 wayland-protocols = { version = "0.32", features = ["client", "staging"] }
