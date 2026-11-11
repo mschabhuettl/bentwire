@@ -3,7 +3,7 @@
 `tahoma.ttf` and `tahomabd.ttf` are Wine's Tahoma replacements (metric-compatible with
 Tahoma), copied from the Ubuntu package `fonts-wine` 10.0~repack-12ubuntu1
 (`/usr/share/fonts/truetype/wine/`). Licence: LGPL-2.1 or later, see
-`LICENSE-LGPL-2.1.txt`. Copyright: the Wine project (https://www.winehq.org).
+`LICENSE-LGPL-2.1.txt`. Copyright: the Wine project (https://gitlab.winehq.org/wine/wine).
 
 Pinned SHA-256 (tests check these):
 
