@@ -143,9 +143,7 @@ fn d2_wmf_extreme_destination_rectangles_never_panic() {
 #[test]
 fn d2_wmf_long_wide_pen_zigzag_is_bounded() {
     // review finding: 16,000-point polyline with a 2 px pen took 8 s before per-row spans
-    let pts: Vec<(i16, i16)> = (0..16_000)
-        .map(|i| ((i % 2) * 380, (i % 288) as i16))
-        .collect();
+    let pts: Vec<(i16, i16)> = (0..16_000).map(|i| ((i % 2) * 380, i % 288)).collect();
     let part = WmfBuilder::new([0, 0, 384, 288])
         .window([0, 0], [384, 288])
         .pen(0, 2, [0, 0, 0])
@@ -175,5 +173,5 @@ fn d2_wmf_long_wide_pen_zigzag_is_bounded() {
     .unwrap();
     let s = t.elapsed().as_secs_f64();
     assert!(s < 20.0, "{s} s");
-    assert!(c.pixels.iter().any(|&p| p == 0));
+    assert!(c.pixels.contains(&0));
 }
