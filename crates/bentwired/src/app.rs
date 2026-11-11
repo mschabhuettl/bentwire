@@ -289,7 +289,7 @@ impl App {
                 "h": c.buf.h, "mapped": true, "output": c.output, "buffer_scale": c.buf.scale}),
             );
         }
-        if let Some(b) = &r.balloon {
+        for b in r.balloons.iter().flatten() {
             let kind = if b.office {
                 "office_balloon"
             } else {

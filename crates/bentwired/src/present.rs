@@ -56,7 +56,8 @@ pub struct MenuSurface {
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct Rendered {
     pub character: Option<CharSurface>,
-    pub balloon: Option<BalloonSurface>,
+    /// Agent balloon (index 0) and Office balloon (index 1, stacked above).
+    pub balloons: [Option<BalloonSurface>; 2],
     pub menu: Option<MenuSurface>,
     pub keyboard: bool,
 }
@@ -120,11 +121,12 @@ pub fn render(scene: &Scene, lib: &Library, fonts: &Fonts, theme: Option<&Theme>
     if let Some(b) = &scene.office_balloon {
         let mut c = window_canvas(b.window, k);
         balloon::draw_office_balloon(&mut c, k, fonts, theme, b);
-        r.balloon = Some(mk_balloon(true, b.window, office_balloon_region(b), c));
-    } else if let Some(b) = &scene.agent_balloon {
+        r.balloons[1] = Some(mk_balloon(true, b.window, office_balloon_region(b), c));
+    }
+    if let Some(b) = &scene.agent_balloon {
         let mut c = window_canvas(b.window, k);
         balloon::draw_agent_balloon(&mut c, k, fonts, b);
-        r.balloon = Some(mk_balloon(false, b.window, agent_balloon_region(b), c));
+        r.balloons[0] = Some(mk_balloon(false, b.window, agent_balloon_region(b), c));
     }
     if let Some(m) = &scene.menu {
         let g = menu_layout(fonts, &m.entries);
@@ -161,8 +163,12 @@ pub fn hit(r: &Rendered, x: i32, y: i32) -> Option<Hit> {
     {
         return Some(Hit::Menu(m.geometry.hit(&m.entries, x - m.x, y - m.y)));
     }
-    if let Some(b) = &r.balloon
-        && b.region.contains(x, y)
+    if let Some(b) = r
+        .balloons
+        .iter()
+        .rev()
+        .flatten()
+        .find(|b| b.region.contains(x, y))
     {
         return Some(Hit::Surface(if b.office {
             CoreSurface::OfficeBalloon
@@ -260,19 +266,20 @@ pub fn requests(
         .as_ref()
         .map(|c| (c.x, c.y))
         .unwrap_or((0, 0));
-    match (&prev.balloon, &next.balloon) {
-        (Some(_), None) => out.push(json!({"req": "destroy", "surface": "balloon"})),
-        (p, Some(b)) if p.as_ref() != Some(b) => {
-            out.push(json!({
-                "req": "subsurface",
-                "surface": "balloon",
-                "kind": if b.office { "office" } else { "agent" },
-                "position": [b.x - ax, b.y - ay],
-                "place_above": "character",
-            }));
-            out.push(buffer_req("balloon", &b.buf, false));
+    for (i, name) in ["agent_balloon", "office_balloon"].into_iter().enumerate() {
+        match (&prev.balloons[i], &next.balloons[i]) {
+            (Some(_), None) => out.push(json!({"req": "destroy", "surface": name})),
+            (p, Some(b)) if p.as_ref() != Some(b) => {
+                out.push(json!({
+                    "req": "subsurface",
+                    "surface": name,
+                    "position": [b.x - ax, b.y - ay],
+                    "place_above": if i == 0 { "character" } else { "agent_balloon" },
+                }));
+                out.push(buffer_req(name, &b.buf, false));
+            }
+            _ => {}
         }
-        _ => {}
     }
     match (&prev.menu, &next.menu) {
         (Some(_), None) => out.push(json!({"req": "destroy", "surface": "menu"})),

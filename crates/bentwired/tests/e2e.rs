@@ -452,7 +452,7 @@ fn t_4_trace_and_dump_frames() {
     assert!(
         lines
             .iter()
-            .any(|l| l["req"] == "subsurface" && l["kind"] == "agent")
+            .any(|l| l["req"] == "subsurface" && l["surface"] == "agent_balloon")
     );
     assert!(
         lines

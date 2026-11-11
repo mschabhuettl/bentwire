@@ -103,7 +103,8 @@ struct WlState {
     viewporter: Option<wp_viewporter::WpViewporter>,
     qh: QueueHandle<WlState>,
     ch: Option<CharSurf>,
-    balloon: Option<SubSurf>,
+    /// Agent balloon (0) and Office balloon (1).
+    balloons: [Option<SubSurf>; 2],
     menu: Option<MenuSurf>,
     /// The latest scene from the app; re-applied after configures.
     desired: Rendered,
@@ -187,7 +188,7 @@ impl Wayland {
             viewporter,
             qh: qh.clone(),
             ch: None,
-            balloon: None,
+            balloons: [None, None],
             menu: None,
             desired: Rendered::default(),
             events: Vec::new(),
@@ -259,11 +260,11 @@ impl Backend for Wayland {
                 "buffer_scale": c.attached.as_ref().map(|b| b.scale),
                 "viewport": c.viewport.is_some(),
             })),
-            "balloon": s.balloon.as_ref().map(|b| json!({
+            "balloons": s.balloons.iter().flatten().map(|b| json!({
                 "office": b.office,
                 "position": b.attached.as_ref().map(|a| [a.0, a.1]),
                 "buffer_attached": b.attached.is_some(),
-            })),
+            })).collect::<Vec<_>>(),
             "menu": s.menu.as_ref().map(|m| json!({
                 "configured": m.configured,
                 "buffer_attached": m.attached.is_some(),
@@ -337,8 +338,8 @@ impl WlState {
         self.menu = None;
     }
 
-    fn destroy_balloon(&mut self) {
-        if let Some(b) = self.balloon.take() {
+    fn destroy_balloon(&mut self, i: usize) {
+        if let Some(b) = self.balloons[i].take() {
             b.sub.destroy();
             b.surface.destroy();
         }
@@ -346,7 +347,8 @@ impl WlState {
 
     fn destroy_character(&mut self) {
         self.destroy_menu();
-        self.destroy_balloon();
+        self.destroy_balloon(1);
+        self.destroy_balloon(0);
         if let Some(c) = self.ch.take() {
             if let Some(v) = c.viewport {
                 v.destroy();
@@ -456,7 +458,8 @@ impl WlState {
                 None => log::warn!("could not allocate a character buffer"),
             }
         }
-        self.apply_balloon(&wl, (want.x, want.y), &mut dirty);
+        self.apply_balloon(0, &wl, (want.x, want.y), &mut dirty);
+        self.apply_balloon(1, &wl, (want.x, want.y), &mut dirty);
         self.apply_menu(&wl, (want.x, want.y));
         if dirty {
             let c = self.ch.as_mut().expect("present");
@@ -475,25 +478,28 @@ impl WlState {
             .is_some_and(|o| o.scale.fract() != 0.0)
     }
 
-    fn apply_balloon(&mut self, parent: &wl_surface::WlSurface, at: (i32, i32), dirty: &mut bool) {
-        let Some(want) = self.desired.balloon.clone() else {
-            if self.balloon.is_some() {
-                self.destroy_balloon();
+    /// Balloon `i` (0 Agent, 1 Office above it), B-WL-8.
+    fn apply_balloon(
+        &mut self,
+        i: usize,
+        parent: &wl_surface::WlSurface,
+        at: (i32, i32),
+        dirty: &mut bool,
+    ) {
+        let Some(want) = self.desired.balloons[i].clone() else {
+            if self.balloons[i].is_some() {
+                self.destroy_balloon(i);
                 *dirty = true;
             }
             return;
         };
-        if self
-            .balloon
-            .as_ref()
-            .is_some_and(|b| b.office != want.office)
-        {
-            self.destroy_balloon();
-        }
-        if self.balloon.is_none() {
+        if self.balloons[i].is_none() {
             let (sub, surface) = self.sub.create_subsurface(parent.clone(), &self.qh);
-            sub.place_above(parent);
-            self.balloon = Some(SubSurf {
+            match &self.balloons[0] {
+                Some(agent) if i == 1 => sub.place_above(&agent.surface),
+                _ => sub.place_above(parent),
+            }
+            self.balloons[i] = Some(SubSurf {
                 sub,
                 surface,
                 office: want.office,
@@ -501,7 +507,7 @@ impl WlState {
                 attached: None,
             });
         }
-        let b = self.balloon.as_mut().expect("created above");
+        let b = self.balloons[i].as_mut().expect("created above");
         let rel = (want.x - at.0, want.y - at.1);
         if b.attached.as_ref().map(|a| (a.0, a.1, &a.2)) == Some((rel.0, rel.1, &want.buf)) {
             return;
@@ -591,9 +597,10 @@ impl WlState {
         {
             return Some((SurfKind::Core(CoreSurface::Character), c.applied));
         }
-        if let (Some(b), Some(c)) = (&self.balloon, &self.ch)
-            && &b.surface == s
-        {
+        if let (Some(b), Some(c)) = (
+            self.balloons.iter().flatten().find(|b| &b.surface == s),
+            &self.ch,
+        ) {
             let rel = b.attached.as_ref().map(|a| (a.0, a.1)).unwrap_or((0, 0));
             let kind = if b.office {
                 CoreSurface::OfficeBalloon

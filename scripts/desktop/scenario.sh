@@ -145,7 +145,7 @@ balloon_on_screen() { # balloon_on_screen agent|office
     sway) python3 -I "$REPO/scripts/desktop/bbox.py" "$T/$SHOT-"*.ppm --balloon "$1" ;;
     # KWin lists no subsurfaces in windowList and cannot take screenshots here, so this
     # is the backend's own record of the attached subsurface buffer.
-    kwin) snap "s['backend']['balloon'] is not None and s['backend']['balloon']['buffer_attached'] and s['backend']['balloon']['office'] == ('$1' == 'office')" ;;
+    kwin) snap "any(b['buffer_attached'] and b['office'] == ('$1' == 'office') for b in s['backend']['balloons'])" ;;
     esac
 }
 status() { "$BIN/bentwire" status | sed -n "s/^$1=//p"; }
@@ -167,7 +167,7 @@ check "play Wave --wait" "$BIN/bentwire" play Wave --wait
 echo "3. say"
 "$BIN/bentwire" say "It looks like your build failed." --wait >"$T/say.out" 2>&1 &
 SAY=$!
-check "agent balloon shown" wait_for 5 snap 's["backend"]["balloon"] is not None and not s["backend"]["balloon"]["office"] and s["backend"]["balloon"]["buffer_attached"]'
+check "agent balloon shown" wait_for 5 snap 'any(not b["office"] and b["buffer_attached"] for b in s["backend"]["balloons"])'
 sleep 0.3
 shot say
 check "agent balloon on screen" balloon_on_screen agent
@@ -176,7 +176,7 @@ check "say completes" wait "$SAY"
 echo "4. ask, answered through Test1"
 "$BIN/bentwire" ask "Build failed." --button "Show log" --button "Ignore" >"$T/ask.out" 2>&1 &
 ASK=$!
-check "office balloon shown" wait_for 10 snap 's["office_balloon"] is not None and s["backend"]["balloon"] is not None and s["backend"]["balloon"]["buffer_attached"]'
+check "office balloon shown" wait_for 10 snap 's["office_balloon"] is not None and any(b["office"] and b["buffer_attached"] for b in s["backend"]["balloons"])'
 check "keyboard on_demand while ask is open (B-WL-8)" snap 's["backend"]["character"]["keyboard_interactivity"] == "on_demand"'
 sleep 0.3
 shot ask
