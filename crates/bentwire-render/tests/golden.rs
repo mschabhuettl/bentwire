@@ -586,3 +586,87 @@ fn t_4_headless_scene_golden() {
         &compose_output(&scene, &output(1.5), Some(&pic), &f, None),
     );
 }
+
+/// Office balloons laid out and placed by the core (B-OB-1..3), drawn by the renderer.
+fn core_office(
+    spec: bentwire_core::api::AskSpec,
+    it: impl FnOnce(&mut bentwire_core::office::Interaction),
+) -> RgbaImage {
+    use bentwire_core::office;
+    let f = Fonts::bundled();
+    let model = office::validate(&spec, bentwire_core::api::Lang::En).expect("valid ask");
+    let mut inter = office::Interaction {
+        checked: vec![false; spec.checkboxes.as_ref().map_or(0, |c| c.len())],
+        focus: model.initial_focus(),
+        ..Default::default()
+    };
+    it(&mut inter);
+    let cx = office::Ctx::new(&f, 800);
+    let placed = office::place(
+        &model,
+        &inter,
+        Rect::new(500, 350, 96, 96),
+        Rect::new(0, 0, 800, 600),
+        &cx,
+    )
+    .expect("fits");
+    office_image(&f, &placed.scene, 1)
+}
+
+fn strings(v: &[&str]) -> Option<Vec<String>> {
+    Some(v.iter().map(|s| s.to_string()).collect())
+}
+
+#[test]
+fn b_ob_1_core_layout_heading_markup_golden() {
+    use bentwire_core::api::{AskButtons, AskSpec};
+    let img = core_office(
+        AskSpec {
+            heading: Some("Synthetic heading".into()),
+            text: Some("Body with {cf 249}red{cf 0} and {ul 1}underlined{ul 0} words that wrap over more than one line.".into()),
+            icon: Some("info".into()),
+            buttons: Some(AskButtons::Set("yes-no-cancel".into())),
+            ..Default::default()
+        },
+        |_| {},
+    );
+    check("core-office-heading", &img);
+}
+
+#[test]
+fn b_ob_1_core_layout_labels_checkboxes_golden() {
+    use bentwire_core::api::{AskButtons, AskSpec};
+    use bentwire_core::office::Control;
+    let img = core_office(
+        AskSpec {
+            heading: Some("Choose".into()),
+            labels: strings(&["First label", "Second label"]),
+            checkboxes: strings(&["&Remember this", "Other box"]),
+            buttons: Some(AskButtons::Set("ok-cancel".into())),
+            ..Default::default()
+        },
+        |it| {
+            it.checked[0] = true;
+            it.hot = Some(Control::Label(1));
+            it.pressed = Some(Control::Button(1));
+        },
+    );
+    check("core-office-controls", &img);
+}
+
+#[test]
+fn b_ob_1_core_layout_numbers_custom_buttons_golden() {
+    use bentwire_core::api::{AskButtons, AskSpec};
+    let img = core_office(
+        AskSpec {
+            text: Some("Steps:".into()),
+            icon: Some("warning".into()),
+            labels: strings(&["Open the lid", "Insert the disk"]),
+            label_type: Some("numbers".into()),
+            buttons: Some(AskButtons::Custom(vec!["&Go".into(), "&Later".into()])),
+            ..Default::default()
+        },
+        |_| {},
+    );
+    check("core-office-numbers", &img);
+}

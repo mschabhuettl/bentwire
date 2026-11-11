@@ -85,18 +85,20 @@ fn draw_lines(
     underline_all: bool,
 ) {
     for l in lines {
-        for r in &l.runs {
+        for (i, r) in l.runs.iter().enumerate() {
             let col = over.unwrap_or(rgb(r.color));
-            fonts.draw_text(
-                c,
-                k,
-                r.x,
-                l.y,
-                font,
-                &r.text,
-                col,
-                r.underline || underline_all,
-            );
+            let ul = r.underline || underline_all;
+            let w = fonts.draw_text(c, k, r.x, l.y, font, &r.text, col, ul);
+            // An underline continues across the gap to the next underlined run of the
+            // same colour (runs are split at spaces).
+            if let Some(n) = l.runs.get(i + 1)
+                && ul
+                && (n.underline || underline_all)
+                && over.unwrap_or(rgb(n.color)) == col
+                && n.x > r.x + w
+            {
+                fonts.draw_underline(c, k, r.x + w, n.x, l.y, font, col);
+            }
         }
     }
 }
