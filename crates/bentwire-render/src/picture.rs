@@ -159,6 +159,15 @@ mod tests {
     }
 
     #[test]
+    fn empty_picture_gives_transparent_buffer() {
+        // character's compositor returns 0x0 above its size limit (A-CHAR-4).
+        let b = picture_buffer(&RgbaImage::new(0, 0), 3, 2, 2);
+        assert_eq!((b.width, b.height), (6, 4));
+        assert!(b.data.iter().all(|&v| v == 0));
+        assert!(b.input_region.is_empty());
+    }
+
+    #[test]
     fn b_pix_3_input_region_is_alpha_shape() {
         let pic = square(8, 8, 2, 3, 3, [1, 2, 3, 1]);
         let b = picture_buffer(&pic, 8, 8, 1);
