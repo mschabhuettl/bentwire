@@ -1,18 +1,25 @@
 #!/bin/bash
-# Reproducible screenshots: bentwired under headless sway
-# (pixman renderer), grim, a fixed 1280x720 output, seed 1, a plain desktop colour and
-# fresh XDG directories on a private session bus. No timing guesses: every shot waits for
-# the request to complete (--wait) or for the surface to appear in Test1.Snapshot, then
-# grabs until two consecutive crops are identical. Crops come from the Snapshot geometry.
+# Reproducible screenshots and GIFs on a real KDE Plasma 6 desktop, headless: KWin nested
+# in headless sway, plasmashell with the default Breeze look and wallpaper, the bentwire
+# tray icon in the panel (scripts/screenshots/session.sh has the details). Fixed
+# 1280x720 output, seed 1, frozen wall clock, fresh XDG directories on a private session
+# bus. No timing guesses for stills: every shot waits for the request to complete
+# (--wait) or for the surface to appear in Test1.Snapshot, then grabs until three
+# consecutive frames agree and differ from the frame before the action.
 #
-# usage: scripts/screenshots.sh [--classics DIR] [BIN_DIR]
-#   without --classics: only characters/builtin; writes the placeholder shots to
-#     docs/screenshots/ (no side-by-side image: builtin has one character).
+# usage: scripts/screenshots.sh [--classics DIR] [--gifs | --all] [BIN_DIR]
+#   without --classics: only characters/builtin; writes to docs/screenshots/.
 #   --classics DIR: the classics pack in DIR; writes to DIR/screenshots/.
+#   default PNGs only, --gifs GIFs only (also scripts/gifs.sh), --all both.
 # Build first: cargo build -p bentwired -p bentwire && cargo build -p bentwired --examples
-# Needs: sway, swaybg, grim, dbus-run-session, busctl, python3 with PIL.
+# Needs: sway, grim, wf-recorder, ffmpeg, kwin-wayland, plasma-desktop (Plasma 6),
+# breeze-icon-theme, fonts-noto-core, kded6, faketime, dbus-run-session, busctl, python3
+# with PIL.
 # The config pins balloon_font = "Tahoma" (bundled), so the Agent balloon does not depend
 # on the host's fontconfig (B-BAL-2).
+# GIFs are recorded in real time (wf-recorder; the fake clock exists only in --headless),
+# then identical frames are merged and frame times rounded to 50 ms, so two runs give the
+# same frames and times unless a frame boundary falls within a few ms of a rounding edge.
 set -euo pipefail
 
 REPO=$(cd "$(dirname "$0")/.." && pwd)
@@ -21,6 +28,11 @@ if [ "${1:-}" = --classics ]; then
     CLASSICS=$(cd "${2:?--classics needs a directory}" && pwd)
     shift 2
 fi
+MODE=shots
+case "${1:-}" in
+--gifs) MODE=gifs; shift ;;
+--all) MODE=all; shift ;;
+esac
 BIN=$(cd "${1:-$REPO/target/debug}" && pwd)
 
 if [ -z "${BENTWIRE_SHOTS_INNER:-}" ]; then
@@ -29,24 +41,35 @@ if [ -z "${BENTWIRE_SHOTS_INNER:-}" ]; then
     mkdir -m 0700 "$T/run"
     # Nothing from the caller's environment (BENTWIRE_*, XDG dirs, locale) reaches the run.
     for v in $(env | sed -n 's/^\(BENTWIRE_[A-Z_]*\)=.*/\1/p'); do unset "$v"; done
+    unset WAYLAND_DISPLAY DISPLAY SWAYSOCK XDG_CONFIG_DIRS XDG_SESSION_TYPE XDG_CURRENT_DESKTOP
     export XDG_RUNTIME_DIR=$T/run HOME=$T/home XDG_CONFIG_HOME=$T/home/cfg
     export XDG_STATE_HOME=$T/home/state XDG_DATA_HOME=$T/home/data XDG_CACHE_HOME=$T/home/cache
-    export XDG_DATA_DIRS=$T/nonexistent LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC
+    export XDG_DATA_DIRS=/usr/local/share:/usr/share XDG_MENU_PREFIX=plasma- XDG_CURRENT_DESKTOP=KDE LANG=C.UTF-8 LC_ALL=C.UTF-8 TZ=UTC
     export BENTWIRE_SHOTS_INNER=1 SHOTS_DIR=$T
     mkdir -p "$HOME"
     rc=0
-    if [ -n "$CLASSICS" ]; then
-        dbus-run-session -- "$0" --classics "$CLASSICS" "$BIN" || rc=$?
-    else
-        dbus-run-session -- "$0" "$BIN" || rc=$?
-    fi
+    args=("$BIN")
+    [ "$MODE" != shots ] && args=("--$MODE" "$BIN")
+    [ -n "$CLASSICS" ] && args=(--classics "$CLASSICS" "${args[@]}")
+    dbus-run-session -- "$0" "${args[@]}" || rc=$?
+    # anything the run left behind (also after an abort) still has our runtime dir
+    for p in $(pgrep -u "$(id -u)"); do
+        [ "$p" = $$ ] && continue
+        tr '\0' '\n' 2>/dev/null </proc/"$p"/environ | grep -qx "XDG_RUNTIME_DIR=$T/run" \
+            && kill "$p" 2>/dev/null
+    done
     [ "$rc" -eq 0 ] && rm -rf "${T:?}"
     exit "$rc"
 fi
 
 T=$SHOTS_DIR
 PY="python3 -I $REPO/scripts/screenshots/shot.py"
-W=1280 H=720 BG=3a6ea5 MARGIN=12 X=600 Y=330
+W=1280 H=720
+# Character position, the frame of the cropped shots (bottom right of the desktop, with
+# the panel's system tray and clock) and where the pointer rests.
+X=1010 Y=470
+FRAME="480 270 800 450"
+PARK="300 200"
 if [ -n "$CLASSICS" ]; then
     OUT=$CLASSICS/screenshots
     ROOTS=(--characters "$CLASSICS")
@@ -61,6 +84,7 @@ mkdir -p "$OUT"
 PIDS=()
 cleanup() {
     for p in "${PIDS[@]}" $(jobs -p); do kill "$p" 2>/dev/null || true; done
+    stop_session 2>/dev/null || true
     wait 2>/dev/null || true
 }
 trap cleanup EXIT
@@ -73,30 +97,10 @@ wait_for() { # wait_for <seconds> <command...>: polls a condition, not a timing 
     echo "timed out: $*"
     return 1
 }
-
-export WLR_BACKENDS=headless WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1
-cat >"$T/sway.conf" <<EOF
-output HEADLESS-1 resolution ${W}x${H} position 0 0 scale 1 bg #$BG solid_color
-seat * hide_cursor 0
-EOF
-sway -c "$T/sway.conf" >"$T/sway.log" 2>&1 &
-PIDS+=($!)
-wait_for 10 sh -c 'ls "$XDG_RUNTIME_DIR" | grep -Eq "^wayland-[0-9]+$"'
-WAYLAND_DISPLAY=$(ls "$XDG_RUNTIME_DIR" | grep -E '^wayland-[0-9]+$' | head -1)
-export WAYLAND_DISPLAY
-wait_for 10 sh -c 'ls "$XDG_RUNTIME_DIR"/sway-ipc.*.sock'
-SWAYSOCK=$(ls "$XDG_RUNTIME_DIR"/sway-ipc.*.sock | head -1)
-export SWAYSOCK
-bg_ready() { grim -g "0,0 1x1" -t ppm "$T/px.ppm" && $PY pixel "$T/px.ppm" "$BG"; }
-wait_for 10 bg_ready
-
-# One virtual pointer for the whole run; it is parked in the top-left corner for shots.
-mkfifo "$T/vptr"
-"$BIN/examples/vptr" $W $H <"$T/vptr" >"$T/vptr.log" 2>&1 &
-PIDS+=($!)
-exec 7>"$T/vptr"
-wait_for 10 sh -c 'swaymsg -t get_inputs | grep -q "\"type\": \"pointer\""'
 vp() { printf '%s\n' "$@" >&7; }
+
+# shellcheck source=scripts/screenshots/session.sh
+. "$REPO/scripts/screenshots/session.sh"
 
 TEST="busctl --user call org.bentwire.Agent /org/bentwire/Test org.bentwire.Test1"
 snapshot() { # snapshot FILE
@@ -105,123 +109,306 @@ snapshot() { # snapshot FILE
 }
 has() { snapshot "$T/s.json" && $PY has "$T/s.json" "$@"; }
 no_office() { ! has office_balloon; }
+no_menu() { ! has menu; }
+no_surfaces() { snapshot "$T/s.json" && python3 -I -c 'import json, sys; sys.exit(len(json.load(open(sys.argv[1]))["surfaces"]) != 0)' "$T/s.json"; }
 scale2() { snapshot "$T/s.json" && python3 -I -c 'import json, sys; sys.exit(json.load(open(sys.argv[1]))["backend"]["character"]["buffer_scale"] != 2)' "$T/s.json"; }
+tray_item() { busctl --user get-property org.kde.StatusNotifierWatcher /StatusNotifierWatcher \
+    org.kde.StatusNotifierWatcher RegisteredStatusNotifierItems | grep -q '"'; }
+no_tray_item() { ! tray_item; }
 
 BW=
-start_daemon() { # start_daemon <character> <language>: fresh config and state, seed 1
-    rm -rf "${XDG_CONFIG_HOME:?}" "${XDG_STATE_HOME:?}"
-    mkdir -p "$XDG_CONFIG_HOME/bentwire" "$XDG_STATE_HOME/bentwire"
-    cat >"$XDG_CONFIG_HOME/bentwire/config.toml" <<EOF
+start_daemon() { # start_daemon <character> <language> [visible] [x y]: fresh config and state
+    rm -rf "${T:?}/home/bwcfg" "${XDG_STATE_HOME:?}"
+    mkdir -p "$T/home/bwcfg/bentwire" "$XDG_STATE_HOME/bentwire"
+    cat >"$T/home/bwcfg/bentwire/config.toml" <<EOF
 character = "$1"
 language = "$2"
 idle = false
 sound_effects = false
 balloon_font = "Tahoma"
 EOF
-    printf 'character = "%s"\nleft = %d\ntop = %d\nvisible = true\n' "$1" $X $Y \
-        >"$XDG_STATE_HOME/bentwire/state.toml"
-    "$BIN/bentwired" --seed 1 --test-interface --no-tray --no-audio "${ROOTS[@]}" \
-        >>"$T/bentwired.log" 2>&1 &
+    printf 'character = "%s"\nleft = %d\ntop = %d\nvisible = %s\n' "$1" "${4:-$X}" "${5:-$Y}" \
+        "${3:-true}" >"$XDG_STATE_HOME/bentwire/state.toml"
+    XDG_CONFIG_HOME=$T/home/bwcfg frozen "$BIN/bentwired" --seed 1 --test-interface --no-audio \
+        "${ROOTS[@]}" >>"$T/bentwired.log" 2>&1 &
     BW=$!
     wait_for 10 busctl --user status org.bentwire.Agent
-    "$BIN/bentwire" show --wait >/dev/null
     test "$("$BIN/bentwire" status | sed -n 's/^character=//p')" = "$1" \
         || { echo "character $1 not selected"; exit 1; }
-    wait_for 10 has character
+    wait_for 20 tray_item
+    if [ "${3:-true}" = true ]; then
+        "$BIN/bentwire" show --wait >/dev/null
+        wait_for 10 has character
+    fi
+    vp "move $PARK"
+    wait_for 30 desktop_settled
 }
 stop_daemon() {
     "$BIN/bentwire" quit >/dev/null || true
     wait "$BW" 2>/dev/null || true
+    wait_for 20 no_tray_item
 }
 
-SCALE=1
-capture() { # capture <out.png> <surface kind...>: grab until two crops agree
-    local out=$1 prev=
-    shift
-    for i in $(seq 100); do
-        snapshot "$T/a.json"
-        grim -t ppm "$T/g.ppm"
-        snapshot "$T/b.json"
-        if cmp -s "$T/a.json" "$T/b.json" && $PY has "$T/a.json" "$@"; then
-            # shellcheck disable=SC2046
-            $PY crop "$T/g.ppm" "$T/c$i.png" "$SCALE" $($PY rect "$T/a.json" "$MARGIN" "$@")
-            if [ -n "$prev" ] && cmp -s "$prev" "$T/c$i.png"; then
-                cp "$T/c$i.png" "$out"
+capture() { # capture <out.png> <x y w h> <surface kind...>: three agreeing grabs of the
+    # rect, with an unchanged Snapshot around each, that differ from the bare desktop
+    local out=$1 rect=$2 x y w h prev="" same=0
+    shift 2
+    read -r x y w h <<<"$rect"
+    # shellcheck disable=SC2086
+    $PY crop "$T/desktop.ppm" "$T/ref.png" "$SCALE" $rect
+    for i in $(seq 300); do
+        $TEST Snapshot >"$T/a.txt"
+        sgrim -g "$x,$y ${w}x$h" -t ppm "$T/c$i.ppm"
+        $TEST Snapshot >"$T/b.txt"
+        if cmp -s "$T/a.txt" "$T/b.txt" && [ -n "$prev" ] && cmp -s "$prev" "$T/c$i.ppm"; then
+            same=$((same + 1))
+        else
+            same=0
+        fi
+        prev=$T/c$i.ppm
+        if [ "$same" -ge 2 ]; then
+            snapshot "$T/a.json"
+            $PY crop "$prev" "$T/cand.png" 1 0 0 $((w * SCALE)) $((h * SCALE))
+            # shellcheck disable=SC2086
+            if $PY has "$T/a.json" "$@" && $PY inside "$T/a.json" $rect "$@" \
+                && ! cmp -s "$T/cand.png" "$T/ref.png"; then
+                cp "$T/cand.png" "$out"
                 echo "  $(basename "$out")"
                 return 0
             fi
-            prev=$T/c$i.png
-        else
-            prev=
+            same=0
         fi
     done
     echo "no stable frame for $out"
     return 1
 }
 
-shoot_set() { # shoot_set <character> <prefix>: idle, say, ask, menu (en)
-    local c=$1 p=$2
+shoot_set() { # shoot_set <character>: idle (whole desktop), say, ask
+    local c=$1
     start_daemon "$c" en
-    vp "move 0 0"
-    capture "$OUT/${p}idle.png" character
+    capture "$OUT/idle.png" "0 0 $W $H" character
     "$BIN/bentwire" say "It looks like your build failed. Want me to show the log?" --wait >/dev/null
-    capture "$OUT/${p}say.png" character agent_balloon
+    capture "$OUT/say.png" "$FRAME" character agent_balloon
     "$BIN/bentwire" ask "The build failed in 3 crates." --heading "Build failed" \
         --button "Show log" --button "Ignore" >"$T/ask.out" &
     local ask=$!
     wait_for 10 has office_balloon
-    capture "$OUT/${p}ask.png" character office_balloon
+    capture "$OUT/ask.png" "$FRAME" character office_balloon
     $TEST Key s Return >/dev/null
     wait "$ask" || true
     wait_for 10 no_office
     stop_daemon
 }
 
-menu_shot() { # menu_shot <character> <language> <out.png>: real right click (vptr)
-    start_daemon "$1" "$2"
-    vp "move 0 0"
-    capture "$T/menu-idle.png" character >/dev/null # leaves a settled grab in g.ppm
+right_click_character() { # a real right click on a drawn pixel of the character
+    snapshot "$T/a.json"
+    sgrim -t ppm "$T/g.ppm"
     # shellcheck disable=SC2046
-    read -r px py < <($PY opaque "$T/g.ppm" "$BG" $($PY rect "$T/a.json" 0 character))
+    read -r px py < <($PY opaque "$T/g.ppm" "$T/desktop.ppm" $($PY rect "$T/a.json" 0 character))
     vp "move $px $py" "press 2" "release 2"
     wait_for 10 has menu
-    vp "move 0 0"
-    capture "$3" character menu
+}
+
+menu_shot() { # menu_shot <character> <language> <out.png>
+    start_daemon "$1" "$2"
+    right_click_character
+    vp "move $PARK"
+    capture "$3" "$FRAME" character menu
     $TEST Key s Escape >/dev/null
+    wait_for 10 no_menu
     stop_daemon
 }
 
-echo "screenshots into $OUT"
-shoot_set "$MAIN" ""
-menu_shot "$MAIN" en "$OUT/menu-en.png"
-menu_shot "$MAIN" de "$OUT/menu-de.png"
+# ---------------------------------------------------------------------------- GIFs
+REC=
+record_start() { # record_start <name> <x y w h>: lossless recording of that rect
+    local x y w h
+    read -r x y w h <<<"$2"
+    REC=$1
+    rm -rf "${T:?}/rec-$REC"
+    mkdir -p "$T/rec-$REC"
+    WAYLAND_DISPLAY=$SWAYD wf-recorder -D -g "$x,$y ${w}x$h" -c libx264rgb -p crf=0 \
+        -p preset=ultrafast -f "$T/rec-$REC/rec.mkv" >"$T/rec-$REC/log" 2>&1 &
+    RECPID=$!
+    # the first frame is the scene before the action
+    wait_for 10 grep -q 'Output #0' "$T/rec-$REC/log"
+    sleep 0.5
+}
+record_stop() { # record_stop <out.gif> [first-hold-ms] [last-hold-ms]
+    local d=$T/rec-$REC
+    sleep 0.3
+    kill -INT "$RECPID"
+    wait "$RECPID" || true
+    ffmpeg -v error -i "$d/rec.mkv" -fps_mode passthrough "$d/%05d.png"
+    ffprobe -v error -select_streams v -show_entries frame=pts_time -of csv=p=0 "$d/rec.mkv" >"$d/pts"
+    local n
+    n=$($PY frames "$d" "$d/pts" "$d/list.txt" "${2:-500}" "${3:-1500}" 50)
+    ffmpeg -v error -y -f concat -i "$d/list.txt" -fps_mode passthrough \
+        -filter_complex "[0:v]split[a][b];[a]palettegen=max_colors=256:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle" \
+        -loop 0 "$1"
+    echo "  $(basename "$1") ($n frames, $(($(stat -c %s "$1") / 1024)) KiB)"
+}
 
-if [ -n "$CLASSICS" ]; then
-    # Agent 2.0, Agent 1.5, Office 97 bitmap, Office 97 vector; one daemon each.
-    PARTS=()
-    for c in merlin merlin-15 genius-97 clippit-97; do
-        start_daemon "$c" en
-        vp "move 0 0"
-        capture "$T/part-$c.png" character
-        PARTS+=("$T/part-$c.png")
+anim() { # anim <name...>: the first of these animations the character has
+    local a
+    for a in "$@"; do
+        "$BIN/bentwire" animations | grep -qx "$a" && { echo "$a"; return 0; }
+    done
+    return 1
+}
+
+gif_appear() { # character appears and waves
+    start_daemon "$1" en false
+    record_start appear "$FRAME"
+    "$BIN/bentwire" show --wait >/dev/null
+    "$BIN/bentwire" play "$(anim Wave Greet Greeting)" --wait >/dev/null
+    record_stop "$OUT/appear.gif" 800 1500
+    stop_daemon
+}
+
+gif_say() {
+    start_daemon "$1" en
+    record_start say "$FRAME"
+    "$BIN/bentwire" say "It looks like your build failed. Want me to show the log?" --wait >/dev/null
+    record_stop "$OUT/say.gif" 500 2500
+    stop_daemon
+}
+
+gif_ask() { # Office balloon, a button clicked with the virtual pointer
+    start_daemon "$1" en
+    record_start ask "$FRAME"
+    "$BIN/bentwire" ask "The build failed in 3 crates." --heading "Build failed" \
+        --button "Show log" --button "Ignore" >"$T/ask.out" &
+    local ask=$!
+    wait_for 10 has office_balloon
+    wait_for 10 desktop_settled
+    snapshot "$T/a.json"
+    read -r bx by < <($PY button "$T/a.json" "Show log")
+    vp "move $((bx - 60)) $((by + 40))"
+    for i in 1 2 3 4 5; do vp "move $((bx - 60 + i * 12)) $((by + 40 - i * 8))"; sleep 0.04; done
+    sleep 0.4
+    vp "press 1"
+    sleep 0.25
+    vp "release 1"
+    wait_for 10 no_office
+    wait "$ask" || true
+    grep -qx "button:1" "$T/ask.out" || { echo "ask answered: $(cat "$T/ask.out")"; exit 1; }
+    vp "move $PARK"
+    record_stop "$OUT/ask.gif" 500 1500
+    stop_daemon
+}
+
+gif_menu() {
+    start_daemon "$1" en
+    record_start menu "$FRAME"
+    right_click_character
+    snapshot "$T/a.json"
+    # hover down the first few items, then dismiss
+    python3 -I -c '
+import json, sys
+m = json.load(open(sys.argv[1]))["menu"]
+for e in [e for e in m if "label" in e][:4]:
+    print(e["x"] + 30, e["y"] + e["h"] // 2)' "$T/a.json" >"$T/items"
+    while read -r ix iy; do vp "move $ix $iy"; sleep 0.45; done <"$T/items"
+    sleep 0.3
+    $TEST Key s Escape >/dev/null
+    vp "move $PARK"
+    sleep 0.3
+    record_stop "$OUT/menu.gif" 500 800
+    stop_daemon
+}
+
+gif_drag() { # drag the character across the desktop
+    # The drag goes through Test1.Pointer while the real pointer moves along: a drag
+    # follows relative-pointer deltas (B-WL-7), and the nested KWin passes none on from
+    # the outer sway (absolute or relative virtual-pointer motion alike).
+    start_daemon "$1" en true 900 380
+    snapshot "$T/a.json"
+    sgrim -t ppm "$T/g.ppm"
+    # shellcheck disable=SC2046
+    read -r px py < <($PY opaque "$T/g.ppm" "$T/desktop.ppm" $($PY rect "$T/a.json" 0 character))
+    record_start drag "0 0 $W $H"
+    vp "move $px $py"
+    sleep 0.3
+    $TEST Pointer suii press 1 "$px" "$py" >/dev/null
+    local i nx ny
+    for i in $(seq 1 40); do
+        nx=$((px - i * 15)) ny=$((py - (i * (40 - i)) / 4))
+        vp "move $nx $ny"
+        $TEST Pointer suii motion 1 "$nx" "$ny" >/dev/null
+        sleep 0.03
+    done
+    $TEST Pointer suii release 1 "$nx" "$ny" >/dev/null
+    sleep 0.5
+    record_stop "$OUT/drag.gif" 500 1500
+    stop_daemon
+}
+
+gif_tour() { # gif_tour <character...>: each appears, greets and leaves
+    record_start tour "$FRAME"
+    for c in "$@"; do
+        start_daemon "$c" en false
+        "$BIN/bentwire" show --wait >/dev/null
+        "$BIN/bentwire" play "$(anim Greet Wave Greeting)" --wait >/dev/null
+        "$BIN/bentwire" hide --wait >/dev/null
+        wait_for 10 no_surfaces
         stop_daemon
     done
-    $PY compose "$OUT/characters.png" "$BG" 0 "${PARTS[@]}"
-    echo "  characters.png"
+    record_stop "$OUT/tour.gif" 500 500
+}
+
+# ---------------------------------------------------------------------------- run
+echo "output into $OUT"
+if [ "$MODE" != gifs ]; then
+    start_session 1
+    shoot_set "$MAIN"
+    menu_shot "$MAIN" en "$OUT/menu-en.png"
+    menu_shot "$MAIN" de "$OUT/menu-de.png"
+    if [ -n "$CLASSICS" ]; then
+        # Agent 2.0, Agent 1.5, Office 97 bitmap, Office 97 vector: one daemon each, each
+        # in its own quarter of the same desktop; the strip takes quarter i from grab i.
+        GRABS=()
+        i=0
+        for c in merlin merlin-15 genius-97 clippit-97; do
+            start_daemon "$c" en true $((i * 320 + 100)) 480
+            capture "$T/part-$c.png" "0 0 $W $H" character
+            cp "$T/g.ppm" "$T/grab-$c.ppm"
+            GRABS+=("$T/grab-$c.ppm")
+            stop_daemon
+            i=$((i + 1))
+        done
+        $PY strip "$OUT/characters.png" 0 400 $W 320 "${GRABS[@]}"
+        echo "  characters.png"
+    fi
+    stop_session
+
+    echo "HiDPI (output scale 2)"
+    start_session 2
+    HI=$MAIN
+    [ -n "$CLASSICS" ] && HI=clippit-97
+    start_daemon "$HI" en
+    wait_for 10 scale2
+    "$BIN/bentwire" say "Sharp on a 2x output." --wait >/dev/null
+    capture "$OUT/hidpi.png" "$FRAME" character agent_balloon
+    stop_daemon
+    stop_session
 fi
 
-echo "HiDPI (output scale 2)"
-swaymsg -q output HEADLESS-1 resolution $((W * 2))x$((H * 2)) scale 2
-hidpi_ready() { grim -t ppm "$T/px.ppm" && python3 -I -c 'from PIL import Image; import sys; sys.exit(Image.open(sys.argv[1]).width != int(sys.argv[2]))' "$T/px.ppm" $((W * 2)); }
-wait_for 10 hidpi_ready
-SCALE=2
-HI=$MAIN
-[ -n "$CLASSICS" ] && HI=clippit-97
-start_daemon "$HI" en
-vp "move 0 0"
-wait_for 10 scale2
-"$BIN/bentwire" say "Sharp on a 2x output." --wait >/dev/null
-capture "$OUT/hidpi.png" character agent_balloon
-stop_daemon
+if [ "$MODE" != shots ]; then
+    echo "GIFs"
+    start_session 1
+    gif_appear "$MAIN"
+    gif_say "$MAIN"
+    gif_ask "$MAIN"
+    gif_menu "$MAIN"
+    gif_drag "$MAIN"
+    if [ -n "$CLASSICS" ]; then
+        gif_tour clippit merlin genie peedy rover
+    else
+        mapfile -t ALL < <(find "$REPO/characters/builtin" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)
+        [ "${#ALL[@]}" -gt 1 ] && gif_tour "${ALL[@]}"
+    fi
+    stop_session
+fi
 
 echo "done"
