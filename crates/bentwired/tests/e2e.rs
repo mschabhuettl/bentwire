@@ -507,9 +507,24 @@ fn a_char_1_only_builtin_installed() {
         builtin.join("pack.toml").is_file(),
         "characters/builtin missing"
     );
-    e.start_raw(&["--characters", builtin.to_str().unwrap()]);
+    let trace = e.dir.join("trace.jsonl");
+    e.start_raw(&[
+        "--characters",
+        builtin.to_str().unwrap(),
+        "--trace",
+        trace.to_str().unwrap(),
+    ]);
     e.advance(3000);
     assert_eq!(e.character(), "bentwire-placeholder");
+    // T-4: no audio device; sounds are logged with their decoded duration.
+    let t = std::fs::read_to_string(&trace).unwrap();
+    let pop = t
+        .lines()
+        .map(|l| serde_json::from_str::<serde_json::Value>(l).unwrap())
+        .find(|l| l["type"] == "sound_start")
+        .expect("the startup Show plays a sound");
+    assert_eq!(pop["sound"], "pop");
+    assert!(pop["duration_ms"].as_u64().unwrap() > 0, "{pop}");
     let c = e.client();
     let mut c = c;
     let id = c.call_id("Play", &("Wave",)).unwrap();
