@@ -1,5 +1,5 @@
 #!/bin/bash
-# Desktop scenario (BRIEF "Done when" 6): runs bentwired on a headless compositor and
+# Desktop scenario: runs bentwired on a headless compositor and
 # drives show, play, say, ask (answered through org.bentwire.Test1), moveto and hide,
 # checking D-Bus signals, the backend snapshot and the screen.
 #

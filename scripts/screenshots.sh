@@ -1,5 +1,5 @@
 #!/bin/bash
-# Reproducible screenshots (release brief 0.1, section 4): bentwired under headless sway
+# Reproducible screenshots: bentwired under headless sway
 # (pixman renderer), grim, a fixed 1280x720 output, seed 1, a plain desktop colour and
 # fresh XDG directories on a private session bus. No timing guesses: every shot waits for
 # the request to complete (--wait) or for the surface to appear in Test1.Snapshot, then

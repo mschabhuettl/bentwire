@@ -1,5 +1,5 @@
 #!/bin/bash
-# Scripted test of the shell integration (BRIEF "Done when" 7) for bash and zsh.
+# Scripted test of the shell integration for bash and zsh.
 #
 # Starts `bentwired --headless` with characters/builtin under dbus-run-session, feeds
 # command lines to an interactive bash and zsh that source clients/shell/bentwire.sh, and

@@ -94,7 +94,7 @@ pub fn picture(c: &Character, p: &Picture, density: u32) -> RgbaImage {
 
 #[cfg(test)]
 mod tests {
-    //! BRIEF "Done when" 4: the daemon's own discovery, loader and model adapter load
+    //! Release check: the daemon's own discovery, loader and model adapter load
     //! every character of a pack, and the core plays it.
     use super::*;
     use bentwire_core::Core;

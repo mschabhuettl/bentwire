@@ -1,5 +1,5 @@
 #!/bin/bash
-# Scripted test of the Claude Code hooks (BRIEF "Done when" 7).
+# Scripted test of the Claude Code hooks.
 #
 # Starts `bentwired --headless` with characters/builtin under dbus-run-session and runs
 # the hook commands from settings.snippet.json with the JSON input Claude Code sends for
