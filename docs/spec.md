@@ -1589,6 +1589,47 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   background fills advance width x (ascender to descender). Reason: the original fonts
   are not shipped; act-format 4.6 asks for a fallback for these few frames.
 
+- **A-DESK-1 Ask keys.** `Ask` rejects keys outside B-ASK-1 with
+  `org.freedesktop.DBus.Error.InvalidArgs`; a value wrapped in a second variant is
+  unwrapped. Reason: a typo such as `button` would otherwise be dropped silently.
+- **A-DESK-2 CLI details (5.5).** `characters` prints `id<TAB>name`, and the current
+  character gets a third column `*`, so `cut -f1` still yields ids. `ask` whose request
+  fails (status 1, e.g. `Hidden`, `BalloonTooBig`) prints nothing and exits 2 with the
+  reason; an interrupted ask prints its result line (`none`) and exits 3. `convert` also
+  takes `--palette FILE`, `--lang TAG`, `--codepage LABEL` (ConvertOptions, for ACT
+  actors). Reason: the table leaves these cases open.
+- **A-DESK-3 Test1 details (T-4, A-TEST-3).** `Pointer(kind, button, x, y)` takes `press`,
+  `release`, `motion`, `leave` at global coordinates and is hit-tested like a compositor:
+  menu, Office balloon, Agent balloon, then the character's shape; a press keeps an
+  implicit grab until its release; a press outside an open menu acts as `popup_done`.
+  `Key(name)` takes `Escape`, `Enter`/`Return`, `Tab`, `space`, `Up`, `Down`, `Left`,
+  `Right` or one character, with optional `Shift+`, `Ctrl+`, `Alt+` prefixes.
+  `AddOutput(s WxH+X+Y[@scale]) -> u id`, `RemoveOutput(u id)`. `Snapshot() -> s` exists in
+  headless mode too; on Wayland it adds `backend`, what the backend actually requested
+  (configure acked, margins, buffer attached, keyboard interactivity, balloons, menu).
+  Reason: the spec names the members but not their arguments.
+- **A-DESK-4 Headless trace format (T-4).** One JSON object per line, each with `t` (fake
+  ms): compositor requests as `{"req": "layer_surface" | "keyboard_interactivity" |
+  "buffer" | "subsurface" | "popup" | "destroy" | "unmap", ...}` (buffers and input
+  regions as SHA-256 prefixes), `{"type": "signal", "member", "args", "dest"}` (`dest`
+  null = broadcast), `{"type": "sound_start", "sound", "duration_ms"}`, `sound_stop`,
+  `output_added`, `output_removed`. `--dump-frames DIR` writes
+  `<seq>-t<ms>-out<id>.png` per output whenever the drawn scene changes. Headless mode
+  uses only the bundled fonts (A-FONT-1), opens no audio device and no tray item.
+  Reason: the spec lists the contents, not the encoding.
+- **A-DESK-5 Wayland details.** Margin changes are throttled to one commit per frame
+  callback; pointer positions on the character are mapped with the position the
+  compositor has applied (B-WL-7). A fractional output scale is the current mode width
+  over the xdg-output logical width (no fractional-scale protocol). The Agent and the
+  Office balloon are separate subsurfaces when both are open, the Office one above. A
+  menu opened without a real press serial (Test1) is shown without a grab. Reason:
+  implementation choices the rules leave open.
+- **A-DESK-6 Daemon flags and files.** `bentwired --no-tray`, `--no-audio` switch those
+  backends off. Unknown config keys are ignored; a config file that fails to parse on
+  SIGHUP keeps the previous config (logged). SIGTERM and SIGINT run the core's `Quit`
+  (which saves the state) and exit 0. The tray's dbusmenu labels turn the `&` mnemonic
+  into dbusmenu's `_`. Reason: robustness; dbusmenu has its own mnemonic syntax.
+
 ## 4. Reconciliation
 
 | # | Topic and sources | Finding | Resolution and reason |
