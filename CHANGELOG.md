@@ -42,6 +42,8 @@ A cleanup release: no new daemon features. The matching classics pack is
   animations but stayed members of its states, so the daemon treated such a character
   differently from one that never had them. They are now dropped from the states too, and
   a state left empty is dropped.
+- Dragging the character works when the compositor delivers no relative-pointer events
+  (seen under nested KWin): `bentwired` falls back to absolute pointer motion.
 
 ## [0.1.0] - 2026-11-11
 
