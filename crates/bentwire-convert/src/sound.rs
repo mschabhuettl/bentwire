@@ -52,9 +52,9 @@ fn parse_adpcm_fmt(fmt: &[u8]) -> Result<AdpcmFmt, Error> {
     let coefs = (0..ncoef)
         .map(|i| (i16le(fmt, 22 + 4 * i), i16le(fmt, 24 + 4 * i)))
         .collect();
-    if channels == 0 || block_align == 0 {
+    if channels == 0 || block_align < 7 * channels {
         return Err(Error::Source(
-            "MS ADPCM with 0 channels or block size".into(),
+            "MS ADPCM block smaller than its header (7 bytes per channel)".into(),
         ));
     }
     Ok(AdpcmFmt {
@@ -106,10 +106,13 @@ fn msadpcm(f: &AdpcmFmt, data: &[u8], short_ok: bool) -> Result<Decoded, Error> 
                 };
                 // 32-bit signed arithmetic shift (rounds toward minus infinity).
                 let pr = s1[c].wrapping_mul(k1).wrapping_add(s2[c].wrapping_mul(k2)) >> 8;
-                let v = (pr + signed * delta[c]).clamp(-32768, 32767);
+                let v = pr
+                    .wrapping_add(signed.wrapping_mul(delta[c]))
+                    .clamp(-32768, 32767);
                 s2[c] = s1[c];
                 s1[c] = v;
-                delta[c] = ((ADAPT[nib as usize] * delta[c]) >> 8).max(16);
+                // 32-bit imul as in the codec: no upper limit, wraps like the original.
+                delta[c] = (ADAPT[nib as usize].wrapping_mul(delta[c]) >> 8).max(16);
                 out.push(v as i16);
                 c = (c + 1) % nch;
             }
@@ -273,5 +276,24 @@ mod tests {
         b.push(0x10); // left +1*16, right +0
         let out = samples(msadpcm(&fmt(2, 15, 3), &b, false).unwrap());
         assert_eq!(out, vec![10, 20, 100, 200, 116, 200]);
+    }
+
+    #[test]
+    fn hostile_headers_are_errors() {
+        // Block smaller than its header: an error, not a panic.
+        let mut raw = vec![2u8, 0, 1, 0];
+        raw.extend_from_slice(&11025u32.to_le_bytes());
+        raw.extend_from_slice(&0u32.to_le_bytes());
+        raw.extend_from_slice(&1u16.to_le_bytes()); // nBlockAlign 1
+        raw.extend_from_slice(&4u16.to_le_bytes());
+        raw.extend_from_slice(&2u16.to_le_bytes());
+        raw.extend_from_slice(&4u16.to_le_bytes());
+        raw.extend_from_slice(&1u16.to_le_bytes());
+        raw.extend_from_slice(&[0, 1, 0, 0]);
+        assert!(parse_adpcm_fmt(&raw).is_err());
+        // Delta growth without bound wraps like 32-bit imul instead of panicking in debug.
+        let mut b = header(0, 16, 0, 0);
+        b.extend(std::iter::repeat_n(0x88, 200));
+        assert!(msadpcm(&fmt(1, 207, 402), &b, false).is_ok());
     }
 }

@@ -126,7 +126,7 @@ impl Archive {
         let out = if e.method == 0 {
             raw.to_vec()
         } else {
-            let mut v = Vec::with_capacity(e.size);
+            let mut v = Vec::with_capacity(e.size.min(raw.len().saturating_mul(4)));
             flate2::read::DeflateDecoder::new(raw)
                 .take(e.size as u64 + 1)
                 .read_to_end(&mut v)

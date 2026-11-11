@@ -239,7 +239,7 @@ impl Character {
     /// Composite layers at `display * density` (character-format 5.3).
     pub fn compose(&self, layers: &[Layer], density: u32) -> Rgba {
         let [w, h] = self.manifest.display();
-        let k = density.max(1);
+        let k = density.clamp(1, 64);
         image::compose(&self.manifest, &self.sheets, layers, [w * k, h * k])
     }
 

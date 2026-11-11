@@ -57,7 +57,7 @@ pub fn pe_resources(d: &[u8]) -> Result<Vec<(u32, u32, Vec<u8>)>, Error> {
     let off = |rva: u32| -> Result<usize, Error> {
         secs.iter()
             .find(|(va, size, _)| rva >= *va && rva - va < *size)
-            .map(|(va, _, raw)| (raw + (rva - va)) as usize)
+            .map(|(va, _, raw)| *raw as usize + (rva - va) as usize)
             .ok_or_else(|| bad(format!("RVA {rva:#x} not in a section")))
     };
     let root = off(rsrc_rva)?;
@@ -133,7 +133,7 @@ fn fold(
     }
     let (fw, fh) = (s.w, s.h / total);
     let n = images.len() as u32;
-    let mut out = vec![0u8; (fw * n * fh * 4) as usize];
+    let mut out = vec![0u8; fw as usize * n as usize * fh as usize * 4];
     for (k, (&m, &im)) in masks.iter().zip(images).enumerate() {
         for y in 0..fh {
             for x in 0..fw {
@@ -156,7 +156,10 @@ fn icon(res: &[(u32, u32, Vec<u8>)], id: u32) -> Result<(u32, u32, Vec<u8>), Err
     let mut best: Option<(u16, u32)> = None;
     for i in 0..n {
         let e = 6 + 14 * i;
-        let (w, h) = (g[e], g[e + 1]);
+        let (w, h) = match g.get(e..e + 2) {
+            Some(b) => (b[0], b[1]),
+            None => return Err(bad("truncated icon group")),
+        };
         let bits = u16_at(g, e + 6)?;
         let icon_id = u16_at(g, e + 12)? as u32;
         if w == 32 && h == 32 && best.is_none_or(|(b, _)| bits > b) {

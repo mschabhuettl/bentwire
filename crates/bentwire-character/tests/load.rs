@@ -349,3 +349,28 @@ frames = [{ ms = 10, layers = ["a:0"] }]
     // Destination (0, 0) samples source (floor(1 * 8 / 8), ...) = (1, 1): value 9 * 4.
     assert_eq!(one.data[0], 36);
 }
+
+/// A-CHAR-4: hostile sizes are rejected or ignored, never a panic (review findings).
+#[test]
+fn hostile_sizes_do_not_panic() {
+    let base = |sheet: &str| {
+        format!(
+            "format = 1\nfamily = \"agent\"\n[character]\ncanvas = [4, 4]\n[[sheets]]\nid = \"a\"\nfile = \"sheets/a.png\"\n{sheet}\n[[animations]]\nname = \"A\"\nframes = [{{ ms = 10, layers = [\"a:0\"] }}]\n"
+        )
+    };
+    // Cell beyond the limit: a manifest error.
+    let m = base("cell = [2147483648, 1]\ncount = 1\n[sheets.hidpi]\n2 = \"sheets/a.png\"");
+    assert!(parse::parse_manifest(&m).is_err());
+    // Huge count with a tiny sheet: loads with the sheet marked broken, composing is safe.
+    let d = tmp("hostile");
+    std::fs::create_dir_all(d.join("sheets")).unwrap();
+    std::fs::write(d.join("sheets/a.png"), png_rgba(1, 1, &[255; 4])).unwrap();
+    let m = base("cell = [1, 2]\ncount = 16777216").replace("a:0", "a:16777215");
+    std::fs::write(d.join("character.toml"), m).unwrap();
+    let c = Character::load(&d).unwrap();
+    assert!(!c.is_available("A"));
+    let f = &c.manifest.animations[0].frames[0];
+    assert_eq!(c.compose_frame(f, None, 1).data, vec![0; 64]);
+    // Output size cap.
+    assert_eq!(c.compose_at(&f.layers, [1 << 15, 1 << 15]).data.len(), 0);
+}

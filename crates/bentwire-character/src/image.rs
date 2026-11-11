@@ -5,6 +5,10 @@ use std::collections::HashMap;
 use crate::Error;
 use crate::model::{Layer, Manifest, Sheet};
 
+/// Largest output picture `compose` produces (2^28 pixels, A-CHAR-4); larger requests give an
+/// empty 0 x 0 picture.
+pub const MAX_PIXELS: u64 = 1 << 28;
+
 /// An RGBA8 picture, straight alpha, row-major, `width * height * 4` bytes.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Rgba {
@@ -234,14 +238,14 @@ impl SheetSet {
 
 /// Check that a decoded sheet file is large enough for `count` cells of `cell * key`.
 pub(crate) fn check_grid(s: &Sheet, key: u32, img: &Image) -> Result<(), String> {
-    let cw = s.cell[0] * key;
-    let ch = s.cell[1] * key;
-    let cols = img.width / cw;
+    let cw = s.cell[0] as u64 * key as u64;
+    let ch = s.cell[1] as u64 * key as u64;
+    let cols = img.width as u64 / cw;
     if cols == 0 {
         return Err(format!("{}: narrower than one cell", s.file));
     }
-    let rows = s.count.div_ceil(cols);
-    if rows * ch > img.height {
+    let rows = (s.count as u64).div_ceil(cols);
+    if rows * ch > img.height as u64 {
         return Err(format!(
             "{}: {} cells of {cw}x{ch} do not fit in {}x{}",
             s.file, s.count, img.width, img.height
@@ -262,6 +266,9 @@ fn trunc_div(a: i64, b: i64) -> i64 {
 /// densest file.
 pub fn compose(m: &Manifest, sheets: &SheetSet, layers: &[Layer], out: [u32; 2]) -> Rgba {
     let [ow, oh] = out;
+    if ow as u64 * oh as u64 > MAX_PIXELS {
+        return Rgba::new(0, 0);
+    }
     let [cw, ch] = m.canvas();
     let mut dst = Rgba::new(ow, oh);
     for l in layers {
@@ -295,16 +302,18 @@ pub fn compose(m: &Manifest, sheets: &SheetSet, layers: &[Layer], out: [u32; 2])
         let Some(Ok(img)) = sheets.files.get(&(sheet.id.clone(), key)) else {
             continue;
         };
-        let cell = [sheet.cell[0] * key, sheet.cell[1] * key];
-        let cols = img.width / cell[0];
+        let k = key as u64;
+        let cell = [sheet.cell[0] as u64 * k, sheet.cell[1] as u64 * k];
+        let cols = img.width as u64 / cell[0];
         if cols == 0 {
             continue;
         }
-        let (sw, sh) = (base_size[0] * key, base_size[1] * key);
-        let (px, py) = ((n % cols) * cell[0], (n / cols) * cell[1]);
-        if px + sw > img.width || py + sh > img.height || sw == 0 || sh == 0 {
+        let (sw, sh) = (base_size[0] as u64 * k, base_size[1] as u64 * k);
+        let (px, py) = ((n as u64 % cols) * cell[0], (n as u64 / cols) * cell[1]);
+        if px + sw > img.width as u64 || py + sh > img.height as u64 || sw == 0 || sh == 0 {
             continue;
         }
+        let (px, py, sw, sh) = (px as u32, py as u32, sw as u32, sh as u32);
         let identity = dw == sw as i64 && dh == sh as i64;
         // Clip to the canvas.
         let dx_lo = (-x0).max(0);

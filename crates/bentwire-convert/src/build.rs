@@ -165,11 +165,11 @@ impl Model {
             };
             let encode = |pics: &[&Pic], k: u32| -> Result<Vec<u8>, Error> {
                 let (cw, ch, sw, sh) = (cw * k, ch * k, sw * k, sh * k);
-                let mut buf = fill.repeat((sw * sh) as usize);
+                let mut buf = fill.repeat(sw as usize * sh as usize);
                 for (n, p) in pics.iter().enumerate() {
                     let (ox, oy) = ((n as u32 % cols) * cw, (n as u32 / cols) * ch);
                     for y in 0..p.h {
-                        let d = (((oy + y) * sw + ox) * bpp) as usize;
+                        let d = ((oy + y) as usize * sw as usize + ox as usize) * bpp as usize;
                         let s = (y * p.w * bpp) as usize;
                         let len = (p.w * bpp) as usize;
                         buf[d..d + len].copy_from_slice(&p.px[s..s + len]);
@@ -337,6 +337,9 @@ pub fn dib_decode(b: &[u8]) -> Result<Dib, Error> {
         .collect();
     let bits = &b[pal_end..];
     let stride = (w * bpp).div_ceil(32) * 4;
+    if stride.checked_mul(h).is_none_or(|n| n > bits.len()) {
+        return Err(bad());
+    }
     let mut px = Vec::with_capacity(w * h);
     for y in 0..h {
         let row = bits
@@ -373,4 +376,18 @@ pub fn icon_rgba(mask: &[u8], color: &[u8]) -> Result<Rgba, Error> {
         }
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn hostile_dib_is_an_error() {
+        let mut d = vec![0u8; 64];
+        d[0] = 40;
+        d[4..8].copy_from_slice(&0x7fff_0000i32.to_le_bytes());
+        d[8..12].copy_from_slice(&0x7fff_0000i32.to_le_bytes());
+        d[12] = 1;
+        d[14] = 1;
+        assert!(super::dib_decode(&d).is_err());
+    }
 }

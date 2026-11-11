@@ -1520,6 +1520,12 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   divided by `scale`, truncated. Reason: character-format 8 defines the files, not the
   choice; deciding per destination rectangle also works for office97 canvases in logical
   units.
+- **A-CHAR-4 Sanity limits.** The parser rejects canvas, display, cell and `sizes` sides
+  above 16384, explicit layer sizes above 262144, more than 2^24 pictures per sheet and
+  `scale` above 64; `compose` returns an empty picture for outputs above 2^28 pixels and
+  clamps the density to 1..64. Reason: character-format 8 sets no limits, but a hostile
+  file must not crash or exhaust the daemon; the largest real character is 2880 logical
+  units wide.
 - **A-CONV-1 Vector actor pictures (D2).** Each used pose is rasterised by the bentwire
   WMF rasteriser at the display size (1x) and at 2x (`hidpi = { 2 = ... }`), aliased,
   indexed. Palette: index 0 is a transparent key colour not painted by the actor, then the

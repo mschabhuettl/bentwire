@@ -44,6 +44,8 @@ fn tvalue(v: &toml::Value) -> String {
     match v {
         toml::Value::String(s) => tstr(s),
         toml::Value::Integer(i) => i.to_string(),
+        toml::Value::Float(f) if f.is_nan() => "nan".into(),
+        toml::Value::Float(f) if f.is_infinite() => (if *f > 0.0 { "inf" } else { "-inf" }).into(),
         toml::Value::Float(f) => {
             let s = f.to_string();
             if s.contains('.') || s.contains('e') || s.contains("inf") || s.contains("nan") {

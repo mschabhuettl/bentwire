@@ -10,6 +10,12 @@ use crate::model::*;
 
 type R<T> = Result<T, Error>;
 
+/// Largest canvas, display, cell or layer side accepted (A-CHAR-4).
+pub const MAX_DIM: u32 = 16384;
+/// Largest picture count per sheet and largest `scale` (A-CHAR-4).
+pub const MAX_COUNT: u32 = 1 << 24;
+pub const MAX_SCALE: u32 = 64;
+
 fn err<T>(path: &str, msg: impl std::fmt::Display) -> R<T> {
     Err(Error::Manifest(format!("{path}: {msg}")))
 }
@@ -129,6 +135,9 @@ fn size(v: &Value, path: &str) -> R<[u32; 2]> {
     if w == 0 || h == 0 {
         return err(path, "sizes must be at least 1");
     }
+    if w > MAX_DIM || h > MAX_DIM {
+        return err(path, format!("sizes above {MAX_DIM} are not accepted"));
+    }
     Ok([w, h])
 }
 
@@ -182,8 +191,8 @@ fn layer(v: &Value, path: &str) -> R<Layer> {
     let size = if a.len() == 5 {
         let w = as_u32(&a[3], path)?;
         let h = as_u32(&a[4], path)?;
-        if w == 0 || h == 0 {
-            return err(path, "layer size must be at least 1");
+        if w == 0 || h == 0 || w > MAX_DIM * 16 || h > MAX_DIM * 16 {
+            return err(path, "layer size must be 1 to 262144");
         }
         Some([w, h])
     } else {
@@ -476,8 +485,8 @@ pub fn parse_manifest(text: &str) -> R<Manifest> {
         let file = file_path(s.req("file")?, &s.p("file"))?;
         let cell = size(s.req("cell")?, &s.p("cell"))?;
         let count = as_u32(s.req("count")?, &s.p("count"))?;
-        if count == 0 {
-            return err(&s.p("count"), "must be at least 1");
+        if count == 0 || count > MAX_COUNT {
+            return err(&s.p("count"), format!("must be 1 to {MAX_COUNT}"));
         }
         let sizes = match s.get("sizes") {
             None => None,
@@ -493,8 +502,8 @@ pub fn parse_manifest(text: &str) -> R<Manifest> {
             None => None,
             Some(v) => {
                 let k = as_u32(v, &format!("{p}.scale"))?;
-                if k == 0 {
-                    return err(&format!("{p}.scale"), "must be at least 1");
+                if k == 0 || k > MAX_SCALE {
+                    return err(&format!("{p}.scale"), format!("must be 1 to {MAX_SCALE}"));
                 }
                 Some(k)
             }
