@@ -1,0 +1,11 @@
+[package]
+name = "bentwire-render"
+description = "Software rendering of characters, balloons and menus for bentwired"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+bentwire-character.workspace = true
+bentwire-core.workspace = true

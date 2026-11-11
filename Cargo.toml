@@ -1,0 +1,23 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+rust-version = "1.90"
+
+[workspace.dependencies]
+agent-formats = { path = "crates/agent-formats" }
+agent-fixtures = { path = "crates/agent-fixtures" }
+bentwire-character = { path = "crates/bentwire-character" }
+bentwire-convert = { path = "crates/bentwire-convert" }
+bentwire-core = { path = "crates/bentwire-core" }
+bentwire-render = { path = "crates/bentwire-render" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.9"
+thiserror = "2"
+sha2 = "0.10"
+png = "0.17"

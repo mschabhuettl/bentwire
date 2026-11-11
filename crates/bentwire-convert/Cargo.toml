@@ -1,0 +1,11 @@
+[package]
+name = "bentwire-convert"
+description = "Converter from Microsoft Agent and Office actor files into the bentwire character format"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+agent-formats.workspace = true
+bentwire-character.workspace = true
+thiserror.workspace = true

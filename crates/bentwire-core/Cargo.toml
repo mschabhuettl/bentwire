@@ -1,0 +1,10 @@
+[package]
+name = "bentwire-core"
+description = "Deterministic behaviour core of bentwired (no I/O)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+bentwire-character.workspace = true

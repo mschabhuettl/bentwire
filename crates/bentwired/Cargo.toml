@@ -1,0 +1,12 @@
+[package]
+name = "bentwired"
+description = "bentwire daemon: Microsoft Agent style desktop characters on Wayland"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+bentwire-character.workspace = true
+bentwire-core.workspace = true
+bentwire-render.workspace = true

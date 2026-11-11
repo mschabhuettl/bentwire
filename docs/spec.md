@@ -1370,6 +1370,25 @@ The daemon reads the config file at start and when it receives SIGHUP.
 - A D-Bus activation file (`org.bentwire.Agent.service`) lets the CLI start it.
 - SIGTERM and `Quit` save the state and exit 0 without animation.
 
+### 3.14 Decisions added during the build
+
+Each item is a **bentwire decision** made while building v1, where the docs above left a
+gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
+
+- **A-PACK-1** Packs and search roots extend B-CHAR-1 (`pack.toml`, config
+  `character_paths`, `--characters`). Reason: the brief requires packs; B-CHAR-1 only
+  knows flat character entries.
+- **A-ID-1** Unique ids in `classics` (`clippit` = Office XP Clippit; suffixes `-web`,
+  `-15`, `-97`, `-bob`, `-act`). Reason: several sources carry the same character name.
+- **A-PACK-2** `classics` holds a source iff it converts and `source.missing_animations`
+  is empty. Reason: D8 "only complete characters", decided in code, not by list.
+- **A-CHAR-1** With only `builtin` installed, B-CHAR-4 step 4 selects
+  `bentwire-placeholder`.
+- **A-THEME-1** The Office balloon theme is pack data with a generic loader; the
+  look-alike of B-OB-1 is the fallback.
+- **A-TEST-3** `bentwired --test-interface` exports a reduced `org.bentwire.Test1` on the
+  Wayland backend. Reason: the desktop scenario must answer `ask` without a human.
+
 ## 4. Reconciliation
 
 | # | Topic and sources | Finding | Resolution and reason |

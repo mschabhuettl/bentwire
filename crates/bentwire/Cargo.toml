@@ -1,0 +1,10 @@
+[package]
+name = "bentwire"
+description = "bentwire command line client"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+bentwire-convert.workspace = true

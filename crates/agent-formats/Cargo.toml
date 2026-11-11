@@ -1,0 +1,9 @@
+[package]
+name = "agent-formats"
+description = "Readers for Microsoft Agent (ACS, ACF/ACA, Agent 1.5) and Office 97 actor (ACT) character files"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+thiserror.workspace = true
