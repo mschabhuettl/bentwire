@@ -9,3 +9,11 @@ publish = false
 [dependencies]
 bentwire-character.workspace = true
 bentwire-core.workspace = true
+ttf-parser = { version = "0.25", default-features = false, features = ["std"] }
+ab_glyph_rasterizer = "0.1"
+png.workspace = true
+serde.workspace = true
+toml.workspace = true
+
+[dev-dependencies]
+sha2.workspace = true
