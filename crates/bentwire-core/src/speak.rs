@@ -257,7 +257,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn b_speak_1_bookmark_range() {
+    fn b_speak_1_r_q_7_bookmark_range() {
         assert!(parse("\\Mrk=0\\").is_err());
         assert!(parse("\\Mrk=2147483646\\").is_err());
         assert!(parse("\\Mrk=2147483647\\").is_err());
@@ -270,7 +270,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn r_bal_8_interval() {
+    fn r_bal_8_r_ui_5_interval() {
         assert_eq!(word_interval(1.0), 352);
         // 170 * 0.5 = 85: 59840 / 85 = 704.
         assert_eq!(word_interval(0.5), 704);

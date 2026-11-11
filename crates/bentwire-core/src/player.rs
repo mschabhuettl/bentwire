@@ -763,7 +763,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn b_seq_a_branch_vector() {
+    fn b_seq_a_r_anim_4_branch_vector() {
         let mut f = fr(100);
         f.branches = vec![
             Branch::Prob { target: 5, p: 30 },
@@ -825,7 +825,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn b_anim_2_completion_waits_for_sound() {
+    fn b_anim_2_r_anim_3_completion_waits_for_sound() {
         let mut f0 = fr(100);
         f0.sound = Some("s".into());
         let mut m = agent(vec![anim("A", vec![f0, fr(100)])]);
@@ -895,7 +895,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn b_sw_a_loop_stopped_resumes_through_exit() {
+    fn b_sw_a_r_anim_7_b_anim_1_loop_stopped_resumes_through_exit() {
         let mut h = H::new(exit_char(), vec![0; 10]);
         h.play(0, "Loop");
         // R-Q-6: a 100 % backward branch never completes.
@@ -931,7 +931,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn b_sw_a_transition_exit_and_showing_drops() {
+    fn b_sw_a_r_anim_6_transition_exit_and_showing_drops() {
         let mut h = H::new(exit_char(), vec![]);
         h.play(0, "Ex");
         // Ex frame 0 exits to 1: normal play 0 -> 1 -> END at 200.

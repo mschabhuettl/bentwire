@@ -102,11 +102,13 @@ mod tests {
     }
 
     #[test]
-    fn b_bal_3_vectors() {
+    fn b_bal_3_r_bal_4_r_bal_5_vectors() {
         let c = Rect::new(448, 400, 128, 128);
         let p = place(c, M, 200, 54, centre(c));
         assert_eq!(p.window, Rect::new(412, 330, 200, 70));
         assert_eq!(p.side, TailSide::Bottom);
+        // R-BAL-4: tail length 16, half width 4, tip at the anchor x.
+        assert_eq!(p.tail, [(512, 400), (508, 384), (516, 384)]);
         let c = Rect::new(900, 10, 128, 128);
         let p = place(c, M, 200, 54, centre(c));
         assert_eq!((p.window.x, p.window.y), (684, 10));
@@ -144,7 +146,7 @@ mod tests {
     }
 
     #[test]
-    fn r_bal_3_size() {
+    fn r_bal_1_r_bal_3_size() {
         assert_eq!(effective_lines_cpl(0, 0), (2, 28));
         assert_eq!(body_size(28, 7, 13, 2, 10000), (196, 2 * 15 + 18));
         assert_eq!(body_size(28, 7, 13, 2, 100).0, 100);

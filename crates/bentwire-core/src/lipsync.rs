@@ -73,7 +73,7 @@ mod tests {
     }
 
     #[test]
-    fn b_lip_1_quantisation() {
+    fn b_lip_1_r_lip_2_quantisation() {
         assert_eq!(phoneme_for_amplitude(Some(0)), 'b');
         assert_eq!(phoneme_for_amplitude(Some(0x0F)), 'b');
         assert_eq!(phoneme_for_amplitude(Some(0x10)), 'f');

@@ -230,3 +230,42 @@ impl CharacterModel {
 pub fn mouth_point_from_bbox(x0: i32, y0: i32, x1: i32, y1: i32) -> (i32, i32) {
     ((x0 + x1 - 1).div_euclid(2), (y0 + y1 - 1).div_euclid(2))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn b_bal_4_mouth_point_from_bbox() {
+        // Opaque pixels x 10..=19, y 4..=8: centre (14.5, 6) floored.
+        assert_eq!(mouth_point_from_bbox(10, 4, 20, 9), (14, 6));
+        assert_eq!(mouth_point_from_bbox(0, 0, 1, 1), (0, 0));
+        assert_eq!(mouth_point_from_bbox(-3, -3, 0, 0), (-2, -2));
+    }
+
+    #[test]
+    fn r_bal_2_defaults() {
+        let b = BalloonStyle::default();
+        assert_eq!((b.lines, b.chars_per_line), (2, 28));
+        assert_eq!(
+            (b.fg, b.bg, b.border),
+            ([0, 0, 0], [0xFF, 0xFF, 0xE1], [0, 0, 0])
+        );
+        assert_eq!(
+            (b.font.as_str(), b.font_height, b.font_weight),
+            ("MS Sans Serif", -13, 400)
+        );
+    }
+
+    #[test]
+    fn r_state_2_names_ignore_case() {
+        let mut m = CharacterModel::new("x", Family::Agent, (1, 1));
+        m.states.push(("Showing".into(), vec!["A".into()]));
+        assert!(m.state("SHOWING").is_some());
+        m.animations.push(Animation {
+            name: "Wave".into(),
+            ..Default::default()
+        });
+        assert_eq!(m.animation_index("wAVE"), Some(0));
+    }
+}

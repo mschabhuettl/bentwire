@@ -54,3 +54,26 @@ impl Draws for ScriptedDraws {
         self.values.pop_front().unwrap_or(0) % n.max(1)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn b_core_2_draw_sources() {
+        let mut a = SplitMix64::new(42);
+        let mut b = SplitMix64::new(42);
+        let va: Vec<u32> = (0..20).map(|_| a.draw(100)).collect();
+        let vb: Vec<u32> = (0..20).map(|_| b.draw(100)).collect();
+        assert_eq!(va, vb);
+        assert!(va.iter().all(|&v| v < 100));
+        // splitmix64 reference value for seed 0.
+        assert_eq!(SplitMix64::new(0).next_u64(), 0xE220_A839_7B1D_CDAF);
+        let mut s = ScriptedDraws::new([5, 250, 7]);
+        assert_eq!(
+            (s.draw(10), s.draw(100), s.draw(3), s.draw(9)),
+            (5, 50, 1, 0)
+        );
+        assert_eq!(s.taken, 4);
+    }
+}

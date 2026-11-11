@@ -1258,7 +1258,7 @@ mod tests {
     }
 
     #[test]
-    fn b_ask_3_markup() {
+    fn b_ask_3_r_ob_16_markup() {
         let p = markup("a{cf 249}red{cf 300}still{ul 1}u{ul 0} {bmp x.bmp}{foo}");
         assert_eq!(
             p,
@@ -1307,7 +1307,7 @@ mod tests {
     }
 
     #[test]
-    fn r_ob_32_button_row() {
+    fn r_ob_32_r_ob_11_b_ob_1_r_ob_4_button_row_and_fonts() {
         let m = Fixed { cw: 7, lh: 16 };
         let c = cx(&m);
         let a = validate(
@@ -1334,7 +1334,7 @@ mod tests {
     }
 
     #[test]
-    fn r_ob_35_vertical_spacing() {
+    fn r_ob_35_r_ob_5_vertical_spacing() {
         let m = Fixed { cw: 7, lh: 16 };
         let c = cx(&m);
         let g = 8;
@@ -1403,7 +1403,7 @@ mod tests {
     }
 
     #[test]
-    fn b_ob_3_placement_and_b_ob_4_fit() {
+    fn b_ob_3_b_ob_4_r_ob_17_r_ob_20_r_ob_34_placement_and_fit() {
         let m = Fixed { cw: 7, lh: 16 };
         let c = cx(&m);
         let out = Rect::new(0, 0, 1000, 800);
@@ -1445,7 +1445,7 @@ mod tests {
     }
 
     #[test]
-    fn b_ob_2_tail() {
+    fn b_ob_2_r_ob_27_tail() {
         let c = Rect::new(100, 500, 100, 100);
         let body = Rect::new(100, 400, 200, 80);
         let (side, t) = tail(Candidate::AboveLeftAligned, body, c);

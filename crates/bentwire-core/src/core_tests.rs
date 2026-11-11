@@ -408,7 +408,7 @@ fn r_anim_9_hidden_play_fails() {
 // ---------- queue ----------
 
 #[test]
-fn b_q_1_ids_and_reply_before_signals() {
+fn r_q_1_b_q_1_ids_and_reply_before_signals() {
     let mut t = T::visible(character("c", 100));
     let start = t.log.len();
     let a = t.req(Call::Play("Wave".into()));
@@ -431,7 +431,7 @@ fn b_q_1_ids_and_reply_before_signals() {
 }
 
 #[test]
-fn b_q_2_unicast_and_events() {
+fn b_q_2_r_q_5_unicast_and_events() {
     let mut t = T::visible(character("c", 100));
     let id = t.req(Call::Play("Wave".into()));
     t.advance(t.now + 100);
@@ -500,7 +500,7 @@ fn r_q_6_loop_blocks_until_stop() {
 }
 
 #[test]
-fn b_q_4_stop_zero() {
+fn r_q_4_b_q_4_stop_zero() {
     let mut m = character("c", 100);
     looping(&mut m);
     let mut t = T::visible(m);
@@ -569,7 +569,7 @@ fn b_q_3_hidden_moveto_r_move_4() {
 // ---------- moving ----------
 
 #[test]
-fn r_move_2_and_r_move_3_phases() {
+fn r_move_1_r_move_2_r_move_3_phases() {
     let mut t = T::visible(character("c", 100));
     let now = t.now;
     // From (500,500) to (650,500): the target is screen-right of the frame, so
@@ -658,7 +658,7 @@ fn r_gest_1_via_core() {
 // ---------- idle ----------
 
 #[test]
-fn b_idle_t_vector() {
+fn b_idle_t_r_idle_1_r_idle_2_r_idle_3_vector() {
     let st = StateFile {
         character: "c".into(),
         left: 0,
@@ -728,7 +728,7 @@ fn character_idle() -> CharacterModel {
 }
 
 #[test]
-fn b_idle_t_play_interrupts_idle() {
+fn b_idle_t_r_idle_4_play_interrupts_idle() {
     let st = StateFile {
         character: "i".into(),
         left: 0,
@@ -870,7 +870,7 @@ fn b_idle_o_office97() {
 // ---------- speak ----------
 
 #[test]
-fn r_bal_8_pacing_vector() {
+fn r_bal_8_r_bal_7_b_speak_2_r_speak_4_pacing_vector() {
     let mut m = character("c", 0);
     m.states.retain(|s| s.0 != "Speaking");
     let mut t = T::visible(m);
@@ -1052,7 +1052,7 @@ fn ask_complete(t: &T, id: u32) -> Option<(i32, Vec<bool>)> {
 }
 
 #[test]
-fn b_ask_4_phases_and_answer() {
+fn b_ask_4_b_wl_8_phases_and_answer() {
     let mut t = T::visible(character("c", 100));
     let now = t.now;
     let mut spec = ask("modal");
@@ -1402,7 +1402,7 @@ fn b_char_5_invalid_character() {
 // ---------- user interaction ----------
 
 #[test]
-fn r_ui_1_click_and_double_click() {
+fn r_ui_1_b_ui_1_click_and_double_click() {
     let mut t = T::visible(character("c", 100));
     t.press(PointerKind::Press, Surface::Character, 1, 510, 520);
     t.press(PointerKind::Release, Surface::Character, 1, 510, 520);
@@ -1441,7 +1441,7 @@ fn r_ui_1_click_and_double_click() {
 }
 
 #[test]
-fn r_ui_2_drag() {
+fn r_ui_2_r_win_4_drag() {
     let mut t = T::visible(character("c", 100));
     t.press(PointerKind::Press, Surface::Character, 1, 510, 510);
     t.press(PointerKind::Motion, Surface::Character, 1, 511, 511);
@@ -1480,7 +1480,7 @@ fn r_ui_2_drag() {
 }
 
 #[test]
-fn b_menu_1_and_b_menu_2_and_b_menu_3() {
+fn b_menu_1_r_ui_3_b_menu_2_b_menu_3() {
     let mut t = T::visible(character("c", 100));
     t.press(PointerKind::Press, Surface::Character, 2, 510, 520);
     t.press(PointerKind::Release, Surface::Character, 2, 510, 520);
@@ -1599,7 +1599,7 @@ fn b_ui_4_user_hide() {
 }
 
 #[test]
-fn b_tray_1_activate() {
+fn b_tray_1_r_ui_4_activate() {
     let mut t = T::visible(character("c", 100));
     t.req(Call::Hide { fast: true });
     t.ev(Event::Tray(TrayInput::Activate { x: 5, y: 6 }));
@@ -1768,7 +1768,7 @@ fn b_wl_4_output_change_pulls_back() {
 }
 
 #[test]
-fn b_cfg_2_persist_throttle_and_quit() {
+fn b_cfg_2_b_run_1_persist_throttle_and_quit() {
     let mut t = T::visible(character("c", 100));
     t.advance(t.now + 2000);
     t.log.clear();
@@ -1815,7 +1815,7 @@ fn b_cfg_2_persist_throttle_and_quit() {
 }
 
 #[test]
-fn b_fb_1_play_errors_and_unavailable() {
+fn b_fb_1_b_char_2_play_errors_and_unavailable() {
     let mut m = character("c", 100);
     m.animations.retain(|a| a.name != "Wave");
     m.animations.push(Animation {
@@ -1895,4 +1895,284 @@ fn properties_and_list() {
     let p = t.core.properties();
     assert_eq!((p.width, p.height, p.name.as_str()), (100, 100, "Name c"));
     assert!(p.animation_names.contains(&"Wave".to_string()));
+}
+
+// ---------- further rule tests ----------
+
+fn current_anim(t: &T) -> String {
+    match t.core.scene().character.unwrap().picture {
+        Picture::Frame { animation, .. } => animation,
+        p => panic!("{p:?}"),
+    }
+}
+
+#[test]
+fn r_anim_7_b_anim_1_stop_cuts_and_no_animation_requests_keep_previous() {
+    let mut m = character("c", 100);
+    looping(&mut m);
+    m.sounds.push(Sound {
+        id: "s".into(),
+        duration_ms: Some(5000),
+    });
+    m.animations.last_mut().unwrap().frames[0].sound = Some("s".into());
+    let mut t = T::visible(m);
+    let id = t.req(Call::Play("Loop".into()));
+    t.advance(t.now + 150);
+    let pic = t.core.scene().character.unwrap().picture;
+    t.call(Call::Stop(id)).unwrap();
+    // Timer killed, sound stopped, picture kept.
+    assert!(t.log.iter().any(|(_, o)| *o == Output::SoundStop));
+    assert_eq!(t.core.scene().character.unwrap().picture, pic);
+    // Hide(fast) and Show(fast) play no animation and do not consume the previous one.
+    t.req(Call::Hide { fast: true });
+    t.req(Call::Show { fast: true });
+    // The next animation request resumes the loop in exit mode (frame 2) first.
+    let now = t.now;
+    t.req(Call::Play("Wave".into()));
+    match t.core.scene().character.unwrap().picture {
+        Picture::Frame {
+            animation, frame, ..
+        } => assert_eq!((animation.as_str(), frame), ("Loop", 2)),
+        p => panic!("{p:?}"),
+    }
+    t.advance(now + 50);
+    assert_eq!(current_anim(&t), "Wave");
+}
+
+#[test]
+fn r_q_3_immediate_calls() {
+    let mut t = T::with(vec![character("a", 100), character("b", 100)], None, vec![]);
+    assert_eq!(t.call(Call::Stop(0)), Ok(ReplyValue::Unit));
+    assert_eq!(t.call(Call::StopAll(vec![])), Ok(ReplyValue::Unit));
+    assert_eq!(t.call(Call::SetIdleOn(true)), Ok(ReplyValue::Unit));
+    assert_eq!(t.call(Call::Select("b".into())), Ok(ReplyValue::Unit));
+    assert_eq!(t.core.properties().character, "b");
+}
+
+#[test]
+fn r_bal_7_not_shown_during_drag() {
+    let mut m = character("c", 0);
+    m.states.retain(|s| s.0 != "Speaking");
+    let mut t = T::visible(m);
+    t.press(PointerKind::Press, Surface::Character, 1, 510, 510);
+    t.press(PointerKind::Motion, Surface::Character, 1, 530, 510);
+    let id = t.req(Call::Speak("a b".into()));
+    assert!(t.core.scene().agent_balloon.is_none());
+    assert_eq!(t.count(|s| *s == Signal::BalloonShown), 0);
+    t.advance(t.now + 1000);
+    // Text is still paced.
+    assert_eq!(t.complete_of(id).unwrap().1, 0);
+}
+
+#[test]
+fn b_bal_2_font_choice() {
+    let mut m = character("c", 0);
+    m.states.retain(|s| s.0 != "Speaking");
+    m.balloon.font = "Pebble Sans".into();
+    m.balloon.font_height = -15;
+    let mut t = T::visible(m.clone());
+    t.req(Call::Speak("a".into()));
+    let f = t.core.scene().agent_balloon.unwrap().font;
+    assert_eq!(
+        (f.family.as_str(), f.px, f.bold),
+        ("Pebble Sans", 15, false)
+    );
+    let cfg = Config {
+        balloon_font: "Forced".into(),
+        ..Config::default()
+    };
+    let st = StateFile {
+        character: "c".into(),
+        left: 500,
+        top: 500,
+        visible: true,
+    };
+    let mut t = T::with_config(vec![m], Some(st), vec![], cfg);
+    t.advance(1000);
+    t.req(Call::Speak("a".into()));
+    assert_eq!(t.core.scene().agent_balloon.unwrap().font.family, "Forced");
+}
+
+#[test]
+fn b_bal_3_anchor_is_lowest_mouth_point() {
+    let mut m = character("c", 1000);
+    m.canvas = (50, 50); // display 100 x 100: anchors scale by 2
+    let sp = m
+        .animations
+        .iter_mut()
+        .find(|a| a.name == "SpeakingA")
+        .unwrap();
+    sp.frames[0].mouths = vec![
+        Mouth {
+            kind: 4,
+            anchor: (40, 40),
+        },
+        Mouth {
+            kind: 1,
+            anchor: (10, 30),
+        },
+    ];
+    let mut t = T::visible(m);
+    t.req(Call::Speak("a".into()));
+    t.advance(t.now + 1000);
+    // Speaking frame stays shown (last frame); mouth type 1 at (10,30) -> (520, 560).
+    let b = t.core.scene().agent_balloon.unwrap();
+    assert_eq!(b.tail_side, TailSide::Bottom);
+    assert_eq!(b.tail[0].0, 520);
+}
+
+#[test]
+fn b_pick_a_speakable_keeps_animation_with_mouths() {
+    let mut m = character("c", 100);
+    let mut f = fr(5000);
+    f.mouths = vec![Mouth {
+        kind: 0,
+        anchor: (1, 1),
+    }];
+    m.animations.push(anim("Talky", vec![f]));
+    let mut t = T::visible(m);
+    let p = t.req(Call::Play("Talky".into()));
+    t.call(Call::Stop(p)).unwrap();
+    t.req(Call::Speak("hi".into()));
+    // Keeps Talky (no Speaking state played), output starts at once.
+    assert_eq!(current_anim(&t), "Talky");
+    assert!(t.core.scene().agent_balloon.is_some());
+}
+
+#[test]
+fn b_lip_2_no_mouth_during_text_speak() {
+    let mut m = character("c", 100);
+    m.animations
+        .iter_mut()
+        .find(|a| a.name == "SpeakingA")
+        .unwrap()
+        .frames[0]
+        .mouths = vec![Mouth {
+        kind: 0,
+        anchor: (1, 1),
+    }];
+    let mut t = T::visible(m);
+    t.req(Call::Speak("one two three".into()));
+    for k in 1..10 {
+        t.advance(t.now + 100 * k);
+        if let Picture::Frame { mouth, .. } = t.core.scene().character.unwrap().picture {
+            assert_eq!(mouth, None);
+        }
+    }
+}
+
+#[test]
+fn b_o97_4_play_group_picks_variant() {
+    let mut m = CharacterModel::new("o", Family::Office97, (10, 10));
+    for v in ["Greeting.1", "Greeting.2", "Greeting.3"] {
+        m.animations.push(anim(
+            v,
+            vec![Frame {
+                ms: 100,
+                has_picture: true,
+                pose: Some(1),
+                ..Default::default()
+            }],
+        ));
+    }
+    m.states.push((
+        "Greeting".into(),
+        vec![
+            "Greeting.1".into(),
+            "Greeting.2".into(),
+            "Greeting.3".into(),
+        ],
+    ));
+    let st = StateFile {
+        character: "o".into(),
+        left: 0,
+        top: 0,
+        visible: true,
+    };
+    let mut t = T::with(vec![m], Some(st), vec![]);
+    t.core.set_draws(Box::new(ScriptedDraws::new([2])));
+    t.call(Call::SetIdleOn(false)).unwrap();
+    t.req(Call::Play("greeting".into()));
+    assert_eq!(current_anim(&t), "Greeting.3");
+    assert!(
+        t.core
+            .properties()
+            .animation_names
+            .contains(&"Greeting".to_string())
+    );
+}
+
+#[test]
+fn b_cfg_1_defaults() {
+    let c = Config::default();
+    assert_eq!(c.character, None);
+    assert_eq!(c.language, LanguageSetting::Auto);
+    assert!(c.sound_effects && c.balloon && c.idle);
+    assert_eq!(c.balloon_font, "");
+    assert_eq!(c.speaking_speed, 1.0);
+    assert_eq!(c.double_click_ms, 500);
+    // `idle` is the initial IdleOn.
+    let cfg = Config {
+        idle: false,
+        ..Config::default()
+    };
+    let t = T::with_config(vec![character("c", 1)], None, vec![], cfg);
+    assert!(!t.core.properties().idle_on);
+}
+
+#[test]
+fn b_show_4_cause_codes() {
+    let mut t = T::visible(character("c", 0));
+    // Program: Shown 4, Hidden 3, Move 2; user: Shown 2 (tray), Hidden 1 (tray) and 7
+    // (menu), Move 1 (drag); display change: Move 4.
+    t.req(Call::Hide { fast: true });
+    t.req(Call::Show { fast: true });
+    t.req(Call::MoveTo {
+        x: 10,
+        y: 10,
+        speed: 0,
+    });
+    t.ev(Event::Tray(TrayInput::Menu(MenuAction::Hide)));
+    t.advance(t.now + 100);
+    t.ev(Event::Tray(TrayInput::Activate { x: 0, y: 0 }));
+    t.advance(t.now + 100);
+    t.press(PointerKind::Press, Surface::Character, 2, 11, 11);
+    t.press(PointerKind::Release, Surface::Character, 2, 11, 11);
+    t.ev(Event::Menu(MenuInput::Activate(0)));
+    t.advance(t.now + 100);
+    t.ev(Event::Tray(TrayInput::Activate { x: 0, y: 0 }));
+    t.advance(t.now + 100);
+    t.now += 1000;
+    t.press(PointerKind::Press, Surface::Character, 1, 11, 11);
+    t.press(PointerKind::Motion, Surface::Character, 1, 21, 11);
+    t.press(PointerKind::Release, Surface::Character, 1, 21, 11);
+    t.ev(Event::Outputs(vec![output(50, 50)]));
+    let causes: Vec<String> = t
+        .signals()
+        .into_iter()
+        .filter_map(|(_, s)| match s {
+            Signal::Shown { cause } => Some(format!("S{cause}")),
+            Signal::Hidden { cause } => Some(format!("H{cause}")),
+            Signal::Move { cause, .. } => Some(format!("M{cause}")),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        causes,
+        vec!["H3", "S4", "M2", "H1", "S2", "H7", "S2", "M1", "M4"]
+    );
+}
+
+#[test]
+fn r_ob_2_text_colours() {
+    let mut t = T::visible(character("c", 100));
+    t.req(Call::Ask(AskSpec {
+        text: Some("body".into()),
+        labels: Some(vec!["label".into()]),
+        animation: Some(String::new()),
+        ..Default::default()
+    }));
+    let s = t.core.scene().office_balloon.unwrap();
+    assert_eq!(s.text[0].runs[0].color, [0, 0, 0]);
+    assert_eq!(s.labels[0].lines[0].runs[0].color, [0, 0, 0x80]);
 }

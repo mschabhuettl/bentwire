@@ -316,7 +316,7 @@ mod tests {
     }
 
     #[test]
-    fn b_fb_1_alias_and_office97_groups() {
+    fn b_fb_1_b_o97_5_alias_and_office97_groups() {
         let mut m = ch(
             &[],
             &[("Appear", &["Appear.1"]), ("Greeting", &["Greeting.1"])],
