@@ -1,4 +1,4 @@
-//! Office balloon theme (A-THEME-1) from `OBALLOON.DLL`'s bitmap and icon resources, as the
+//! Office balloon theme (A-THEME-1) from the Office balloon DLL's bitmap and icon resources, as the
 //! layout of bentwire-render's theme loader (`balloon-themes/<id>/theme.toml`). Resource ids and
 //! strip layouts are office-assistant R-OB-5, R-OB-8 and R-OB-11. Read at pack generation time
 //! only; nothing of it is embedded in code.
@@ -11,7 +11,7 @@ use crate::Error;
 use crate::build::dib_decode;
 
 fn bad(m: impl Into<String>) -> Error {
-    Error::Source(format!("OBALLOON.DLL: {}", m.into()))
+    Error::Source(format!("balloon DLL: {}", m.into()))
 }
 
 fn u16_at(d: &[u8], o: usize) -> Result<u16, Error> {
@@ -199,7 +199,15 @@ fn icon(res: &[(u32, u32, Vec<u8>)], id: u32) -> Result<(u32, u32, Vec<u8>), Err
 }
 
 /// Write `balloon-themes/<id>/` files (theme.toml and PNGs) for render's theme loader.
-pub fn extract_theme(dll: &[u8], dir: &Path, name: &str) -> Result<(), Error> {
+/// `source` is the DLL's file name, recorded in the theme.toml comment; `generator` names the
+/// script that ran the extraction.
+pub fn extract_theme(
+    dll: &[u8],
+    dir: &Path,
+    name: &str,
+    source: &str,
+    generator: &str,
+) -> Result<(), Error> {
     let res = pe_resources(dll)?;
     std::fs::create_dir_all(dir)?;
     let png = |file: &str, (w, h, d): (u32, u32, Vec<u8>)| -> Result<(), Error> {
@@ -237,8 +245,8 @@ pub fn extract_theme(dll: &[u8], dir: &Path, name: &str) -> Result<(), Error> {
     png("tip.png", icon(&res, 100)?)?;
     let frames = r#"["normal", "default", "hot", "pressed", "disabled"]"#;
     let toml = format!(
-        r#"# Office balloon theme, extracted from OBALLOON.DLL at pack generation time
-# (characters/classics/regenerate.sh). Frame names follow office-assistant R-OB-8/R-OB-11 [inf].
+        r#"# Office balloon theme, extracted from {source} at pack generation time
+# ({generator}). Frame names follow office-assistant R-OB-8/R-OB-11 [inf].
 format = 1
 name = "{name}"
 

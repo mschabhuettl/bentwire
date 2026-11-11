@@ -1555,7 +1555,8 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
 - **A-CONV-5 Ids of qualified file names.** A-ID-1 uses the file stem; a parenthesised
   qualifier (`WILL(Bob).ACT`, `ROCKY(Greetings).ACT`) is dropped unless another source would
   then get the same id, in which case it is kept as `-qualifier` (`rocky-greetings-act`).
-  Characters outside `[a-z0-9]` become `-`; the Office CD prefix `office-actors-` is removed.
+  Characters outside `[a-z0-9]` become `-`. The source list is the pack's (earlier byte-identical
+  copies win, so duplicate copies of a file never name an id).
   Byte-identical sources are converted once. Reason: A-ID-1 does not say how to spell such
   stems; the rule keeps ids short and still never guesses between two different files.
 - **A-CONV-6 Out-of-range source data.** As for ACS (character-format 10), an ACF/ACA image or

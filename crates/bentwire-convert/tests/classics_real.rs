@@ -7,7 +7,7 @@ mod oracle_common;
 use std::path::PathBuf;
 
 use bentwire_character::Character;
-use bentwire_convert::classics::{Outcome, enumerate, generate, parse_overrides};
+use bentwire_convert::classics::{Outcome, generate, parse_overrides};
 
 fn pack() -> PathBuf {
     let p = oracle_common::repo().join("characters/classics");
@@ -20,8 +20,7 @@ fn pack() -> PathBuf {
 #[test]
 #[ignore]
 fn classics_pack_loads_and_is_reproducible() {
-    let research = oracle_common::research();
-    let sources = oracle_common::sources();
+    let _ = (oracle_common::research(), oracle_common::sources());
     let pack = pack();
     let mut committed: Vec<PathBuf> = std::fs::read_dir(&pack)
         .unwrap()
@@ -41,12 +40,27 @@ fn classics_pack_loads_and_is_reproducible() {
     assert!(theme.exists(), "balloon theme missing");
 
     let tmp = oracle_common::temp_dir("classics");
+    // The source list and palette location belong to the pack (characters/classics/sources.sh).
+    let run = |args: &[&str]| -> Vec<PathBuf> {
+        let out = std::process::Command::new("bash")
+            .arg(pack.join("sources.sh"))
+            .args(args)
+            .output()
+            .expect("bash");
+        assert!(out.status.success(), "sources.sh failed");
+        String::from_utf8(out.stdout)
+            .unwrap()
+            .lines()
+            .map(PathBuf::from)
+            .collect()
+    };
+    let sources = run(&[]);
     let opts = bentwire_convert::ConvertOptions {
-        office_palette: Some(research.join("MSO97.DLL")),
+        office_palette: run(&["--palette"]).into_iter().next(),
         ..Default::default()
     };
     let overrides = parse_overrides(&std::fs::read_to_string(pack.join("options.txt")).unwrap());
-    let res = generate(&enumerate(&research, &sources), &tmp, &opts, &overrides).unwrap();
+    let res = generate(&sources, &tmp, &opts, &overrides).unwrap();
     let ids: Vec<&String> = res
         .iter()
         .filter_map(|r| match r {

@@ -1,20 +1,12 @@
-//! Generation of the `classics` pack (A-PACK-2, A-ID-1, A-THEME-1): every source that converts
-//! completely, as `.bwc`, plus the Office balloon theme. Driven by
-//! `characters/classics/regenerate.sh`; nothing here names a character.
+//! Batch conversion into a pack (A-PACK-2, A-ID-1, A-CONV-5): a list of source files in, one
+//! `<id>.bwc` per source that converts completely, plus a report of exclusions. Generic: the
+//! list of sources and every source-specific path live with the pack that uses it
+//! (`characters/classics/sources.sh`).
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use crate::{ConvertOptions, Error, convert_to_package_with, sha16};
-
-/// One candidate source.
-#[derive(Clone, Debug)]
-pub struct Source {
-    /// File the converter reads (the `.acf` for web characters).
-    pub path: PathBuf,
-    /// Pack id (A-ID-1).
-    pub id: String,
-}
 
 /// Outcome per source.
 #[derive(Debug)]
@@ -56,48 +48,6 @@ pub fn stem_id(path: &Path, qualified: bool) -> String {
     out.trim_end_matches('-').to_owned()
 }
 
-fn files(dir: &Path, exts: &[&str]) -> Vec<PathBuf> {
-    let mut v: Vec<PathBuf> = std::fs::read_dir(dir)
-        .map(|r| r.filter_map(|e| e.ok().map(|e| e.path())).collect())
-        .unwrap_or_default();
-    v.retain(|p| {
-        p.is_file()
-            && p.extension()
-                .is_some_and(|e| exts.iter().any(|x| e.eq_ignore_ascii_case(x)))
-    });
-    v.sort();
-    v
-}
-
-/// The sources of A-PACK-2: the ACS files in `sources`, the web characters, the Agent 1.5 files
-/// and the ACT actors (collection and Office 97 CD) in `research`. The id suffix of ACT files
-/// depends on their content (A-ID-1), so it is decided in [`generate`].
-pub fn enumerate(research: &Path, sources: &Path) -> Vec<PathBuf> {
-    let mut v = files(sources, &["acs"]);
-    let web = research.join("acf/downloads");
-    let mut dirs: Vec<PathBuf> = std::fs::read_dir(&web)
-        .map(|r| {
-            r.filter_map(|e| e.ok().map(|e| e.path()))
-                .filter(|p| p.is_dir())
-                .collect()
-        })
-        .unwrap_or_default();
-    dirs.sort();
-    for d in dirs {
-        v.extend(files(&d, &["acf"]).into_iter().take(1));
-    }
-    let a15 = research.join("agent15/downloads");
-    v.extend(files(
-        &a15.join("Characters"),
-        &["acs"],
-    ));
-    v.extend(files(&a15.join("source-files"), &["acs"]));
-    let act = research.join("act/downloads");
-    v.extend(files(&act.join("source-files"), &["act"]));
-    v.extend(files(&act.join("source-files"), &["act"]));
-    v
-}
-
 /// Pack id for a source by its format (A-ID-1).
 fn id_for(path: &Path, stem: &str, data: &[u8]) -> Result<String, Error> {
     let stem = stem.to_owned();
@@ -122,11 +72,6 @@ fn id_for(path: &Path, stem: &str, data: &[u8]) -> Result<String, Error> {
         } else {
             "act"
         };
-        // Office CD names carry an `office-actors-` prefix (CLIPPIT.ACT).
-        let stem = stem
-            .strip_prefix("office-actors-")
-            .unwrap_or(&stem)
-            .to_owned();
         return Ok(format!("{stem}-{suffix}"));
     }
     Err(Error::Unsupported(format!(
