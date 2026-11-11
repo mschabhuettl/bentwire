@@ -21,6 +21,17 @@ fn output_stems_unique_for_same_base_name() {
 }
 
 #[test]
+fn output_stems_unique_when_suffix_matches_a_real_name() {
+    let paths: Vec<PathBuf> = ["genie/data", "merlin/data", "peedy/data-1"]
+        .iter()
+        .map(PathBuf::from)
+        .collect();
+    let stems = oracle_common::output_stems(&paths);
+    let unique: std::collections::HashSet<_> = stems.iter().collect();
+    assert_eq!(unique.len(), stems.len(), "{stems:?}");
+}
+
+#[test]
 #[ignore]
 fn acf_aca_round_trip_against_oracle() {
     oracle_common::round_trip_kind("acf");

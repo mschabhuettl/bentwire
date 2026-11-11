@@ -374,11 +374,15 @@ pub fn output_stems(paths: &[PathBuf]) -> Vec<String> {
                 .to_string_lossy()
                 .to_lowercase()
                 .replace(['(', ')', ' '], "_");
-            if seen.insert(stem.clone()) {
-                stem
-            } else {
-                format!("{stem}-{i}")
+            // A generated suffix can collide with a real name (`data-1`), so retry until the
+            // name is unused; stepping by the path count keeps the candidates distinct.
+            let mut name = stem.clone();
+            let mut k = i;
+            while !seen.insert(name.clone()) {
+                name = format!("{stem}-{k}");
+                k += paths.len();
             }
+            name
         })
         .collect()
 }
