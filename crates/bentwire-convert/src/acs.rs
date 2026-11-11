@@ -228,9 +228,11 @@ pub fn convert_acs(acs: &Acs, file: &str, sha: &str) -> Result<PackageData, Erro
             frames,
         });
     }
+    // A state without members is dropped (A-CONV-6).
     m.states = ci
         .states
         .iter()
+        .filter(|s| !s.animations.is_empty())
         .map(|s| {
             let members = s
                 .animations

@@ -267,6 +267,26 @@ fn mutations_are_detected() {
         let base = rust_json(&Character::load(&clean).unwrap());
         let base = oracle_common::normalize(&kind, &oracle, base);
         compare(&oracle, &base).unwrap_or_else(|d| panic!("{stem} unmutated differs: {d}"));
+        // Controls: the rewrite paths the mutations use, without a change, still match, so a
+        // detection is never an artefact of re-encoding.
+        let ctrl = tmp.join(format!("{stem}-control"));
+        pkg.write_folder(&ctrl).unwrap();
+        edit_manifest(&ctrl, |_| {});
+        if kind == "acs" {
+            edit_sheet(&ctrl, |_, _, _, _| {});
+            let s = ctrl.join("sounds/s00.flac");
+            if s.exists() {
+                let pcm = audio::decode_sound(&std::fs::read(&s).unwrap()).unwrap();
+                std::fs::write(&s, encode_flac(&pcm).unwrap()).unwrap();
+            }
+        }
+        let got =
+            oracle_common::normalize(&kind, &oracle, rust_json(&Character::load(&ctrl).unwrap()));
+        compare(&oracle, &got).unwrap_or_else(|d| panic!("{stem} control rewrite differs: {d}"));
+        println!(
+            "{stem:8} {:40} equal (control)",
+            "no-op rewrite of manifest, sheet, sound"
+        );
         for (s, label, f) in CASES.iter().filter(|c| c.0 == stem) {
             let d = tmp.join(format!("{s}-{run}"));
             run += 1;

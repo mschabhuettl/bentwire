@@ -1558,6 +1558,13 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   Characters outside `[a-z0-9]` become `-`; the Office CD prefix `office-actors-` is removed.
   Byte-identical sources are converted once. Reason: A-ID-1 does not say how to spell such
   stems; the rule keeps ids short and still never guesses between two different files.
+- **A-CONV-6 Out-of-range source data.** As for ACS (character-format 10), an ACF/ACA image or
+  sound index beyond its list means no layer or no sound; a state without members is
+  dropped; palette indices beyond a short palette (fewer than 256 entries) are written as the
+  transparent index, which is how the colour-key compositing of the source runtimes draws
+  them. A transparent index beyond the palette is an error. Reason: no sample has these
+  cases; the agent-fixtures files do, and the rules keep packages valid and
+  playback-equivalent.
 - **A-PACK-3 Helper actors.** A source whose every frame is fully transparent (the Bob helper
   ZVISIBLE.ACT, whose metafile draws nothing) is excluded from `classics` with that reason.
   Reason: a character without a visible picture has no use as a desktop character.

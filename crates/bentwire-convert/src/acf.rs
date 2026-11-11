@@ -107,19 +107,14 @@ pub fn convert_acf(
             let layers: Vec<Layer> = if fr.image == 0xFFFF {
                 vec![]
             } else {
+                // An index beyond the list is no layer, as for ACS.
                 match img.get(fr.image as usize) {
                     Some(Some(i)) => vec![pool_layer(*i, 0, 0, None)],
-                    Some(None) => vec![],
-                    None => return Err(Error::Source(format!("{}: image index invalid", wf()))),
+                    _ => vec![],
                 }
             };
-            let sound = if fr.sound == 0xFFFF {
-                None
-            } else {
-                snd.get(fr.sound as usize)
-                    .ok_or_else(|| Error::Source(format!("{}: sound index invalid", wf())))?
-                    .clone()
-            };
+            // Like ACS (character-format 10): an index beyond the list means no sound.
+            let sound = snd.get(fr.sound as usize).cloned().flatten();
             // 1.5 stores no exit: the runtime uses -1.
             let exit = match fr.exit.unwrap_or(-1) {
                 -1 => Some(Exit::End),
@@ -190,9 +185,11 @@ pub fn convert_acf(
         });
     }
     let names: Vec<String> = m.animations.iter().map(|a| a.name.clone()).collect();
+    // A state without members is dropped (A-CONV-6).
     m.states = ch
         .states
         .iter()
+        .filter(|s| !s.animations.is_empty())
         .map(|s| {
             let members = s
                 .animations

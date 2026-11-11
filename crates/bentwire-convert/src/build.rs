@@ -137,6 +137,23 @@ fn use_order(m: &Manifest, n: usize, drop_unused: bool) -> Vec<u32> {
 impl Model {
     /// Lay out the sheet, encode PNGs and FLACs, and return the package.
     pub fn finish(mut self, header: Vec<String>) -> Result<PackageData, Error> {
+        // Indices beyond a short palette are drawn transparent by the source runtimes'
+        // colour-key compositing; keep them so in the indexed PNG (A-CONV-6).
+        if let (Some(pal), Some(t)) = (&self.palette, self.transparent) {
+            let n = pal.len();
+            if t as usize >= n {
+                return Err(Error::Source(format!(
+                    "transparent index {t} beyond the {n} palette entries"
+                )));
+            }
+            if n < 256 {
+                for p in self.pool.pics.iter_mut().filter(|p| !p.rgba) {
+                    for v in p.px.iter_mut().filter(|v| **v as usize >= n) {
+                        *v = t;
+                    }
+                }
+            }
+        }
         let order = use_order(&self.manifest, self.pool.pics.len(), self.drop_unused);
         let mut pos = vec![u32::MAX; self.pool.pics.len()];
         for (k, &i) in order.iter().enumerate() {
