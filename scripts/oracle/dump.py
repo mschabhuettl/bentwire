@@ -9,6 +9,7 @@ Must run against a SCRATCH COPY of the prototype (it writes pickles into its cac
   PYTHONDONTWRITEBYTECODE=1 python3 -I scripts/oracle/dump.py --proto COPY oracle KIND SOURCE OUT.json
   PYTHONDONTWRITEBYTECODE=1 python3 -I scripts/oracle/dump.py --proto COPY reader CONVERTED OUT.json
 """
+import hashlib
 import json
 import os
 import sys
@@ -55,6 +56,22 @@ def traces(obj, animations):
     return out
 
 
+def content_tag(path):
+    """SHA-256 prefix of a source file, or of the files of a source folder (name and bytes)."""
+    h = hashlib.sha256()
+    if os.path.isdir(path):
+        for n in sorted(os.listdir(path)):
+            p = os.path.join(path, n)
+            if os.path.isfile(p):
+                h.update(n.encode() + b"\0")
+                with open(p, "rb") as f:
+                    h.update(f.read())
+    else:
+        with open(path, "rb") as f:
+            h.update(f.read())
+    return h.hexdigest()[:16]
+
+
 def main(argv):
     if len(argv) < 3 or argv[0] != "--proto":
         sys.exit(__doc__)
@@ -68,6 +85,11 @@ def main(argv):
         kind, src, out = rest
         import oracle
         import sources
+        # The prototype caches by file name; add the content hash to the key so a reused
+        # scratch copy never serves a pickle of another file with the same name.
+        tag = content_tag(src)
+        by_name = sources.cached
+        sources.cached = lambda key, fn: by_name(key + "_" + tag, fn)
         raw = sources.load(kind, src)
         o = oracle.Oracle(raw)
         d = json.loads(json.dumps(o.dump()))
