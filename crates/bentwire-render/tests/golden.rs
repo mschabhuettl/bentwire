@@ -38,6 +38,7 @@ fn tahoma(px: u32, bold: bool) -> FontSpec {
         px,
         bold,
         italic: false,
+        cell: true,
     }
 }
 
@@ -49,7 +50,11 @@ fn agent_scene(
     lines: &[&str],
     scroll: i32,
 ) -> AgentBalloonScene {
-    let font = tahoma(13, false);
+    // Agent balloon: em height (negative ACS font_height, B-BAL-2).
+    let font = FontSpec {
+        cell: false,
+        ..tahoma(13, false)
+    };
     let m = fonts.metrics(&core_font(&font));
     let (w, h) = (28 * m.ave_char_width, 2 * (m.height + 2) + 18);
     let (x, y) = origin;
@@ -233,6 +238,9 @@ impl<'a> Office<'a> {
                 runs: vec![run(6 + 17, text, [0, 0, 0])],
             }],
             mnemonic: m,
+            mnemonic_at: m
+                .and_then(|m| text.find(m))
+                .map(|i| (0, 0, text[..i].chars().count())),
             state,
             focused,
         });

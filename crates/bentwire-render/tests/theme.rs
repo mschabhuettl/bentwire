@@ -56,6 +56,7 @@ fn font(bold: bool) -> FontSpec {
         px: 13,
         bold,
         italic: false,
+        cell: true,
     }
 }
 

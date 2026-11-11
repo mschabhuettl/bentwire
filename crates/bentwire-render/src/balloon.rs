@@ -103,31 +103,26 @@ fn draw_lines(
     }
 }
 
-/// Underlines the first occurrence of `m` (case-insensitive) in the lines.
-fn underline_mnemonic(
+/// Underlines the character at (line, run, char index) (CheckboxScene.mnemonic_at).
+#[allow(clippy::too_many_arguments)]
+fn underline_at(
     c: &mut Canvas,
     k: u32,
     fonts: &Fonts,
     font: &FontSpec,
     lines: &[TextLine],
-    m: char,
+    (li, ri, ci): (usize, usize, usize),
     col: Rgb,
 ) {
-    let lower: String = m.to_lowercase().collect();
-    for l in lines {
-        for r in &l.runs {
-            if let Some((i, ch)) = r
-                .text
-                .char_indices()
-                .find(|(_, ch)| ch.to_lowercase().collect::<String>() == lower)
-            {
-                let x0 = r.x + fonts.text_width(font, &r.text[..i]);
-                let x1 = x0 + fonts.text_width(font, &ch.to_string());
-                fonts.draw_underline(c, k, x0, x1, l.y, font, col);
-                return;
-            }
-        }
-    }
+    let Some(l) = lines.get(li) else { return };
+    let Some(r) = l.runs.get(ri) else { return };
+    let before: String = r.text.chars().take(ci).collect();
+    let Some(ch) = r.text.chars().nth(ci) else {
+        return;
+    };
+    let x0 = r.x + fonts.text_width(font, &before);
+    let x1 = x0 + fonts.text_width(font, &ch.to_string());
+    fonts.draw_underline(c, k, x0, x1, l.y, font, col);
 }
 
 /// Draws the Office balloon (B-OB-1, B-OB-2) onto `c`. With a theme, buttons,
@@ -186,9 +181,9 @@ pub fn draw_office_balloon(
         let disabled = cb.state == ControlState::Disabled;
         let over = disabled.then_some(art::GREY);
         draw_lines(c, k, fonts, &body_font, &cb.lines, over, false);
-        if let Some(m) = cb.mnemonic {
+        if let Some(at) = cb.mnemonic_at {
             let col = over.unwrap_or(Rgb::BLACK);
-            underline_mnemonic(c, k, fonts, &body_font, &cb.lines, m, col);
+            underline_at(c, k, fonts, &body_font, &cb.lines, at, col);
         }
         if cb.focused {
             let r = rect(cb.rect);
