@@ -37,6 +37,10 @@ jobs:
           cp "target/$TARGET/release/bentwired" "target/$TARGET/release/bentwire" \
             "target/$TARGET/release/bentwire-convert" \
             README.md CHANGELOG.md LICENSE-APACHE LICENSE-MIT "dist/$name/"
+          mkdir -p "dist/$name/characters" "dist/$name/fonts"
+          cp -r characters/builtin "dist/$name/characters/"
+          cp -r packaging "dist/$name/"
+          cp assets/fonts/LICENSE-LGPL-2.1.txt assets/fonts/README.md "dist/$name/fonts/"
           tar -C dist -czf "dist/$name.tar.gz" "$name"
           (cd dist && sha256sum "$name.tar.gz" > sha256sums.txt)
       - name: Release notes from CHANGELOG.md
