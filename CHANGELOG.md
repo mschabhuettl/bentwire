@@ -22,6 +22,10 @@ A cleanup release: no new daemon features. The matching classics pack is
 - Animated GIFs: `scripts/screenshots.sh --gifs` (or `scripts/gifs.sh`) records the
   character appearing, `say`, `ask` with a click, the menu, a drag and a tour, and `--all`
   makes PNGs and GIFs.
+- `docs/roadmap.md` is now the full public roadmap: the principles (made with AI, no AI
+  inside; a small daemon whose open interface is the D-Bus API and the CLI) and the plan
+  for packaging, 0.1.2, 0.2, 0.3, 0.4 and own characters. The README links it and says
+  "Built with AI assistance. Contains no AI."
 - `docs/sources.md` lists the sources of the new classics characters Genie, Peedy, Robby
   (Agent 2.0) and Ozzar (Agent 1.5).
 

@@ -318,7 +318,7 @@ Please check on a Plasma desktop with real hardware:
   a gap.
 - [docs/sources.md](docs/sources.md): every source file and analysed binary.
 - [docs/credits.md](docs/credits.md): prior work, the bundled font, crate licences.
-- [docs/roadmap.md](docs/roadmap.md): what is planned next.
+- [docs/roadmap.md](docs/roadmap.md): the public roadmap: principles and what is planned next.
 - [CONTRIBUTING.md](CONTRIBUTING.md): build, tests, real-data test setup, conventions.
 - [CHANGELOG.md](CHANGELOG.md).
 
@@ -329,3 +329,5 @@ Please check on a Plasma desktop with real hardware:
 - `assets/fonts`: Wine's Tahoma replacement, LGPL-2.1 or later
   ([assets/fonts/README.md](assets/fonts/README.md)).
 - The classics pack is not part of this repository. bentwire grants no licence for it.
+
+Built with AI assistance. Contains no AI.
