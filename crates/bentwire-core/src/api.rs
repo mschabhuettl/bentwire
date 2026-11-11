@@ -30,8 +30,11 @@ pub trait Draws {
 pub struct FontSpec {
     /// Family name (Agent balloon: character or config font; Office balloon: Tahoma).
     pub family: String,
-    /// Em height in px (B-BAL-2: |font_height|; B-OB-1: 13 or 16).
+    /// Size in px: the em height, or the cell height (ascent + descent) when `cell`.
     pub px: u32,
+    /// GDI LOGFONT rule: `true` = `px` is the cell height (positive lfHeight; Office
+    /// balloon Tahoma 13/16, B-REN-8), `false` = `px` is the em (negative lfHeight).
+    pub cell: bool,
     pub bold: bool,
     pub italic: bool,
 }

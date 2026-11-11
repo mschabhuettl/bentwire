@@ -23,7 +23,11 @@ use bentwire_core::api::TextMetrics;
 pub fn core_font(f: &bentwire_core::api::FontSpec) -> font::FontSpec {
     font::FontSpec {
         family: f.family.clone(),
-        size: font::FontSize::Em(f.px),
+        size: if f.cell {
+            font::FontSize::Cell(f.px)
+        } else {
+            font::FontSize::Em(f.px)
+        },
         bold: f.bold,
         italic: f.italic,
     }

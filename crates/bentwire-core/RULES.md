@@ -73,7 +73,7 @@ B-REN-4 | not core: render decision, owner: bentwire-render || other crates: ben
 B-REN-5 | not core: render decision, owner: bentwire-render, bentwired
 B-REN-6 | not core: render decision, owner: bentwire-render
 B-REN-7 | not core: render decision, owner: bentwire-render
-B-REN-8 | OPEN: core requests Tahoma 13/16 (r_ob_32_r_ob_11_b_ob_1_r_ob_4_button_row_and_fonts), but api::FontSpec cannot yet say "cell height", so the renderer measures it as em; pending the FontSpec.cell flag agreed with bentwire-render
+B-REN-8 | office::fonts() sets Tahoma 13/16 with FontSpec.cell = true (r_ob_32_r_ob_11_b_ob_1_r_ob_4_button_row_and_fonts); cell-height metrics in bentwire-render
 B-RUN-1 | b_cfg_2_b_run_1_persist_throttle_and_quit (Quit: reply, state, quit); bus name and signals in bentwired || other crates: bentwired: b_run_1_dbus_activation_starts_the_daemon, b_run_1_quit_and_sigterm_save_state_and_exit_0, b_run_1_second_instance_exits_already_running
 B-SEQ-A | b_seq_a_r_anim_4_branch_vector
 B-SHOW-3 | b_show_3_fast_show_picture
@@ -97,6 +97,8 @@ B-WL-8 | b_ask_4_b_wl_8_phases_and_answer || other crates: bentwire-render: b_wl
 B-WL-9 | core part: menu model and keys in b_menu_1_r_ui_3_b_menu_2_b_menu_3; xdg_popup in bentwired || other crates: bentwire-render: b_wl_9_menu_hit_skips_separator
 R- | prefix token (from "R-..." in spec 0), not a rule
 R-1 | grep artefact (suffix of B-CHAR-1/A-CHAR-1/R-DIR-1), not a rule
+R-2 | grep artefact (suffix of A-CHAR-2), not a rule
+R-3 | grep artefact (suffix of A-CHAR-3), not a rule
 R-ANIM-1 | covered by r_anim_2_frame_clock (frame ms used unchanged); the x10 conversion is the converter's (owner: bentwire-convert)
 R-ANIM-10 | structural: one Player per loaded character (core::Char.player); every player test exercises it
 R-ANIM-2 | r_anim_2_frame_clock, r_anim_2_late_frame_no_catch_up
@@ -148,6 +150,7 @@ R-OB-34 | b_ob_3_b_ob_4_r_ob_17_r_ob_20_r_ob_34_placement_and_fit
 R-OB-4 | r_ob_32_r_ob_11_b_ob_1_r_ob_4_button_row_and_fonts
 R-OB-5 | r_ob_35_r_ob_5_vertical_spacing || other crates: bentwire-render: r_ob_5_icons_golden
 R-OB-7 | r_ob_35_r_ob_5_vertical_spacing (prefix column floor 17, label text at column + 5, bullet prefix)
+R-OB-8 | not core: label bullet art (cited by B-REN-7); owner: bentwire-render
 R-Q- | wildcard reference, see each R-Q-n
 R-Q-1 | r_q_1_b_q_1_ids_and_reply_before_signals
 R-Q-3 | r_q_3_immediate_calls

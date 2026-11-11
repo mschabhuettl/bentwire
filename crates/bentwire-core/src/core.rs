@@ -1250,6 +1250,7 @@ impl Core {
         let font = FontSpec {
             family,
             px: st.font_height.unsigned_abs(),
+            cell: st.font_height > 0,
             bold: st.font_weight >= 600,
             italic: st.italic,
         };

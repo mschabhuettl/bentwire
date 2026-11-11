@@ -222,6 +222,7 @@ pub(crate) mod tests {
         FontSpec {
             family: "Test".into(),
             px: 13,
+            cell: false,
             bold: false,
             italic: false,
         }

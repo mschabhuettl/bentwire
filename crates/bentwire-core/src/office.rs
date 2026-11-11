@@ -361,6 +361,7 @@ pub fn fonts(output_width: i32) -> (FontSpec, FontSpec) {
     let body = FontSpec {
         family: "Tahoma".into(),
         px,
+        cell: true,
         bold: false,
         italic: false,
     };
