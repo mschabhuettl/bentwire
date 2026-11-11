@@ -156,13 +156,20 @@ _bw_precmd() { # <status>
         return 0
         ;;
     esac
-    if [ $long = 1 ]; then
+    if [ $long = 1 ] && [ "$rc" != 0 ]; then
+        _bw_send stop --all # interrupted or suspended: end Processing, no success
+    elif [ $long = 1 ]; then
         _bw_send stop --all -- play Congratulate -- say "Done after ${elapsed} s: $(_bw_command_word "$cmd")"
     fi
     return 0
 }
 
-_bw_exit() { rm -f "$(_bw_state_file)" 2>/dev/null; }
+# zsh also runs zshexit hooks when a subshell such as `(exit 1)` exits: clean up only
+# in the interactive shell itself
+_bw_exit() {
+    [ "${ZSH_SUBSHELL:-0}" = 0 ] || return 0
+    rm -f "$(_bw_state_file)" 2>/dev/null
+}
 
 if [ -n "${ZSH_VERSION:-}" ]; then
     _bw_zsh_preexec() { _bw_preexec "$1"; }
@@ -174,8 +181,9 @@ if [ -n "${ZSH_VERSION:-}" ]; then
 else
     # PROMPT_COMMAND gets _bw_bash_prompt first (it needs $?) and _bw_bash_arm last, so
     # the DEBUG trap ignores the prompt commands and fires once for the next command line.
-    _bw_bash_prompt() { _bw_precmd "$1"; }
-    _bw_bash_arm() { _bw_armed=1; }
+    # both keep $? for the user's own PROMPT_COMMAND entries
+    _bw_bash_prompt() { _bw_precmd "$1"; return "$1"; }
+    _bw_bash_arm() { local s=$?; _bw_armed=1; return $s; }
     _bw_bash_debug() {
         [ -n "${_bw_armed:-}" ] || return 0
         [ -n "${COMP_LINE:-}" ] && return 0

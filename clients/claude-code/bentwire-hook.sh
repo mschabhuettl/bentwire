@@ -80,5 +80,27 @@ run() {
     return 0
 }
 
-( run </dev/null >/dev/null 2>&1 & )
+# Events must reach the daemon in order although each hook runs detached: every event
+# takes a sequence number now, and the detached part runs under a lock and drops itself
+# when a newer event is already waiting (the newest event wins).
+state=${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/bentwire-claude-hook-$(id -u)
+ordered() {
+    local n=$1
+    exec 9>"$state.run"
+    flock -w 15 9 || return 0
+    [ "$(cat "$state.seq" 2>/dev/null)" = "$n" ] || return 0
+    run
+}
+if command -v flock >/dev/null 2>&1; then
+    n=$(
+        exec 8>"$state.lock"
+        flock -w 2 8
+        n=$(($(cat "$state.seq" 2>/dev/null || echo 0) + 1))
+        echo "$n" >"$state.seq"
+        echo "$n"
+    )
+    ( ordered "$n" </dev/null >/dev/null 2>&1 & )
+else
+    ( run </dev/null >/dev/null 2>&1 & )
+fi
 exit 0

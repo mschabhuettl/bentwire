@@ -57,6 +57,21 @@ bw_advance 3000
 bw_check "daemon started Congratulate" bw_started '^play Congratulate$'
 bw_check "hooks print nothing" test ! -s "$BW_DIR/hook.out"
 
+echo "events stay in order"
+cat >"$BW_DIR/delay" <<EOF
+#!/bin/sh
+[ "\$*" = "play Thinking" ] && sleep 1
+exec "$BENTWIRE_CLI" "\$@"
+EOF
+chmod +x "$BW_DIR/delay"
+: >"$BW_LOG"
+BENTWIRE_CLI=$BW_DIR/delay fire UserPromptSubmit "{$SESSION,\"hook_event_name\":\"UserPromptSubmit\",\"prompt\":\"x\"}"
+BENTWIRE_CLI=$BW_DIR/delay fire Stop "{$SESSION,\"hook_event_name\":\"Stop\"}"
+bw_wait 10 bw_has '^play Congratulate$'
+sleep 2
+bw_check "a slow earlier event never overtakes a later one" \
+    test "$(grep -E '^play ' "$BW_LOG" | cut -f1 | tail -1)" = "play Congratulate"
+
 echo "hooks return at once"
 cat >"$BW_DIR/slow" <<'EOF'
 #!/bin/sh

@@ -57,7 +57,21 @@ for sh in bash zsh; do
         "play Processing|stop --all|play Congratulate|say Done|"
     bw_advance 5000
     bw_check "daemon started Congratulate and the done text" bw_started '^(play Congratulate|say Done)'
+
+    echo "$sh: long-running command ended by Ctrl-C (status 130)"
+    : >"$BW_LOG"
+    session $sh 'sleep 2.5; (exit 130)'
+    bw_wait 10 bw_has '^stop --all$'
+    sleep 1.5
+    bw_check "Processing, then only stop (no success)" test "$(cut -f1 "$BW_LOG" | tr '\n' '|')" = \
+        "play Processing|stop --all|"
 done
+
+echo "bash: the user's PROMPT_COMMAND still sees the exit status"
+printf '%s\n' "PROMPT_COMMAND='echo rc=\$? >>$BW_DIR/pc.log'" ". $INTEGRATION" true false '(exit 7)' exit |
+    bash --norc --noprofile -i >"$BW_DIR/pc.out" 2>&1
+bw_check "statuses 0, 1, 7 reach the existing PROMPT_COMMAND" \
+    test "$(tail -3 "$BW_DIR/pc.log" | tr '\n' ' ')" = "rc=0 rc=1 rc=7 "
 
 echo "prompt never waits for the CLI"
 cat >"$BW_DIR/slow" <<'EOF'
