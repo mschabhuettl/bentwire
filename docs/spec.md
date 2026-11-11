@@ -1558,9 +1558,10 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   metafile's own SetWindowOrg/SetWindowExt) in floating point and are rounded to whole
   device pixels. A pixel is covered iff its centre lies inside the shape: polygons with
   ALTERNATE (even-odd) or WINDING (nonzero), ellipses and round rectangles analytically.
-  Pens whose width scales (by the x factor) to at most 1 px are cosmetic one-pixel lines
-  (last point of a polyline excluded); wider pens cover every pixel within half the width
-  of a segment (round caps and joins). Drawing is clipped to the canvas, not to the
+  The pen width is scaled by the x factor and rounded to whole pixels; pens of at most
+  1 px after rounding are cosmetic one-pixel lines (last point of a polyline excluded);
+  wider pens cover every pixel within half the rounded width of a segment (round caps
+  and joins). Drawing is clipped to the canvas, not to the
   viewport. Composite children are placed by character-format 5.3's truncating map at the
   output size, also for the 2x sheet (computed from logical units, not by doubling 1x).
   Unknown record types fail the conversion; SetMapMode is taken as MM_ANISOTROPIC (the only
@@ -1576,8 +1577,9 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   the A-CONV-1 palette every stored colour matches exactly. Reason: indexed output (D2).
 - **W-ROP-1 R2_NOTXORPEN and other ROP2 codes.** Evaluated per RGB channel on the
   destination pixel's palette colour, then snapped by W-COL-1; operations that read the
-  destination leave transparent pixels transparent. Only 4 Hoverbot records use a code
-  other than R2_COPYPEN. Reason: Office 97 applied it to palette indices of its own back
+  destination leave transparent pixels transparent. TextOut glyphs and their opaque
+  background ignore ROP2, as in GDI. Only 4 Hoverbot records use a code other than
+  R2_COPYPEN. Reason: Office 97 applied it to palette indices of its own back
   buffer, which bentwire does not have.
 - **W-TEXT-1 TextOut.** Every face name (Albertus Medium, Courier New in the samples) is
   drawn with the bundled Wine Tahoma (the bold file for weight >= 600), bytes as cp1252,
