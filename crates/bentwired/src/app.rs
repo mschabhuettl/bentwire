@@ -73,7 +73,8 @@ pub struct App {
     pub config_paths: Vec<PathBuf>,
     pub state_path: PathBuf,
     pub next_token: u64,
-    pub pending: HashMap<u64, Message>,
+    /// Calls waiting for the core's reply: the message and its trace record.
+    pub pending: HashMap<u64, (Message, serde_json::Value)>,
     pub last_scene: Option<Scene>,
     pub rendered: Rendered,
     pub last_props: Option<Properties>,
@@ -146,7 +147,9 @@ impl App {
                 let token = self.next_token;
                 self.next_token += 1;
                 let sender = h.sender().map(|s| s.to_string()).unwrap_or_default();
-                self.pending.insert(token, msg.clone());
+                let rec = serde_json::json!({"type": "call", "sender": sender,
+                    "method": call_method(&c), "args": call_args(&c)});
+                self.pending.insert(token, (msg.clone(), rec));
                 self.event(Event::Call {
                     token,
                     sender,
@@ -373,9 +376,15 @@ impl App {
         for o in out {
             match o {
                 Output::Reply { token, result } => {
-                    let Some(msg) = self.pending.remove(&token) else {
+                    let Some((msg, mut rec)) = self.pending.remove(&token) else {
                         continue;
                     };
+                    match &result {
+                        Ok(ReplyValue::RequestId(id)) => rec["id"] = serde_json::json!(id),
+                        Err(e) => rec["error"] = serde_json::json!(e.name),
+                        _ => {}
+                    }
+                    self.trace(rec);
                     let h = msg.header();
                     match result {
                         Ok(ReplyValue::Unit) => dbus::reply(&self.conn, &h, &()),
@@ -469,7 +478,11 @@ impl App {
         if let Some(t) = &mut self.tray {
             let icon = scene.tray.icon_character.as_ref().and_then(|id| {
                 let lib = self.lib.borrow();
-                let i = lib.get(id)?.icon.as_ref()?;
+                let i = lib
+                    .get(id)?
+                    .icon
+                    .as_ref()
+                    .filter(|i| i.width > 0 && i.height > 0)?;
                 Some(crate::tray::sni_icon(i.width, i.height, &i.data))
             });
             t.update(&scene.tray, icon);
@@ -550,6 +563,42 @@ impl App {
         self.lib.borrow_mut().entries = entries;
         let catalog = self.lib.borrow().catalog();
         self.event(Event::Catalog(catalog));
+    }
+}
+
+fn call_method(c: &api::Call) -> &'static str {
+    use api::Call::*;
+    match c {
+        ListCharacters => "ListCharacters",
+        Select(_) => "Select",
+        Quit => "Quit",
+        Show { .. } => "Show",
+        Hide { .. } => "Hide",
+        Play(_) => "Play",
+        Speak(_) => "Speak",
+        Ask(_) => "Ask",
+        MoveTo { .. } => "MoveTo",
+        GestureAt { .. } => "GestureAt",
+        Stop(_) => "Stop",
+        StopAll(_) => "StopAll",
+        SetIdleOn(_) => "SetIdleOn",
+    }
+}
+
+/// Call arguments for the trace (A-DESK-4); Ask is recorded with its text and heading.
+fn call_args(c: &api::Call) -> serde_json::Value {
+    use api::Call::*;
+    use serde_json::json;
+    match c {
+        Select(s) | Play(s) | Speak(s) => json!([s]),
+        Show { fast } | Hide { fast } => json!([fast]),
+        Ask(a) => json!([{"heading": a.heading, "text": a.text}]),
+        MoveTo { x, y, speed } => json!([x, y, speed]),
+        GestureAt { x, y } => json!([x, y]),
+        Stop(id) => json!([id]),
+        StopAll(t) => json!([t]),
+        SetIdleOn(b) => json!([b]),
+        ListCharacters | Quit => json!([]),
     }
 }
 

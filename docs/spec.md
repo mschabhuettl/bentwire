@@ -1629,7 +1629,9 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   "buffer" | "subsurface" | "popup" | "destroy" | "unmap", ...}` (buffers and input
   regions as SHA-256 prefixes), `{"type": "signal", "member", "args", "dest"}` (`dest`
   null = broadcast), `{"type": "sound_start", "sound", "duration_ms"}`, `sound_stop`,
-  `output_added`, `output_removed`. `--dump-frames DIR` writes
+  `output_added`, `output_removed`, and `{"type": "call", "method", "args", "sender"}` for
+every Agent1/Character1 call the core answered, with `id` (request id) or `error`.
+`--dump-frames DIR` writes
   `<seq>-t<ms>-out<id>.png` per output whenever the drawn scene changes. Headless mode
   uses only the bundled fonts (A-FONT-1), opens no audio device and no tray item.
   Reason: the spec lists the contents, not the encoding.

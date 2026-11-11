@@ -460,6 +460,14 @@ fn t_4_trace_and_dump_frames() {
             .any(|l| l["type"] == "signal" && l["member"] == "Shown")
     );
     assert!(std::fs::read_dir(&frames).unwrap().count() > 0);
+    // A-DESK-4: accepted calls with method, arguments and request id.
+    let call = lines
+        .iter()
+        .find(|l| l["type"] == "call" && l["method"] == "Speak")
+        .expect("call line");
+    assert_eq!(call["args"], json!(["Hi"]));
+    assert!(call["id"].as_u64().unwrap() > 0);
+    assert!(call["sender"].as_str().unwrap().starts_with(':'));
 }
 
 #[test]

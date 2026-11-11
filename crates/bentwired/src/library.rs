@@ -78,7 +78,8 @@ pub fn picture(c: &Character, p: &Picture, density: u32) -> RgbaImage {
             .map(|f| c.compose_frame(f, None, density)),
         Picture::Pose(id) => c.manifest.poses.get(id).map(|l| c.compose(l, density)),
     };
-    match img {
+    // A-CHAR-4: compose returns 0x0 for oversized output; draw nothing then.
+    match img.filter(|i| i.width > 0 && i.height > 0) {
         Some(i) => RgbaImage {
             width: i.width,
             height: i.height,
