@@ -137,16 +137,29 @@ the shell running it: `pkill -f "^$PWD/target/debug/bentwired"`.
 
 ## Screenshots, GIFs and gallery
 
-Screenshots are made by `scripts/screenshots.sh` under headless sway with a fixed output
-size and seed, and are byte-identical on every run:
+Screenshots and animated GIFs are made by `scripts/screenshots.sh` on a real KDE Plasma 6
+desktop, run headless: KWin nested in headless sway, plasmashell with the default Breeze
+look and wallpaper, and the bentwire tray icon in the panel. The output is a fixed
+1280x720, with seed 1 and a frozen wall clock:
 
 ```sh
 cargo build -p bentwired -p bentwire && cargo build -p bentwired --examples
 scripts/screenshots.sh                                   # builtin only, into docs/screenshots/
 scripts/screenshots.sh --classics ../bentwire-classics   # classics, into that checkout's screenshots/
+scripts/screenshots.sh --classics ../bentwire-classics --gifs   # GIFs only (same as scripts/gifs.sh)
+scripts/screenshots.sh --classics ../bentwire-classics --all    # PNGs and GIFs
 ```
 
-It needs `sway`, `swaybg`, `grim`, `dbus-run-session`, `busctl` and `python3` with PIL.
+It needs `sway`, `grim`, `wf-recorder`, `ffmpeg`, `kwin-wayland`, `plasma-desktop`,
+`plasma-discover`, `dolphin`, `systemsettings` and `falkon` (they fill the default panel
+launchers), `breeze-icon-theme`, `fonts-noto-core`, `kded6`, `faketime`,
+`dbus-run-session`, `busctl` and `python3` with PIL. On Ubuntu, the `falkon` package's
+install script fails unless `/usr/share/qt5` exists (`sudo mkdir -p /usr/share/qt5`).
+Set `TMPDIR` to a directory on disk, since the session and the recordings do not fit a
+small tmpfs.
+
+The PNGs are byte-identical on every run. The GIFs are recorded in real time; two runs
+give the same frames, but a single frame time can differ by 50 ms.
 
 Images that show Microsoft characters are committed only to bentwire-classics; this
 repository's README embeds them by URL.
