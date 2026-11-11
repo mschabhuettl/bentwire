@@ -348,6 +348,7 @@ dependencies = [
  "toml",
  "wayland-client",
  "wayland-protocols",
+ "wayland-protocols-wlr",
  "zbus",
  "zip",
 ]
