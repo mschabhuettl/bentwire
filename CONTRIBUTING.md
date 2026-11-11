@@ -153,13 +153,15 @@ scripts/screenshots.sh --classics ../bentwire-classics --all    # PNGs and GIFs
 It needs `sway`, `grim`, `wf-recorder`, `ffmpeg`, `kwin-wayland`, `plasma-desktop`,
 `plasma-discover`, `dolphin`, `systemsettings` and `falkon` (they fill the default panel
 launchers), `breeze-icon-theme`, `fonts-noto-core`, `kded6`, `faketime`,
-`dbus-run-session`, `busctl` and `python3` with PIL. On Ubuntu, the `falkon` package's
+`dbus-run-session`, `busctl` and `python3` with PIL and NumPy. On Ubuntu, the `falkon` package's
 install script fails unless `/usr/share/qt5` exists (`sudo mkdir -p /usr/share/qt5`).
 Set `TMPDIR` to a directory on disk, since the session and the recordings do not fit a
 small tmpfs.
 
-The PNGs are byte-identical on every run. The GIFs are recorded in real time; two runs
-give the same frames, but a single frame time can differ by 50 ms.
+The GIF mode records at output scale 2 on a 120 Hz headless output and crops the bottom
+right of the desktop. The PNGs are byte-identical on every run. The GIFs are recorded in
+real time: some come out byte-identical, the others with the same frames, except that a
+single frame time can differ by 50 ms or one run has an extra short frame.
 
 Images that show Microsoft characters are committed only to bentwire-classics; this
 repository's README embeds them by URL.
