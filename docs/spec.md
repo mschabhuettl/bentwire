@@ -1636,9 +1636,12 @@ every Agent1/Character1 call the core answered, with `id` (request id) or `error
   `<seq>-t<ms>-out<id>.png` per output whenever the drawn scene changes. Headless mode
   uses only the bundled fonts (A-FONT-1), opens no audio device and no tray item.
   Reason: the spec lists the contents, not the encoding.
-- **A-DESK-5 Wayland details.** Every margin change asks for a frame callback; pointer
-  positions on the character are mapped with the last position whose callback arrived,
-  i.e. the one the compositor has applied (B-WL-7). A fractional output scale is the current mode width
+- **A-DESK-5 Wayland details.** Each margin commit is followed by a wl_display.sync;
+  its `done` marks the position as applied, so pointer events are mapped with the
+  position the compositor used for them. During an implicit grab the global position is
+  the press position plus zwp_relative_pointer_v1 deltas, because compositors differ in
+  how they report positions on a surface that moves under the grab (sway: relative to
+  the press-time position) (B-WL-7). A fractional output scale is the current mode width
   over the xdg-output logical width (no fractional-scale protocol). The Agent and the
   Office balloon are separate subsurfaces when both are open, the Office one above. A
   menu opened without a real press serial (Test1) is shown without a grab. Reason:
