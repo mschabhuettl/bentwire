@@ -104,7 +104,7 @@ impl ksni::Tray for BwTray {
                 MenuEntry::Item { label, action } => {
                     let action: MenuAction = *action;
                     StandardItem {
-                        label: dbusmenu_label(label),
+                        label: dbusmenu_label(&label.replace('\0', "")),
                         activate: Box::new(move |t: &mut BwTray| {
                             let _ = t.tx.send(TrayInput::Menu(action));
                         }),
@@ -151,8 +151,9 @@ impl Tray {
         self.last = Some(key);
         let s = s.clone();
         self.handle.update(move |t| {
-            t.title = s.title;
-            t.tooltip = s.tooltip;
+            // D-Bus strings must not contain U+0000 (see dbus::safe).
+            t.title = s.title.replace('\0', "");
+            t.tooltip = s.tooltip.replace('\0', "");
             t.menu = s.menu;
             t.icon = vec![icon.unwrap_or_else(own_icon)];
         });

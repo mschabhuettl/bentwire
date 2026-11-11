@@ -1034,3 +1034,58 @@ fn t_4_trace_keyboard_interactivity_and_popup() {
     assert_eq!(buf["buffer_scale"], 1);
     assert_eq!(buf["format"], "argb8888");
 }
+
+/// Regression: a description with U+0000 (as in a converted Bob actor) made the bus
+/// disconnect the daemon on ListCharacters, since D-Bus strings must not contain NUL.
+#[test]
+fn spec_5_2_list_characters_with_nul_in_character_data() {
+    let mut e = Env::new("nul");
+    let pack = e.dir.join("packs/characters/nulpack");
+    let ch = pack.join("nully");
+    std::fs::create_dir_all(ch.join("sheets")).unwrap();
+    std::fs::write(
+        pack.join("pack.toml"),
+        "name = \"nul test\"\nlicence = \"CC0\"\n",
+    )
+    .unwrap();
+    let src = fixtures().join("pebble");
+    std::fs::copy(src.join("sheets/a.png"), ch.join("sheets/a.png")).unwrap();
+    let toml = std::fs::read_to_string(src.join("character.toml"))
+        .unwrap()
+        .replace(
+            "description = \"Synthetic test character.\"",
+            "description = \"TO: \\u0003\\u0000\\u0002 end\"",
+        )
+        .replace("name = \"Pebble\"", "name = \"Nu\\u0000lly\"");
+    assert!(toml.contains("\\u0000"));
+    std::fs::write(ch.join("character.toml"), toml).unwrap();
+    let packs = e.dir.join("packs/characters");
+    e.start_raw(&["--characters", packs.to_str().unwrap()]);
+    e.advance(1000);
+    let c = e.client();
+    let list: Vec<(String, String, String)> = c
+        .conn
+        .call_method(
+            Some("org.bentwire.Agent"),
+            AGENT,
+            Some(AGENT_IF),
+            "ListCharacters",
+            &(),
+        )
+        .expect("ListCharacters must not kill the daemon")
+        .body()
+        .deserialize()
+        .unwrap();
+    assert_eq!(
+        list,
+        vec![("nully".into(), "Nully".into(), "TO: \u{3}\u{2} end".into())]
+    );
+    assert_eq!(
+        String::try_from(e.prop(CHAR, CHAR_IF, "Name")).unwrap(),
+        "Nully"
+    );
+    let (code, so, se) = out(&e.cli(&["characters"]));
+    assert_eq!(code, 0, "{se}");
+    assert_eq!(so, "nully\tNully\t*\n");
+    assert!(e.name_owned(), "daemon still on the bus");
+}

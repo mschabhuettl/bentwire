@@ -6,6 +6,17 @@ use zbus::blocking::{Connection, MessageIterator};
 use zbus::message::Type;
 use zbus::zvariant::{OwnedValue, Value};
 
+/// `println!` that ends quietly when stdout is closed (`bentwire characters | head -1`)
+/// instead of panicking on the broken pipe.
+macro_rules! outln {
+    ($($t:tt)*) => {{
+        use std::io::Write;
+        if writeln!(std::io::stdout(), $($t)*).is_err() {
+            std::process::exit(0);
+        }
+    }};
+}
+
 const BUS_NAME: &str = "org.bentwire.Agent";
 const AGENT_PATH: &str = "/org/bentwire/Agent";
 const CHAR_PATH: &str = "/org/bentwire/Character";
@@ -280,7 +291,7 @@ where
 {
     let mut c = Client::new(wait)?;
     let (id,): (u32,) = c.call(CHAR_PATH, CHAR_IFACE, method, body)?;
-    println!("{id}");
+    outln!("{id}");
     if wait {
         use std::io::Write;
         std::io::stdout().flush().ok();
@@ -348,10 +359,10 @@ fn ask(args: &[String]) -> Result<(), Fail> {
     if status == 1 {
         return Err(Fail::Exit(2, Some(format!("request failed: {reason}"))));
     }
-    println!("{}", result_name(result));
+    outln!("{}", result_name(result));
     if !o.all("--checkbox").is_empty() {
         let v: Vec<&str> = checked.iter().map(|b| if *b { "1" } else { "0" }).collect();
-        println!("checked:{}", v.join(","));
+        outln!("checked:{}", v.join(","));
     }
     if status == 3 {
         return Err(Fail::Exit(3, Some(format!("interrupted: {reason}"))));
@@ -429,9 +440,9 @@ fn run(args: &[String]) -> Result<(), Fail> {
                 String::try_from(c.prop(AGENT_PATH, AGENT_IFACE, "Character")?).unwrap_or_default();
             for (id, name, _) in list {
                 if id == cur {
-                    println!("{id}\t{name}\t*");
+                    outln!("{id}\t{name}\t*");
                 } else {
-                    println!("{id}\t{name}");
+                    outln!("{id}\t{name}");
                 }
             }
             Ok(())
@@ -452,7 +463,7 @@ fn run(args: &[String]) -> Result<(), Fail> {
             let v = c.prop(CHAR_PATH, CHAR_IFACE, "AnimationNames")?;
             let names = <Vec<String>>::try_from(v).unwrap_or_default();
             for n in names {
-                println!("{n}");
+                outln!("{n}");
             }
             Ok(())
         }
@@ -461,7 +472,7 @@ fn run(args: &[String]) -> Result<(), Fail> {
             let c = Client::new(false)?;
             let character =
                 String::try_from(c.prop(AGENT_PATH, AGENT_IFACE, "Character")?).unwrap_or_default();
-            println!("character={character}");
+            outln!("character={character}");
             if character.is_empty() {
                 return Ok(());
             }
@@ -479,10 +490,10 @@ fn run(args: &[String]) -> Result<(), Fail> {
                     None => String::new(),
                 }
             };
-            println!("visible={}", show("Visible"));
-            println!("left={}", show("Left"));
-            println!("top={}", show("Top"));
-            println!("idle={}", show("IdleOn"));
+            outln!("visible={}", show("Visible"));
+            outln!("left={}", show("Left"));
+            outln!("top={}", show("Top"));
+            outln!("idle={}", show("IdleOn"));
             Ok(())
         }
         "quit" => {

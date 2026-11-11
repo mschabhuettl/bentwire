@@ -389,7 +389,13 @@ impl App {
                     match result {
                         Ok(ReplyValue::Unit) => dbus::reply(&self.conn, &h, &()),
                         Ok(ReplyValue::RequestId(id)) => dbus::reply(&self.conn, &h, &(id,)),
-                        Ok(ReplyValue::Characters(v)) => dbus::reply(&self.conn, &h, &(v,)),
+                        Ok(ReplyValue::Characters(v)) => {
+                            let v: Vec<(String, String, String)> = v
+                                .iter()
+                                .map(|(a, b, c)| (dbus::safe(a), dbus::safe(b), dbus::safe(c)))
+                                .collect();
+                            dbus::reply(&self.conn, &h, &(v,))
+                        }
                         Err(e) => dbus::reply_error(&self.conn, &h, &e),
                     }
                 }

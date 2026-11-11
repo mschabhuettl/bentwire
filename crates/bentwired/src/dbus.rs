@@ -225,7 +225,7 @@ pub fn parse_ask(m: &HashMap<String, OwnedValue>) -> Result<AskSpec, CallError> 
 }
 
 pub fn reply_error(conn: &Connection, h: &Header<'_>, e: &CallError) {
-    if let Err(err) = conn.reply_error(h, e.name.as_str(), &e.message) {
+    if let Err(err) = conn.reply_error(h, e.name.as_str(), &safe(&e.message)) {
         log::warn!("D-Bus error reply failed: {err}");
     }
 }
@@ -363,11 +363,18 @@ pub fn emit(conn: &Connection, dest: Option<&str>, s: &Signal) {
     }
 }
 
+/// D-Bus strings must not contain U+0000; the bus disconnects a sender that sends one.
+/// Character data can (a Bob actor's description does), so every string that comes from
+/// a character goes through this before it is sent.
+pub fn safe(s: &str) -> String {
+    s.replace('\0', "")
+}
+
 pub fn char_props_map(p: &Properties) -> HashMap<&'static str, Value<'static>> {
     let mut m = HashMap::new();
-    m.insert("Id", Value::from(p.character.clone()));
-    m.insert("Name", Value::from(p.name.clone()));
-    m.insert("Description", Value::from(p.description.clone()));
+    m.insert("Id", Value::from(safe(&p.character)));
+    m.insert("Name", Value::from(safe(&p.name)));
+    m.insert("Description", Value::from(safe(&p.description)));
     m.insert("Visible", Value::from(p.visible));
     m.insert("Left", Value::from(p.left));
     m.insert("Top", Value::from(p.top));
@@ -377,13 +384,21 @@ pub fn char_props_map(p: &Properties) -> HashMap<&'static str, Value<'static>> {
     m.insert("MoveCause", Value::from(p.move_cause));
     m.insert("VisibilityCause", Value::from(p.visibility_cause));
     m.insert("BalloonEnabled", Value::from(p.balloon_enabled));
-    m.insert("AnimationNames", Value::from(p.animation_names.clone()));
+    m.insert(
+        "AnimationNames",
+        Value::from(
+            p.animation_names
+                .iter()
+                .map(|n| safe(n))
+                .collect::<Vec<_>>(),
+        ),
+    );
     m
 }
 
 pub fn agent_props_map(character: &str) -> HashMap<&'static str, Value<'static>> {
     let mut m = HashMap::new();
-    m.insert("Character", Value::from(character.to_string()));
+    m.insert("Character", Value::from(safe(character)));
     m.insert(
         "Version",
         Value::from(env!("CARGO_PKG_VERSION").to_string()),
@@ -545,6 +560,12 @@ fn sig_parts(s: &str) -> Vec<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn spec_5_2_strings_without_nul() {
+        assert_eq!(safe("a\0b\0"), "ab");
+        assert_eq!(safe("ok"), "ok");
+    }
 
     #[test]
     fn sig_parts_split() {
