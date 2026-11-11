@@ -21,3 +21,6 @@ log = "0.4"
 env_logger = { version = "0.11", default-features = false, features = ["auto-color", "humantime"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 rodio = { version = "0.21", default-features = false, features = ["playback"] }
+smithay-client-toolkit = "0.21"
+wayland-client = "0.31"
+wayland-protocols = { version = "0.32", features = ["client", "staging"] }

@@ -7,6 +7,7 @@ mod discovery;
 mod library;
 mod model;
 mod present;
+mod wayland;
 
 use app::{App, Backend, Clock};
 use bentwire_core::Core;
@@ -32,7 +33,10 @@ impl Backend for Headless {
 }
 
 fn main() -> ExitCode {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    env_logger::Builder::from_env(
+        env_logger::Env::default().default_filter_or("info,zbus=error,tracing=error"),
+    )
+    .init();
     let args = match args::parse(std::env::args().skip(1)) {
         Ok(a) => a,
         Err(e) => {
@@ -119,16 +123,37 @@ fn run(args: args::Args) -> Result<(), String> {
         })
         .map_err(|e| e.to_string())?;
 
-    let outputs: Vec<OutputInfo> = args
-        .outputs
-        .iter()
-        .enumerate()
-        .map(|(i, o)| OutputInfo {
-            id: i as u32,
-            rect: Rect::new(o.x, o.y, o.w as i32, o.h as i32),
-            scale: o.scale,
-        })
-        .collect();
+    let mut wl = None;
+    let outputs: Vec<OutputInfo> = if args.headless {
+        args.outputs
+            .iter()
+            .enumerate()
+            .map(|(i, o)| OutputInfo {
+                id: i as u32,
+                rect: Rect::new(o.x, o.y, o.w as i32, o.h as i32),
+                scale: o.scale,
+            })
+            .collect()
+    } else {
+        let w = wayland::Wayland::connect()?;
+        let fd = w.fd();
+        // The Wayland socket only wakes the loop; the backend reads and dispatches in poll().
+        let source = calloop::generic::Generic::new(
+            unsafe { calloop::generic::FdWrapper::new(fd) },
+            calloop::Interest::READ,
+            calloop::Mode::Level,
+        );
+        event_loop
+            .handle()
+            .insert_source(source, |_, _, app: &mut App| {
+                app.backend_events();
+                Ok(calloop::PostAction::Continue)
+            })
+            .map_err(|e| e.to_string())?;
+        let o = w.outputs();
+        wl = Some(w);
+        o
+    };
     let draws: Box<dyn bentwire_core::api::Draws> = match (&args.draws, args.seed) {
         (Some(d), _) => {
             let text = std::fs::read_to_string(d).map_err(|e| format!("{}: {e}", d.display()))?;
@@ -211,7 +236,10 @@ fn run(args: args::Args) -> Result<(), String> {
         test_full: headless,
         next_output_id: outputs.len() as u32,
         outputs,
-        backend: Box::new(Headless),
+        backend: match wl {
+            Some(w) => Box::new(w),
+            None => Box::new(Headless),
+        },
         audio: if headless || args.no_audio {
             None
         } else {
@@ -240,6 +268,7 @@ fn run(args: args::Args) -> Result<(), String> {
     app.process(out);
 
     while !app.quit {
+        app.backend.flush();
         let timeout = app.timeout();
         event_loop
             .dispatch(timeout, &mut app)

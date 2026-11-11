@@ -41,6 +41,12 @@ pub trait Backend {
     fn present(&mut self, r: &Rendered, scene: &Scene);
     /// Events gathered since the last call.
     fn poll(&mut self) -> Vec<Event>;
+    /// Send buffered requests before the loop sleeps.
+    fn flush(&mut self) {}
+    /// What the backend has actually requested from the compositor (Test1.Snapshot).
+    fn snapshot(&self) -> serde_json::Value {
+        serde_json::Value::Null
+    }
 }
 
 pub struct App {
@@ -333,6 +339,7 @@ impl App {
             "agent_balloon_lines": s.agent_balloon.as_ref().map(|b| b.lines.clone()),
             "menu": menu,
             "tray": {"title": s.tray.title, "tooltip": s.tray.tooltip},
+            "backend": self.backend.snapshot(),
             "outputs": self.outputs.iter().map(|o| json!({"id": o.id, "x": o.rect.x,
                 "y": o.rect.y, "w": o.rect.w, "h": o.rect.h, "scale": o.scale})).collect::<Vec<_>>(),
         })
