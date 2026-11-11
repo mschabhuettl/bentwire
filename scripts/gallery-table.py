@@ -7,7 +7,7 @@ usage: gallery-table.py PACKDIR README
 One cell per character: rest-pose image gallery/<id>.png, English name, id, family and
 source product. The product comes from the manifest's [source] format (PRODUCT), with the
 per-id exceptions that the format cannot tell (PRODUCT_BY_ID). Rows are ordered by product
-(order of GROUPS), then id, five cells per row. Alt texts are "<name> (<product>)"; when
+(order of GROUPS), then the order of PRODUCT_BY_ID, then id, five cells per row. Alt texts are "<name> (<product>)"; when
 two characters would still share one, the id is added.
 """
 import sys
@@ -72,7 +72,9 @@ def main():
             chars.append(entry(p.stem, manifest(p)))
         elif (p / "character.toml").is_file():
             chars.append(entry(p.name, manifest(p)))
-    chars.sort(key=lambda c: (GROUPS.index(c["product"]), c["id"]))
+    order = list(PRODUCT_BY_ID)
+    rank = lambda c: order.index(c["id"]) if c["id"] in order else -1
+    chars.sort(key=lambda c: (GROUPS.index(c["product"]), rank(c), c["id"]))
     for c in chars:
         # "Microsoft Agent 1.5 (third-party)" -> "Microsoft Agent 1.5, third-party"
         name = "Unnamed character" if c["name"] == "(unnamed)" else c["name"]

@@ -169,7 +169,10 @@ repository's README embeds them by URL.
 The gallery images (every character in its rest pose, 1x, transparent background) are
 made by `scripts/gallery.sh`, byte-identical on every run. It writes `docs/gallery/` for
 the `builtin` pack and `gallery/` of the classics checkout in `BENTWIRE_CLASSICS` (default
-`../bentwire-classics`; skipped with a note when it is not there):
+`../bentwire-classics`; skipped with a note when it is not there). For the classics pack it
+also rewrites the gallery table in its `README.md` between `<!-- gallery:start -->` and
+`<!-- gallery:end -->` (`scripts/gallery-table.py`; the product of each character comes
+from the format in `[source]` plus a per-id exception table there):
 
 ```sh
 scripts/gallery.sh
