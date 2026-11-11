@@ -290,6 +290,25 @@ pub fn round_trip_with(
         .collect();
     assert!(!list.is_empty(), "no samples of kind {kind}");
     let tmp = temp_dir(&format!("{kind}-rt"));
+    // The prototype caches by file name: a second file of the same name (two copies of
+    // Ozzar.acs) runs from a renamed copy.
+    let mut seen = std::collections::HashSet::new();
+    let list: Vec<PathBuf> = list
+        .into_iter()
+        .enumerate()
+        .map(|(i, p)| {
+            if seen.insert(p.file_name().unwrap().to_owned()) || p.is_dir() {
+                return p;
+            }
+            let q = tmp.join(format!(
+                "{}-{i}.{}",
+                p.file_stem().unwrap().to_string_lossy(),
+                p.extension().unwrap().to_string_lossy()
+            ));
+            std::fs::copy(&p, &q).unwrap();
+            q
+        })
+        .collect();
     let results = par_map(&list, |path| {
         let stem = path
             .file_stem()

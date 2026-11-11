@@ -34,8 +34,11 @@ All have version 0x20001 and animation set 2.0 (`docs/research/acs-format.md` se
 | `ROCKY.ACS` | Microsoft Agent 2.0 character | ACS 0x20001 | 3,006,178 | `952ba4531bf748dacdc7314e7b934889fb06a01687f00f7b0e10850112788eea` |
 | `courtney.acs` | Microsoft Agent 2.0 character | ACS 0x20001 | 816,535 | `daa0c43f23a91674f62600c64acfd4c29636c86db4248ab01644e3d04664d92d` |
 | `earl.acs` | Microsoft Agent 2.0 character | ACS 0x20001 | 1,472,718 | `7698d85971d3b19ed424b841624d87a740d2cd7062becf1e71d96c16c2999a90` |
+| `genie.acs` | Microsoft Agent 2.0 character (standalone download) | ACS 0x20001 | 2,004,847 | `87887195179efe07ad6ee7a44fafbc0fa6b96d0990ec604f5651951c647f8f9e` |
 | `merlin.acs` | Microsoft Agent 2.0 character | ACS 0x20001 | 2,180,663 | `a88151f313bea60002c5e5cb8b4d7dc5e2d919ba8fe78db1a4d05279a9ad58d7` |
+| `peedy.acs` | Microsoft Agent 2.0 character (standalone download) | ACS 0x20001 | 4,145,462 | `b8112187525051bfade06cb678390d52c79555c960202cc5bbf5901fbc0853c5` |
 | `qmark.acs` | Microsoft Agent 2.0 character | ACS 0x20001 | 1,174,050 | `08a13b0f04e97da4a6d8be0ddbec1e6f1b1244398109cfe3fcd518eb7332d163` |
+| `robby.acs` | Microsoft Agent 2.0 character (standalone download) | ACS 0x20001 | 2,616,483 | `b8b1d44cecfd53bb7f9e8f483ab2dab0274314fda0c389214451305dbad9efa5` |
 | `rover.acs` | Microsoft Agent 2.0 character | ACS 0x20001 | 1,861,820 | `1b2cd6df82cf583d6d8817c19f5154b221d33b00650d41359a917080b64327d2` |
 
 ### 1.2 Agent 2.0 web characters (ACF + ACA)
@@ -55,9 +58,10 @@ Peedy 72, Robby 52) did not survive.
 
 ### 1.3 Agent 1.5 characters (OLE ACS)
 
-`docs/research/agent15-format.md` section 3.1. The `Ozzar.acs` listed here has two damaged
-animation streams (one bit error each in the compressed data, `agent15-format.md`
-section 8.2).
+`docs/research/agent15-format.md` section 3.1. `Ozzar.acs` is listed twice: the first copy
+has two damaged animation streams (one bit error each in the compressed data,
+`agent15-format.md` section 8.2) and is read by the tests only; the second, a different copy
+of the same file name, is the one the pack is built from.
 
 | File | Product | Version | Bytes | SHA-256 |
 |---|---|---|---|---|
@@ -68,6 +72,7 @@ section 8.2).
 | `Max.acs` | third-party Agent 1.5 character | ACF 0x1001F | 581,120 | `72b9189584b3c4925de510a3cdece910cad7eab413724517162a3be66257097a` |
 | `Miku.acs` | third-party Agent 1.5 character | ACF 0x1001F | 13,824 | `3d792565767898d085323aced25cce9a37d9327fa28de2ab47720e679e11e0fc` |
 | `Ozzar.acs` | third-party Agent 1.5 character | ACF 0x1001F | 4,286,464 | `0e47edee88f3cae7d0cf1c80e2869cb47c1217c8dd7c833a8ba6830ceba75165` |
+| `Ozzar.acs` | third-party Agent 1.5 character (second copy) | ACF 0x1001F | 4,286,464 | `c6d1eafb646af38408cf06dcb505cd0d262bc096f4b6059ecb609135c6668245` |
 | `Sharky.acs` | third-party Agent 1.5 character | ACF 0x1001E | 933,888 | `3119ae86024fb7a7c660121723ad3f23f27fdde5c70e1a139aee293eb7308260` |
 | `Spaceman.acs` | third-party Agent 1.5 character | ACF 0x1001F | 442,368 | `490a5b57bf4139206525bbe7643af87ba9888bcdd7e429a234af606ec32bc580` |
 | `Totem.acs` | third-party Agent 1.5 character | ACF 0x1001F | 1,033,216 | `ea2970bdb80a86e552ec9c67b08c5282ce41d43d5cbde8a26857adae1159cc40` |

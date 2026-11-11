@@ -33,8 +33,31 @@ fn repo() -> PathBuf {
 }
 
 /// Runs `scripts/oracle/<script>` on `files` and returns one JSON value per file, read from
-/// `<out>/<basename>.json`.
+/// `<out>/<basename>.json`. Files that share a basename (two copies of `Ozzar.acs`) go to
+/// separate runs.
 pub fn python(script: &str, files: &[PathBuf], extra: &[&str]) -> Vec<Value> {
+    let name = |f: &PathBuf| f.file_name().unwrap().to_owned();
+    let mut runs: Vec<Vec<usize>> = Vec::new();
+    for (i, f) in files.iter().enumerate() {
+        match runs
+            .iter_mut()
+            .find(|r| r.iter().all(|&j| name(&files[j]) != name(f)))
+        {
+            Some(r) => r.push(i),
+            None => runs.push(vec![i]),
+        }
+    }
+    let mut res = vec![Value::Null; files.len()];
+    for run in runs {
+        let part: Vec<PathBuf> = run.iter().map(|&i| files[i].clone()).collect();
+        for (i, v) in run.into_iter().zip(python_run(script, &part, extra)) {
+            res[i] = v;
+        }
+    }
+    res
+}
+
+fn python_run(script: &str, files: &[PathBuf], extra: &[&str]) -> Vec<Value> {
     let reference = agent_fixtures::real::reference_root();
     let out = temp_dir("oracle");
     let st = Command::new("python3")
