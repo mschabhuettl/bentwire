@@ -268,3 +268,24 @@ fn act_rejects_group_entries_used_twice() {
         })
     ));
 }
+
+#[test]
+fn act_rejects_group_entries_pointing_at_one_blob() {
+    // review finding: distinct entries sharing one blob must not multiply memory.
+    // String entries are written in reverse group order (40: 0, 1; 8: 2; 1: 3); point
+    // all four at entry 2, so their total exceeds the string data section.
+    let mut b = fx::bitmap_actor().to_bytes();
+    let (_, sidx) = section(&b, 7);
+    let ents = sidx + 4 + 6 * 3;
+    let e2: [u8; 6] = b[ents + 12..ents + 18].try_into().unwrap();
+    for k in [0, 1, 3] {
+        b[ents + 6 * k..ents + 6 * k + 6].copy_from_slice(&e2);
+    }
+    assert!(matches!(
+        act::parse(&b),
+        Err(ActError::Invalid {
+            what: "group index",
+            ..
+        })
+    ));
+}

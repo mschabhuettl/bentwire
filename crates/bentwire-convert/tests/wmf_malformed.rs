@@ -139,3 +139,41 @@ fn d2_wmf_extreme_destination_rectangles_never_panic() {
         }
     }
 }
+
+#[test]
+fn d2_wmf_long_wide_pen_zigzag_is_bounded() {
+    // review finding: 16,000-point polyline with a 2 px pen took 8 s before per-row spans
+    let pts: Vec<(i16, i16)> = (0..16_000)
+        .map(|i| ((i % 2) * 380, (i % 288) as i16))
+        .collect();
+    let part = WmfBuilder::new([0, 0, 384, 288])
+        .window([0, 0], [384, 288])
+        .pen(0, 2, [0, 0, 0])
+        .select(0)
+        .polyline(&pts)
+        .build();
+    let mut a = wmf_actor();
+    a.payloads = vec![PayloadSpec::Wmf(part)];
+    a.rest_pose = 0;
+    a.animations = vec![(1, vec![vec![(0, 0, 100)]])];
+    let f = act::parse(&a.to_bytes()).unwrap();
+    let Payload::Wmf(w) = &f.payloads[0] else {
+        panic!()
+    };
+    let mut c = Canvas::new(384, 288, vec![[0, 0, 0], [255, 0, 255]], 1);
+    let t = std::time::Instant::now();
+    wmf::draw(
+        &mut c,
+        w,
+        PixelRect {
+            left: 0,
+            top: 0,
+            right: 384,
+            bottom: 288,
+        },
+    )
+    .unwrap();
+    let s = t.elapsed().as_secs_f64();
+    assert!(s < 20.0, "{s} s");
+    assert!(c.pixels.iter().any(|&p| p == 0));
+}
