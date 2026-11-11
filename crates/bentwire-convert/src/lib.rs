@@ -5,6 +5,7 @@ pub mod acs;
 pub mod act;
 pub mod build;
 mod lcid_table;
+pub mod placeholder;
 pub mod sound;
 pub mod wmf;
 
