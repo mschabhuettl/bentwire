@@ -14,7 +14,7 @@ use bentwire_convert::wmf::{self, Canvas};
 fn samples() -> Vec<PathBuf> {
     let r = match std::env::var_os("BENTWIRE_REFERENCE") {
         Some(p) => PathBuf::from(p),
-        None => panic!("NOT RUN: set BENTWIRE_REFERENCE=$BENTWIRE_REFERENCE"),
+        None => panic!("NOT RUN: set BENTWIRE_REFERENCE"),
     };
     let base = r.join("act/downloads");
     let mut out = Vec::new();
