@@ -69,7 +69,7 @@ its default configuration. None of it is part of this repository.
   [SIL Open Font License 1.1](https://openfontlicense.org/)
   ([notofonts](https://github.com/notofonts/notofonts.github.io)).
 
-KDE® and Plasma® are registered trademarks of KDE e.V.
+KDE® and the K Desktop Environment® logo are registered trademarks of KDE e.V.
 
 ## Rust crates
 
