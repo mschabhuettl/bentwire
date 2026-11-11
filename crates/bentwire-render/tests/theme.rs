@@ -26,8 +26,8 @@ const NORMAL: [u8; 4] = [255, 0, 255, 255];
 const HOT: [u8; 4] = [0, 255, 255, 255];
 const ICON: [u8; 4] = [10, 20, 30, 255];
 
-fn theme_dir() -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("bentwire-theme-test-{}", std::process::id()));
+fn theme_dir(tag: &str) -> std::path::PathBuf {
+    let dir = std::env::temp_dir().join(format!("bentwire-theme-{tag}-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(
         dir.join("theme.toml"),
@@ -66,7 +66,7 @@ fn px(img: &RgbaImage, x: u32, y: u32) -> [u8; 4] {
 
 #[test]
 fn a_theme_1_theme_art_replaces_look_alike() {
-    let dir = theme_dir();
+    let dir = theme_dir("ok");
     let theme = Theme::load(&dir).unwrap();
     let button = |x, state| ButtonScene {
         rect: Rect::new(x, 50, 60, 22),
@@ -110,6 +110,15 @@ fn a_theme_1_rejects_unknown_format() {
     let dir = std::env::temp_dir().join(format!("bentwire-theme-bad-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(dir.join("theme.toml"), "format = 2\n").unwrap();
+    assert!(Theme::load(&dir).is_err());
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
+fn a_theme_1_rejects_mismatched_button_strips() {
+    let dir = theme_dir("mismatch");
+    // Middle strip one row shorter than the caps.
+    write_png(&dir.join("m.png"), &solid(5, 21, &[NORMAL, HOT])).unwrap();
     assert!(Theme::load(&dir).is_err());
     std::fs::remove_dir_all(&dir).unwrap();
 }

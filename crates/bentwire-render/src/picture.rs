@@ -3,6 +3,16 @@
 
 use crate::canvas::{Canvas, Rect, Region, RgbaImage};
 
+impl From<&bentwire_character::Rgba> for RgbaImage {
+    fn from(p: &bentwire_character::Rgba) -> Self {
+        RgbaImage {
+            width: p.width,
+            height: p.height,
+            data: p.data.clone(),
+        }
+    }
+}
+
 /// A wl_shm ARGB8888 buffer plus the input region in logical coordinates.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ShmBuffer {
@@ -28,7 +38,7 @@ pub fn picture_buffer(pic: &RgbaImage, w: u32, h: u32, scale: u32) -> ShmBuffer 
         height: bh,
         stride: bw * 4,
         data: c.to_argb8888(),
-        input_region: logical_shape(pic, w, h).rects(),
+        input_region: logical_shape(&c.to_rgba(), w, h).rects(),
     }
 }
 
@@ -136,6 +146,16 @@ mod tests {
         );
         assert_eq!(&b.data[..16], &b.data[16..]);
         assert_eq!(b.input_region, vec![Rect::new(0, 0, 2, 1)]);
+    }
+
+    #[test]
+    fn b_ren_4_region_follows_displayed_pixels() {
+        // A 2x1 picture squeezed into 1x1 samples only the transparent right pixel.
+        let mut pic = RgbaImage::new(2, 1);
+        pic.data[..4].copy_from_slice(&[1, 1, 1, 255]);
+        let b = picture_buffer(&pic, 1, 1, 1);
+        assert_eq!(b.data, vec![0, 0, 0, 0]);
+        assert!(b.input_region.is_empty());
     }
 
     #[test]

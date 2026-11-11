@@ -154,18 +154,30 @@ impl Theme {
             })
         };
         let mut buttons = Vec::new();
-        for b in f.buttons.values() {
-            buttons.push(ButtonArt {
+        for (name, b) in &f.buttons {
+            let art = ButtonArt {
                 left: strip(&b.left, &b.frames)?,
                 middle: strip(&b.middle, &b.frames)?,
                 right: strip(&b.right, &b.frames)?,
-            });
+            };
+            let h = art.left.img.height;
+            if b.frames.is_empty()
+                || [&art.left, &art.middle, &art.right]
+                    .iter()
+                    .any(|s| s.img.height != h || s.img.width % s.frames.len() as u32 != 0)
+            {
+                return Err(ThemeError(format!(
+                    "{}: button strips [buttons.{name}] differ in height or frame width",
+                    path.display()
+                )));
+            }
+            buttons.push(art);
         }
         let bullet = match f.bullets {
             Some(BulletFiles {
                 label: Some(l),
                 label_frames,
-            }) => Some(strip(&l, &label_frames)?),
+            }) if !label_frames.is_empty() => Some(strip(&l, &label_frames)?),
             _ => None,
         };
         let mut icons = HashMap::new();
