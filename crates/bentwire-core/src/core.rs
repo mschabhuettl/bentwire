@@ -594,7 +594,7 @@ impl Core {
             Call::Stop(id) => {
                 self.reply(token, Ok(ReplyValue::Unit));
                 if id == 0 {
-                    self.stop_where(|_| true, false, errors::INTERRUPTED);
+                    self.stop_scope(None);
                 } else {
                     self.stop_id(id);
                 }
@@ -608,15 +608,7 @@ impl Core {
                     );
                 }
                 self.reply(token, Ok(ReplyValue::Unit));
-                if types.is_empty() {
-                    self.stop_where(|_| true, true, errors::INTERRUPTED);
-                } else {
-                    self.stop_where(
-                        |k| types.iter().any(|t| t == k.category()),
-                        true,
-                        errors::INTERRUPTED,
-                    );
-                }
+                self.stop_scope(Some(&types));
             }
             c => {
                 let Some(ch) = &self.ch else {
@@ -1661,7 +1653,7 @@ impl Core {
 
     /// B-CHAR-5.
     fn switch_to(&mut self, model: Arc<CharacterModel>, gallery: bool) {
-        self.interrupt_all(errors::CHARACTER_CHANGED, true);
+        self.interrupt_all(errors::CHARACTER_CHANGED);
         if !gallery && self.ask.as_ref().is_some_and(|a| a.id != 0) {
             self.close_ask(0, 3, errors::CHARACTER_CHANGED);
         }
@@ -1720,7 +1712,7 @@ impl Core {
     }
 
     /// Every queued and running request ends with status 3.
-    fn interrupt_all(&mut self, reason: &str, include_ask: bool) {
+    fn interrupt_all(&mut self, reason: &str) {
         let q: Vec<Req> = self.queue.drain(..).collect();
         self.interrupt_running(reason);
         for r in q {
@@ -1728,50 +1720,40 @@ impl Core {
                 self.complete(r.id, &r.sender, 3, reason);
             }
         }
-        if include_ask && self.ask.as_ref().is_some_and(|a| a.id != 0) {
-            let _ = reason;
-        }
     }
 
-    /// Stop(0) and StopAll: remove queued requests matching `pred`; stop the running one
-    /// (Show/Hide only when `showhide`); close a matching ask.
-    fn stop_where(&mut self, pred: impl Fn(&Kind) -> bool, all: bool, reason: &str) {
-        let mut keep = VecDeque::new();
-        let mut removed = Vec::new();
-        for r in self.queue.drain(..) {
-            let showhide = matches!(r.kind, Kind::Show { .. } | Kind::Hide { .. });
-            if pred(&r.kind) && (!showhide || all || true) {
-                removed.push(r);
-            } else {
-                keep.push_back(r);
-            }
-        }
-        self.queue = keep;
-        // B-Q-4: a running Show or Hide continues for Stop(0); StopAll([]) stops it.
+    /// Stop(0) (`types = None`, a running Show/Hide continues), StopAll([]) (`Some([])`,
+    /// everything) and StopAll(types) (B-Q-4, B-Q-5).
+    fn stop_scope(&mut self, types: Option<&[String]>) {
+        let matches = |k: &Kind| match types {
+            None | Some([]) => true,
+            Some(t) => t.iter().any(|t| t == k.category()),
+        };
+        let (removed, keep): (Vec<Req>, Vec<Req>) =
+            self.queue.drain(..).partition(|r| matches(&r.kind));
+        self.queue = keep.into();
         if let Some(r) = &self.running {
             let showhide = matches!(r.req.kind, Kind::Show { .. } | Kind::Hide { .. });
-            if pred(&r.req.kind)
-                && (!showhide
-                    || (all
-                        && pred(&Kind::Show {
-                            fast: false,
-                            cause: 0,
-                        })
-                        && pred(&Kind::Play(Resolved::State(String::new())))
-                        && pred(&Kind::Speak(vec![]))))
-            {
-                self.interrupt_running(reason);
+            let stop = if showhide {
+                matches!(types, Some([]))
+            } else {
+                matches(&r.req.kind)
+            };
+            if stop {
+                self.interrupt_running(errors::INTERRUPTED);
             }
         }
         for r in removed {
             if r.id != 0 {
-                self.complete(r.id, &r.sender, 3, reason);
+                self.complete(r.id, &r.sender, 3, errors::INTERRUPTED);
             }
         }
-        if self.ask.as_ref().is_some_and(|a| a.id != 0)
-            && pred(&Kind::Ask(Box::new(placeholder_ask())))
-        {
-            self.close_ask(0, 3, reason);
+        let ask = match types {
+            None | Some([]) => true,
+            Some(t) => t.iter().any(|t| t == "ask"),
+        };
+        if ask && self.ask.as_ref().is_some_and(|a| a.id != 0) {
+            self.close_ask(0, 3, errors::INTERRUPTED);
         }
     }
 
@@ -1794,7 +1776,7 @@ impl Core {
         if self.gallery.is_some() {
             self.close_gallery(true);
         }
-        self.interrupt_all(errors::HIDDEN_BY_USER, true);
+        self.interrupt_all(errors::HIDDEN_BY_USER);
         if self.ask.as_ref().is_some_and(|a| a.id != 0) {
             self.close_ask(0, 3, errors::HIDDEN_BY_USER);
         }
@@ -2431,19 +2413,4 @@ impl Core {
 
 fn frame_rect(c: &Char) -> Rect {
     Rect::new(c.x, c.y, c.model.display.0 as i32, c.model.display.1 as i32)
-}
-
-fn placeholder_ask() -> AskModel {
-    AskModel {
-        heading: String::new(),
-        text: Vec::new(),
-        icon: None,
-        labels: Vec::new(),
-        label_type: LabelType::Buttons,
-        checkboxes: Vec::new(),
-        buttons: Vec::new(),
-        mode: Mode::Modal,
-        esc_result: None,
-        animation: None,
-    }
 }
