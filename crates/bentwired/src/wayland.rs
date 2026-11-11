@@ -128,8 +128,10 @@ struct WlState {
     grab: Option<(wl_surface::WlSurface, u32)>,
     relative: RelativePointerState,
     rel_pointer: Option<ZwpRelativePointerV1>,
-    /// Global pointer position during a grab: press position plus relative deltas.
+    /// Global pointer position during a grab (B-WL-7, A-DESK-5).
     grab_pos: Option<(f64, f64)>,
+    /// A relative-pointer event arrived since the press: `grab_pos` follows the deltas.
+    grab_rel: bool,
 }
 
 /// A wl_display.sync after a margin commit (B-WL-7).
@@ -239,6 +241,7 @@ impl Wayland {
             relative: RelativePointerState::bind(&globals, &qh),
             rel_pointer: None,
             grab_pos: None,
+            grab_rel: false,
         };
         let mut queue = queue;
         // Two roundtrips: globals, then output and seat details.
@@ -870,7 +873,7 @@ impl SeatHandler for WlState {
             if let Some(p) = &self.pointer {
                 self.rel_pointer = self.relative.get_relative_pointer(p, qh).ok();
                 if self.rel_pointer.is_none() {
-                    log::warn!("no zwp_relative_pointer_manager_v1: drags may not stay 1:1");
+                    log::info!("no zwp_relative_pointer_manager_v1: drags use absolute motion");
                 }
             }
         }
@@ -984,14 +987,25 @@ impl PointerHandler for WlState {
             };
             let local = ev.position;
             let mut pos = (origin.0 as f64 + local.0, origin.1 as f64 + local.1);
-            // B-WL-7: during a grab, surface-local positions are not reliable for a surface
-            // that moves (sway reports them relative to the press-time position), so the
-            // global position is the press position plus the relative-pointer deltas.
+            // B-WL-7, A-DESK-5: during a grab the position follows relative-pointer deltas
+            // when the compositor sends them, else absolute motion. A release reuses the
+            // last grab position (it carries no new coordinates).
             match &ev.kind {
                 PointerEventKind::Press { .. } if matches!(kind, SurfKind::Core(_)) => {
-                    self.grab_pos = self.rel_pointer.as_ref().map(|_| pos);
+                    self.grab_pos = Some(pos);
+                    self.grab_rel = false;
                 }
-                PointerEventKind::Motion { .. } | PointerEventKind::Release { .. } => {
+                PointerEventKind::Motion { .. } => {
+                    if let (Some(g), Some(_)) = (self.grab_pos, &self.grab) {
+                        pos = grab_motion(g, self.grab_rel, local, origin);
+                        self.grab_pos = Some(pos);
+                        log::debug!(
+                            "grab motion rel={} local={local:?} applied={origin:?} -> {pos:?}",
+                            self.grab_rel
+                        );
+                    }
+                }
+                PointerEventKind::Release { .. } => {
                     if let (Some(g), Some(_)) = (self.grab_pos, &self.grab) {
                         pos = g;
                     }
@@ -1060,6 +1074,24 @@ impl PointerHandler for WlState {
     }
 }
 
+/// B-WL-7: global position for a motion during a grab. With relative-pointer events
+/// since the press, `grab` (press position plus deltas) is used as is: sway reports
+/// surface-local positions relative to the press-time surface position. Without them
+/// (KWin nested, no manager) the absolute motion maps with the applied origin, which
+/// compensates margins the compositor has not applied yet.
+fn grab_motion(
+    grab: (f64, f64),
+    relative: bool,
+    local: (f64, f64),
+    applied: (i32, i32),
+) -> (f64, f64) {
+    if relative {
+        grab
+    } else {
+        (applied.0 as f64 + local.0, applied.1 as f64 + local.1)
+    }
+}
+
 /// Required by XdgShell::bind; bentwired creates no toplevel windows.
 impl smithay_client_toolkit::shell::xdg::window::WindowHandler for WlState {
     fn request_close(
@@ -1092,6 +1124,7 @@ impl RelativePointerHandler for WlState {
         if let Some(g) = &mut self.grab_pos {
             g.0 += e.delta.0;
             g.1 += e.delta.1;
+            self.grab_rel = true;
         }
     }
 }
@@ -1133,5 +1166,26 @@ mod tests {
         assert_eq!(oriented((1920, 1080), Transform::_180), (1920, 1080));
         // No xdg-output: the integer scale.
         assert_eq!(output_scale(Some(m), None, 2), 2.0);
+    }
+
+    #[test]
+    fn b_wl_7_grab_motion_relative_and_absolute() {
+        // Relative mode, sway quirk: press at global (150, 120) on a surface at (100, 100),
+        // drag by +50 px while the margin moves to 150: sway reports local 100 (relative to
+        // the press-time origin) with applied 150. The deltas give 200, not 250.
+        assert_eq!(
+            grab_motion((200.0, 120.0), true, (100.0, 20.0), (150, 100)),
+            (200.0, 120.0)
+        );
+        // Absolute mode, margin pending: pointer at global 160 seen before the margin move
+        // was applied (applied 100, local 60) and after it (applied 150, local 10).
+        assert_eq!(
+            grab_motion((150.0, 120.0), false, (60.0, 20.0), (100, 100)),
+            (160.0, 120.0)
+        );
+        assert_eq!(
+            grab_motion((160.0, 120.0), false, (10.0, 20.0), (150, 100)),
+            (160.0, 120.0)
+        );
     }
 }

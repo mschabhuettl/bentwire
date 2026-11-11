@@ -75,8 +75,8 @@ there), so on Plasma please check:
   on screen under KWin).
 - K2 the top layer below a full-screen window and above normal windows.
 - K3 and K6 with a real mouse on KWin (drags use relative-pointer deltas during the
-  implicit grab, so the result does not depend on how the compositor reports positions
-  on a moving surface).
+  implicit grab when the compositor sends them, else absolute motion mapped with the
+  applied position, A-DESK-5; a nested KWin sends none).
 - K4 keyboard focus of the ask balloon after a real click (`on_demand` is requested and
   checked, focus itself is not).
 - K7 the tray in Plasma's system tray (tested against a minimal watcher: registration,

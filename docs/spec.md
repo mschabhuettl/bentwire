@@ -1653,7 +1653,10 @@ every Agent1/Character1 call the core answered, with `id` (request id) or `error
   position the compositor used for them. During an implicit grab the global position is
   the press position plus zwp_relative_pointer_v1 deltas, because compositors differ in
   how they report positions on a surface that moves under the grab (sway: relative to
-  the press-time position) (B-WL-7). A fractional output scale is the current mode width
+  the press-time position) (B-WL-7). Until a relative event arrives in a grab (none
+  delivered, as under a nested KWin, or no manager), wl_pointer motion is used: the
+  surface-local position plus the applied position, which compensates margins not yet
+  applied. A release keeps the last grab position. A fractional output scale is the current mode width
   over the xdg-output logical width (no fractional-scale protocol). The Agent and the
   Office balloon are separate subsurfaces when both are open, the Office one above. A
   menu opened without a real press serial (Test1) is shown without a grab. Reason:
