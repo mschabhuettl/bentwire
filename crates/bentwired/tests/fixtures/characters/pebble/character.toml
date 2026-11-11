@@ -1,0 +1,75 @@
+format = 1
+family = "agent"
+
+[character]
+canvas = [32, 32]
+
+[[character.info]]
+lang = "en"
+name = "Pebble"
+description = "Synthetic test character."
+
+[[character.info]]
+lang = "de"
+name = "Kiesel"
+
+[balloon]
+enabled = true
+lines = 2
+chars_per_line = 20
+font = "Tahoma"
+font_height = -11
+
+[[sheets]]
+id = "a"
+file = "sheets/a.png"
+cell = [32, 32]
+count = 4
+
+[states]
+Showing = ["Show"]
+Hiding = ["Hide"]
+Speaking = ["Explain"]
+IdlingLevel1 = ["Idle1_1"]
+IdlingLevel2 = ["Idle1_1"]
+IdlingLevel3 = ["Idle1_1"]
+MovingLeft = ["Move"]
+MovingRight = ["Move"]
+MovingUp = ["Move"]
+MovingDown = ["Move"]
+GesturingLeft = ["Wave"]
+GesturingRight = ["Wave"]
+GesturingUp = ["Wave"]
+GesturingDown = ["Wave"]
+
+[[animations]]
+name = "RestPose"
+frames = [ { ms = 100, layers = ["a:0"] } ]
+
+[[animations]]
+name = "Show"
+frames = [ { ms = 100, layers = ["a:1"] }, { ms = 100, layers = ["a:0"] } ]
+
+[[animations]]
+name = "Hide"
+frames = [ { ms = 100, layers = ["a:1"] }, { ms = 100 } ]
+
+[[animations]]
+name = "Wave"
+frames = [ { ms = 200, layers = ["a:2"] }, { ms = 200, layers = ["a:0"] } ]
+
+[[animations]]
+name = "Explain"
+frames = [ { ms = 200, layers = ["a:3"] }, { ms = 200, layers = ["a:0"] } ]
+
+[[animations]]
+name = "Idle1_1"
+frames = [ { ms = 1000, layers = ["a:0"] } ]
+
+[[animations]]
+name = "Move"
+frames = [ { ms = 100, layers = ["a:1"] } ]
+
+[[animations]]
+name = "Loop"
+frames = [ { ms = 100, layers = ["a:2"], branch = [[0, 100]] } ]
