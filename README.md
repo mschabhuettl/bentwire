@@ -37,10 +37,12 @@ derived from clean-room research of the original runtimes.
 Packages needed to build:
 
 ```sh
-sudo pacman -S --needed rust wayland libxkbcommon alsa-lib pkgconf
+sudo pacman -S --needed rust base-devel pkgconf wayland libxkbcommon alsa-lib
 ```
 
-At run time the daemon needs a session bus (dbus-broker or dbus-daemon; zbus is pure
+(`rustup` works instead of `rust`.)
+
+At run time the daemon needs a session bus (dbus-broker, the Arch default, or dbus-daemon; zbus is pure
 Rust and needs no libdbus) and a compositor with `zwlr_layer_shell_v1`
 version 4 or later (Plasma 6, sway, Hyprland). Without layer shell it exits with a
 message. The tray icon needs a StatusNotifierItem host (Plasma's system tray).
