@@ -2345,3 +2345,124 @@ fn r_q_6_loop_without_exit_stop_then_next_request() {
             .any(|(_, s)| *s == Signal::Hidden { cause: 7 })
     );
 }
+
+// ---------- review regressions ----------
+
+#[test]
+fn b_gal_1_running_ask_is_interrupted_when_gallery_opens() {
+    let st = StateFile {
+        character: "a".into(),
+        left: 500,
+        top: 500,
+        visible: true,
+    };
+    let mut t = T::with(
+        vec![character("a", 100), character("b", 100)],
+        Some(st),
+        vec![],
+    );
+    t.advance(1000);
+    let mut spec = ask("modal");
+    spec.animation = None; // Explain, 100 ms
+    let id = t.req(Call::Ask(spec));
+    gallery_open(&mut t);
+    // B-Q-4 style: AskComplete 0 then RequestComplete 3.
+    assert_eq!(ask_complete(&t, id).unwrap().0, 0);
+    assert_eq!(t.complete_of(id).unwrap().1, 3);
+    t.advance(t.now + 500);
+    // The gallery is still the open balloon; Cancel closes it and Speak runs.
+    assert_eq!(t.core.scene().office_balloon.unwrap().buttons.len(), 4);
+    t.ev(Event::Key {
+        key: Key::Escape,
+        modifiers: 0,
+    });
+    let sp = t.req(Call::Speak("x".into()));
+    assert_eq!(t.count(|s| *s == Signal::RequestStart { id: sp }), 1);
+}
+
+#[test]
+fn b_ob_4_moves_once_not_on_refresh() {
+    let mut t = T::visible(character("c", 100));
+    let mut spec = ask("modal");
+    spec.text = Some("word ".repeat(3000));
+    t.req(Call::Ask(spec));
+    let moves = t.count(|s| matches!(s, Signal::Move { cause: 2, .. }));
+    let pos = t.pos();
+    for _ in 0..4 {
+        t.ev(Event::Key {
+            key: Key::Tab,
+            modifiers: 0,
+        });
+    }
+    assert_eq!(
+        t.count(|s| matches!(s, Signal::Move { cause: 2, .. })),
+        moves
+    );
+    assert_eq!(t.pos(), pos);
+}
+
+#[test]
+fn r_ui_2_hide_during_drag_forgets_press() {
+    let mut t = T::visible(character("c", 0));
+    t.press(PointerKind::Press, Surface::Character, 1, 510, 510);
+    t.press(PointerKind::Motion, Surface::Character, 1, 530, 510);
+    t.req(Call::Hide { fast: true });
+    t.req(Call::Show { fast: true });
+    assert!(!t.core.scene().character.unwrap().dragging);
+    let id = t.req(Call::MoveTo {
+        x: 0,
+        y: 0,
+        speed: 1000,
+    });
+    t.advance(t.now + 5000);
+    assert_eq!(t.complete_of(id).unwrap().1, 0);
+}
+
+#[test]
+fn b_ask_7_ask_shown_during_drag_is_placed_at_drag_end() {
+    let mut t = T::visible(character("c", 0));
+    t.press(PointerKind::Press, Surface::Character, 1, 510, 510);
+    t.press(PointerKind::Motion, Surface::Character, 1, 530, 510);
+    t.req(Call::Ask(ask("modal")));
+    assert!(t.core.scene().office_balloon.is_none());
+    t.press(PointerKind::Motion, Surface::Character, 1, 230, 510);
+    t.press(PointerKind::Release, Surface::Character, 1, 230, 510);
+    let b = t.core.scene().office_balloon.unwrap();
+    let (x, _) = t.pos();
+    assert!(
+        b.window.x >= x - 300 && b.window.x <= x + 200,
+        "{:?} vs {x}",
+        b.window
+    );
+    assert_eq!(t.count(|s| *s == Signal::BalloonShown), 1);
+}
+
+#[test]
+fn b_ui_4_user_hide_in_gallery_reports_hidden_by_user() {
+    let st = StateFile {
+        character: "a".into(),
+        left: 500,
+        top: 500,
+        visible: true,
+    };
+    let mut t = T::with(
+        vec![character("a", 100), character("b", 100)],
+        Some(st),
+        vec![],
+    );
+    t.advance(1000);
+    gallery_open(&mut t);
+    t.ev(Event::Key {
+        key: Key::Char('n'),
+        modifiers: 0,
+    });
+    t.advance(t.now + 1000);
+    let p1 = t.req(Call::Play("Wave".into()));
+    let p2 = t.req(Call::Play("Wave".into()));
+    let (x, y) = t.pos();
+    t.press(PointerKind::Press, Surface::Character, 2, x + 1, y + 1);
+    t.press(PointerKind::Release, Surface::Character, 2, x + 1, y + 1);
+    t.ev(Event::Menu(MenuInput::Activate(0)));
+    assert_eq!(t.complete_of(p1).unwrap().2, errors::HIDDEN_BY_USER);
+    assert_eq!(t.complete_of(p2).unwrap().2, errors::HIDDEN_BY_USER);
+}

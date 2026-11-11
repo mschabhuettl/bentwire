@@ -165,30 +165,27 @@ pub fn wrap(
         }
         if !line.is_empty() {
             lines.push(std::mem::take(&mut line));
-            used = 0;
         }
         if ww <= width {
             used = ww;
             line.push((wi, w.clone()));
             continue;
         }
-        // Break a word wider than a line at the longest prefix that fits.
-        let mut rest: Vec<char> = w.chars().collect();
-        while !rest.is_empty() {
-            let mut n = rest.len();
-            while n > 1 && m.text_width(&rest[..n].iter().collect::<String>(), font) > width {
-                n -= 1;
+        // Break a word wider than a line at the longest prefix that fits (widths are
+        // additive, B-REN-1, so one pass over the characters).
+        let mut piece = String::new();
+        let mut pw = 0;
+        for ch in w.chars() {
+            let cw = m.text_width(ch.encode_utf8(&mut [0; 4]), font);
+            if !piece.is_empty() && pw + cw > width {
+                lines.push(vec![(wi, std::mem::take(&mut piece))]);
+                pw = 0;
             }
-            let piece: String = rest[..n].iter().collect();
-            let pw = m.text_width(&piece, font);
-            rest.drain(..n);
-            if rest.is_empty() {
-                used = pw;
-                line.push((wi, piece));
-            } else {
-                lines.push(vec![(wi, piece)]);
-            }
+            piece.push(ch);
+            pw += cw;
         }
+        used = pw;
+        line.push((wi, piece));
     }
     if !line.is_empty() {
         lines.push(line);
@@ -312,5 +309,9 @@ pub(crate) mod tests {
         );
         // Tab breaks (B-SPEAK-1 word split).
         assert_eq!(parse("a\tb").unwrap().words, w(&["a", "b"]));
+        // A very long word is linear, not cubic.
+        let long = "x".repeat(200_000);
+        let l = wrap(&[long], 100, &m, &f);
+        assert_eq!(l.len(), 20_000);
     }
 }

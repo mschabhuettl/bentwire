@@ -154,10 +154,10 @@ impl Rect {
         Rect { x, y, w, h }
     }
     pub fn right(&self) -> i32 {
-        self.x + self.w
+        self.x.saturating_add(self.w)
     }
     pub fn bottom(&self) -> i32 {
-        self.y + self.h
+        self.y.saturating_add(self.h)
     }
     /// Half-open containment.
     pub fn contains(&self, px: i32, py: i32) -> bool {

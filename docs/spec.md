@@ -1484,7 +1484,12 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   fails it with `Dragged`; the end phase still plays Speaking but emits no Move, and the
   output and the ask balloon wait for the drag end. Hiding while the gallery shows
   another character switches back without a Show, so the Hide runs on the original.
-  The Animate! list is shuffled on first use, not at load. Reason: the spec is silent;
+  The Animate! list is shuffled on first use, not at load. An Ask interrupted before its
+  balloon opens also gets AskComplete (result 0) before RequestComplete, and opening the
+  gallery interrupts an Ask still in its animation phase. Re-laying out an open Office
+  balloon after hover, focus or check-box changes does not move the character again
+  (B-OB-4 applies once per placement); an ask placed during a drag appears at drag end.
+  Reason: the spec is silent;
   these are the simplest consistent readings.
 - **A-CORE-4 office97 switch details.** The transition check (B-SW-O steps 2 to 4) also
   runs when the previous animation ended normally, not after Showing, and chains at most

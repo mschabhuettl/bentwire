@@ -1072,6 +1072,19 @@ pub fn place(
     Ok(Placed { scene: sc, move_by })
 }
 
+/// Move a whole placed scene (window, body, tail and content) by (dx, dy).
+pub fn shift(s: &mut OfficeBalloonScene, dx: i32, dy: i32) {
+    for r in [&mut s.window, &mut s.body, &mut s.content] {
+        r.x += dx;
+        r.y += dy;
+    }
+    for p in &mut s.tail {
+        p.0 += dx;
+        p.1 += dy;
+    }
+    translate(s, dx, dy);
+}
+
 fn translate(s: &mut OfficeBalloonScene, dx: i32, dy: i32) {
     let mv = |r: &mut Rect| {
         r.x += dx;

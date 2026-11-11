@@ -16,7 +16,7 @@ B-ASK-3 | b_ask_3_r_ob_16_markup
 B-ASK-4 | b_ask_4_b_wl_8_phases_and_answer, b_ask_4_hidden_and_too_big
 B-ASK-5 | b_ask_5_validation
 B-ASK-6 | b_ask_6_autodown
-B-ASK-7 | b_ask_7_matrix_modal, b_ask_7_matrix_autodown_and_switch, b_ask_7_autodown_hide_closes_with_status_3
+B-ASK-7 | b_ask_7_matrix_modal, b_ask_7_matrix_autodown_and_switch, b_ask_7_autodown_hide_closes_with_status_3, b_ask_7_ask_shown_during_drag_is_placed_at_drag_end
 B-BAL-1 | b_bal_1_no_balloon
 B-BAL-2 | b_bal_2_font_choice (family, config override, px = |font_height|); TM metrics from the font in bentwire-render || other crates: bentwire-render: b_bal_2_draw_text_marks_pixels_inside_cell, b_bal_2_metrics_from_font, b_bal_2_text_width_is_sum_of_advances
 B-BAL-3 | b_bal_3_anchor_is_lowest_mouth_point, b_bal_3_r_bal_4_r_bal_5_vectors
@@ -35,7 +35,7 @@ B-CORE-3 | structural: all timers come from Core::next_deadline/tick on the call
 B-FAM-1 | structural: family dispatch in player.rs; per-row tests: b_seq_a_*, b_o97_*, b_sw_a_*, b_sw_o_*, b_idle_t_*, b_idle_o_office97, b_fb_1_b_o97_5_*
 B-FB-1 | b_fb_1_b_char_2_play_errors_and_unavailable, b_fb_1_b_o97_5_alias_and_office97_groups, b_fb_1_error_lists_chain
 B-FB-2 | b_fb_2_rover_like, b_fb_2_courtney_earl_merlin_qmark_like, b_fb_2_office_names_resolve_to_themselves
-B-GAL-1 | b_gal_1_gallery, b_gal_1_hide_closes_as_cancel
+B-GAL-1 | b_gal_1_gallery, b_gal_1_hide_closes_as_cancel, b_gal_1_running_ask_is_interrupted_when_gallery_opens
 B-IDLE-O | b_idle_o_office97
 B-IDLE-T | b_idle_t_r_idle_1_r_idle_2_r_idle_3_vector, b_idle_t_r_idle_4_play_interrupts_idle
 B-L10N-1 | b_l10n_1_language
@@ -56,7 +56,7 @@ B-OB- | wildcard reference to the B-OB rules, see each B-OB-n
 B-OB-1 | r_ob_32_r_ob_11_b_ob_1_r_ob_4_button_row_and_fonts || other crates: bentwire-render: b_ob_1_core_layout_heading_markup_golden, b_ob_1_core_layout_labels_checkboxes_golden, b_ob_1_core_layout_numbers_custom_buttons_golden, b_ob_1_office_bullets_numbers_golden ...
 B-OB-2 | b_ob_2_r_ob_27_tail
 B-OB-3 | b_ob_3_b_ob_4_r_ob_17_r_ob_20_r_ob_34_placement_and_fit
-B-OB-4 | b_ob_3_b_ob_4_r_ob_17_r_ob_20_r_ob_34_placement_and_fit
+B-OB-4 | b_ob_4_moves_once_not_on_refresh, b_ob_3_b_ob_4_r_ob_17_r_ob_20_r_ob_34_placement_and_fit
 B-PICK-A | b_pick_a_speakable_keeps_animation_with_mouths
 B-PIX-1 | not testable in core: compositing; owner: bentwire-character, bentwire-render || other crates: bentwire-render: b_pix_1_blend_partial_alpha_matches_5_3
 B-PIX-2 | not testable in core: mouth clipping is a pixel step; owner: bentwire-render (core never sets a mouth in v1, b_lip_2_no_mouth_during_text_speak) || other crates: bentwire-render: b_pix_2_mouth_clipped_to_base
@@ -85,7 +85,7 @@ B-SW-A | b_sw_a_r_anim_7_b_anim_1_loop_stopped_resumes_through_exit, b_sw_a_retu
 B-SW-O | b_sw_o_exit_and_transitions, b_sw_o_start_pose
 B-TRAY-1 | b_tray_1_r_ui_4_activate, b_tray_1_title_cut, b_ui_4_user_hide (tray menu); SNI in bentwired || other crates: bentwired: b_tray_1_labels_and_icon
 B-UI-1 | r_ui_1_b_ui_1_click_and_double_click || other crates: bentwired: b_ui_1_click_and_r_ui_2_drag_signals
-B-UI-4 | b_ui_4_user_hide || other crates: bentwired: b_ui_4_user_hide_from_menu_interrupts_with_hidden_by_user
+B-UI-4 | b_ui_4_user_hide, b_ui_4_user_hide_in_gallery_reports_hidden_by_user || other crates: bentwired: b_ui_4_user_hide_from_menu_interrupts_with_hidden_by_user
 B-WL-1 | output rects in global logical coords are core input (OutputInfo); used by b_wl_2_output_choice, b_ob_3_*; Wayland side in bentwired
 B-WL-2 | b_wl_2_output_choice
 B-WL-3 | not testable in core: layer choice; bentwired / T-6 K2
@@ -115,7 +115,7 @@ R-BAL-10 | r_bal_10_no_auto_hide_and_click
 R-BAL-2 | r_bal_2_defaults
 R-BAL-3 | r_bal_1_r_bal_3_size
 R-BAL-4 | b_bal_3_r_bal_4_r_bal_5_vectors (tail 16/4 geometry); drawing in bentwire-render || other crates: bentwire-render: r_bal_4_agent_balloon_golden, r_bal_4_round_rect_corners_cut
-R-BAL-5 | b_bal_3_r_bal_4_r_bal_5_vectors, r_bal_5_clamps
+R-BAL-5 | b_bal_3_r_bal_4_r_bal_5_vectors, r_bal_5_clamps, r_bal_5_tiny_balloon_does_not_panic
 R-BAL-6 | r_bal_6_word_wrap
 R-BAL-7 | r_bal_8_r_bal_7_b_speak_2_r_speak_4_pacing_vector, r_bal_7_not_shown_during_drag
 R-BAL-8 | r_bal_8_r_bal_7_b_speak_2_r_speak_4_pacing_vector, r_bal_8_r_ui_5_interval
@@ -169,7 +169,7 @@ R-SPEAK-4 | b_speak_2: r_bal_8_r_bal_7_b_speak_2_r_speak_4_pacing_vector (Speak 
 R-STATE-1 | r_state_1_uniform_member_and_r_state_2
 R-STATE-2 | r_state_1_uniform_member_and_r_state_2, r_state_2_names_ignore_case
 R-UI-1 | r_ui_1_b_ui_1_click_and_double_click
-R-UI-2 | r_ui_2_r_win_4_drag || other crates: bentwired: b_ui_1_click_and_r_ui_2_drag_signals
+R-UI-2 | r_ui_2_r_win_4_drag, r_ui_2_hide_during_drag_forgets_press || other crates: bentwired: b_ui_1_click_and_r_ui_2_drag_signals
 R-UI-3 | b_menu_1_r_ui_3_b_menu_2_b_menu_3
 R-UI-4 | b_tray_1_r_ui_4_activate
 R-UI-5 | r_bal_8_r_ui_5_interval (speaking_speed factor in the pacing formula)

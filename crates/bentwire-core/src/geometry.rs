@@ -13,7 +13,13 @@ pub enum Dir {
 
 /// R-DIR-1: direction of a point relative to a rectangle (truncation toward zero).
 pub fn direction(r: Rect, px: i32, py: i32) -> Dir {
-    let (l, t, rr, b) = (r.x, r.y, r.right(), r.bottom());
+    let (l, t, rr, b) = (
+        i64::from(r.x),
+        i64::from(r.y),
+        i64::from(r.x) + i64::from(r.w),
+        i64::from(r.y) + i64::from(r.h),
+    );
+    let (px, py) = (i64::from(px), i64::from(py));
     if rr == l {
         return if px >= l {
             Dir::ScreenRight
@@ -24,10 +30,9 @@ pub fn direction(r: Rect, px: i32, py: i32) -> Dir {
     if b == t {
         return if py >= t { Dir::Down } else { Dir::Up };
     }
-    let m = f64::from(b - t) / f64::from(rr - l);
-    let a = (f64::from(b) + m * f64::from(px - rr)).trunc() as i64;
-    let bb = (f64::from(t) + m * f64::from(rr - px)).trunc() as i64;
-    let py = i64::from(py);
+    let m = (b - t) as f64 / (rr - l) as f64;
+    let a = (b as f64 + m * (px - rr) as f64).trunc() as i64;
+    let bb = (t as f64 + m * (rr - px) as f64).trunc() as i64;
     match (py > a, py > bb) {
         (true, true) => Dir::Down,
         (true, false) => Dir::ScreenLeft,
@@ -81,8 +86,8 @@ pub struct Slide {
 impl Slide {
     pub fn new(start: (i32, i32), target: (i32, i32), speed: u32) -> Self {
         let (dx, dy) = (
-            i64::from(target.0 - start.0).abs(),
-            i64::from(target.1 - start.1).abs(),
+            (i64::from(target.0) - i64::from(start.0)).abs(),
+            (i64::from(target.1) - i64::from(start.1)).abs(),
         );
         let major = dx.max(dy);
         Slide {
@@ -105,8 +110,8 @@ impl Slide {
     }
 
     pub fn position(&self) -> (i32, i32) {
-        let dx = i64::from(self.target.0 - self.start.0);
-        let dy = i64::from(self.target.1 - self.start.1);
+        let dx = i64::from(self.target.0) - i64::from(self.start.0);
+        let dy = i64::from(self.target.1) - i64::from(self.start.1);
         let major = dx.abs().max(dy.abs());
         if major == 0 {
             return self.target;
@@ -183,6 +188,18 @@ mod tests {
         for ((x, y), want) in v {
             assert_eq!(direction(R, x, y), want, "point ({x},{y})");
         }
+    }
+
+    #[test]
+    fn extreme_coordinates_do_not_overflow() {
+        assert_eq!(direction(R, i32::MIN, 164), Dir::ScreenLeft);
+        assert_eq!(direction(R, i32::MAX, i32::MAX), Dir::ScreenRight);
+        let mut s = Slide::new((0, 0), (i32::MIN, 0), 1000);
+        while !s.done() {
+            s.step();
+        }
+        assert_eq!(s.position(), (i32::MIN, 0));
+        assert_eq!(moving_state(R, i32::MIN, 0), Some("MovingRight"));
     }
 
     #[test]

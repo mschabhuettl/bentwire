@@ -1085,6 +1085,9 @@ impl Core {
         if let Some(c) = &mut self.ch {
             c.visible = false;
         }
+        // An unmapped surface gets no release: forget the press and the drag.
+        self.press = None;
+        self.dragging = false;
         self.hide_speech_balloon();
         if self.ask.as_ref().is_some_and(|a| a.id != 0) {
             self.close_ask(0, 3, errors::HIDDEN);
@@ -1464,7 +1467,13 @@ impl Core {
             self.emit(Signal::Move { x, y, cause: 2 });
             self.mark_dirty();
         }
+        let dragging = self.dragging;
         let a = self.ask.as_mut().expect("ask");
+        if dragging {
+            // B-ASK-7: placed at drag end.
+            a.hidden = true;
+            return;
+        }
         let was = a.scene.is_some();
         a.scene = Some(p.scene);
         a.hidden = false;
@@ -1473,8 +1482,22 @@ impl Core {
         }
     }
 
-    /// Lay out the open balloon again (interaction change or re-placement).
+    /// Lay out the open balloon again after an interaction change. The character is
+    /// not moved again (B-OB-4 moves it once per placement).
     fn refresh_ask(&mut self) {
+        let Some(a) = &self.ask else { return };
+        if a.hidden || a.scene.is_none() {
+            return;
+        }
+        if let Ok(mut p) = self.place_ask(a) {
+            office::shift(&mut p.scene, -p.move_by.0, -p.move_by.1);
+            p.move_by = (0, 0);
+            self.apply_placement(p);
+        }
+    }
+
+    /// Place the open balloon again (output change, gallery switch), B-OB-4 included.
+    fn replace_ask(&mut self) {
         let Some(a) = &self.ask else { return };
         if a.hidden || a.scene.is_none() {
             return;
@@ -1557,6 +1580,14 @@ impl Core {
         if self.ask.as_ref().is_some_and(|a| a.id != 0) {
             self.close_ask(0, 3, errors::INTERRUPTED);
         }
+        // An Ask still in its animation phase would replace the gallery balloon.
+        if self
+            .running
+            .as_ref()
+            .is_some_and(|r| matches!(r.req.kind, Kind::Ask(_)))
+        {
+            self.interrupt_running(errors::INTERRUPTED);
+        }
         let index = self.catalog.iter().position(|e| e.id == id).unwrap_or(0);
         self.gallery = Some(Gallery {
             original: id,
@@ -1615,27 +1646,27 @@ impl Core {
         let Some(g) = &mut self.gallery else { return };
         match r {
             -25 | -26 => {
-                let ni = if r == -25 {
-                    g.index.checked_sub(1)
-                } else {
-                    Some(g.index + 1).filter(|&i| i < self.catalog.len())
+                // Step to the next candidate that loads (B-GAL-1), skipping broken ones.
+                let mut ni = g.index;
+                let found = loop {
+                    let next = if r == -25 {
+                        ni.checked_sub(1)
+                    } else {
+                        Some(ni + 1).filter(|&i| i < self.catalog.len())
+                    };
+                    let Some(n) = next else { break None };
+                    ni = n;
+                    if let Ok(m) = self.loader.load(&self.catalog[n].id) {
+                        break Some((n, m));
+                    }
                 };
-                let Some(ni) = ni else { return };
-                let id = self.catalog[ni].id.clone();
-                match self.loader.load(&id) {
-                    Ok(m) => {
-                        self.gallery.as_mut().unwrap().index = ni;
-                        self.switch_to(m, true, false);
-                        if let Some(c) = &self.ch
-                            && let Ok(res) = fallback::resolve(&c.model, "Wave")
-                        {
-                            self.enqueue_internal(Kind::Play(res));
-                        }
-                    }
-                    Err(_) => {
-                        // Skip a character that fails to load.
-                        self.gallery.as_mut().unwrap().index = ni;
-                    }
+                let Some((ni, m)) = found else { return };
+                self.gallery.as_mut().unwrap().index = ni;
+                self.switch_to(m, true, false);
+                if let Some(c) = &self.ch
+                    && let Ok(res) = fallback::resolve(&c.model, "Wave")
+                {
+                    self.enqueue_internal(Kind::Play(res));
                 }
                 let model = self.gallery_model();
                 let focus_btn = if r == -25 { 0 } else { 1 };
@@ -1649,7 +1680,7 @@ impl Core {
                     a.it.pressed = None;
                     a.it.hot = None;
                 }
-                self.refresh_ask();
+                self.replace_ask();
             }
             -27 => {
                 self.close_gallery(false, false);
@@ -1712,7 +1743,7 @@ impl Core {
             });
         }
         if gallery {
-            self.refresh_ask();
+            self.replace_ask();
         }
     }
 
@@ -1739,6 +1770,18 @@ impl Core {
             self.reshow_ask();
         }
         if r.req.id != 0 {
+            if let Kind::Ask(a) = &r.req.kind {
+                let checked = vec![false; a.checkboxes.len()];
+                let (id, s) = (r.req.id, r.req.sender.clone());
+                self.emit_to(
+                    &s,
+                    Signal::AskComplete {
+                        id,
+                        result: 0,
+                        checked,
+                    },
+                );
+            }
             self.complete(r.req.id, &r.req.sender, 3, reason);
         }
     }
@@ -1805,12 +1848,12 @@ impl Core {
         if !self.visible() {
             return;
         }
-        if self.gallery.is_some() {
-            self.close_gallery(true, true);
-        }
         self.interrupt_all(errors::HIDDEN_BY_USER);
         if self.ask.as_ref().is_some_and(|a| a.id != 0) {
             self.close_ask(0, 3, errors::HIDDEN_BY_USER);
+        }
+        if self.gallery.is_some() {
+            self.close_gallery(true, true);
         }
         self.enqueue_internal(Kind::Hide { fast: false, cause });
     }
@@ -1887,7 +1930,7 @@ impl Core {
                     });
                 }
                 let pr = self.press.as_ref().unwrap();
-                let (l, t) = (pr.left + dx, pr.top + dy);
+                let (l, t) = (pr.left.saturating_add(dx), pr.top.saturating_add(dy));
                 self.set_position(l, t);
             }
             PointerKind::Release => {
@@ -2284,7 +2327,7 @@ impl Core {
             self.mark_dirty();
         }
         self.update_output();
-        self.refresh_ask();
+        self.replace_ask();
     }
 
     // ----- scene -----

@@ -41,8 +41,8 @@ pub struct Placement {
 /// R-BAL-5 / B-BAL-3 placement. `c` = character frame, `m` = output rect, `anchor` =
 /// mouth point or frame centre (global, unclamped).
 pub fn place(c: Rect, m: Rect, w: i32, h: i32, anchor: (i32, i32)) -> Placement {
-    let ax = anchor.0.clamp(m.x, m.right() - 1);
-    let ay = anchor.1.clamp(m.y, m.bottom() - 1);
+    let ax = anchor.0.clamp(m.x, (m.right() - 1).max(m.x));
+    let ay = anchor.1.clamp(m.y, (m.bottom() - 1).max(m.y));
     let top = c.y - TAIL_LEN - h;
     if top >= m.y {
         let mut left = c.x + (c.w - w) / 2;
@@ -50,7 +50,8 @@ pub fn place(c: Rect, m: Rect, w: i32, h: i32, anchor: (i32, i32)) -> Placement 
         left = left.max(m.x);
         let window = Rect::new(left, top, w, h + TAIL_LEN);
         let body = Rect::new(left, top, w, h);
-        let tx = ax.clamp(left + 10 + TAIL_HALF, left + w - 10 - TAIL_HALF);
+        let lo = left + 10 + TAIL_HALF;
+        let tx = ax.clamp(lo, (left + w - 10 - TAIL_HALF).max(lo));
         return Placement {
             window,
             body,
@@ -63,7 +64,8 @@ pub fn place(c: Rect, m: Rect, w: i32, h: i32, anchor: (i32, i32)) -> Placement 
         };
     }
     let top = c.y.max(m.y);
-    let ty = ay.clamp(top + 12 + TAIL_HALF, top + h - 12 - TAIL_HALF);
+    let lo = top + 12 + TAIL_HALF;
+    let ty = ay.clamp(lo, (top + h - 12 - TAIL_HALF).max(lo));
     if c.x > (m.right() - m.x) / 2 {
         let left = c.x - TAIL_LEN - w;
         Placement {
@@ -143,6 +145,16 @@ mod tests {
         let c = Rect::new(448, 400, 128, 128);
         let p = place(c, M, 200, 54, (5000, 464));
         assert_eq!(p.tail[0].0, 412 + 200 - 14);
+    }
+
+    #[test]
+    fn r_bal_5_tiny_balloon_does_not_panic() {
+        let c = Rect::new(448, 400, 128, 128);
+        let p = place(c, M, 21, 20, centre(c));
+        assert_eq!(p.side, TailSide::Bottom);
+        let c = Rect::new(448, 0, 128, 128);
+        let p = place(c, M, 21, 20, centre(c));
+        assert_eq!(p.side, TailSide::Left);
     }
 
     #[test]
