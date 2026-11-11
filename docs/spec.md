@@ -1496,6 +1496,44 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   clamped anchor coordinate, and its base (2 x tailHalf) is centred on the tip coordinate.
   The scroll (R-BAL-9) moves one pixel at a time, evenly over `60000 / effectiveSpeed` ms.
   Reason: R-BAL-4/R-BAL-9 give lengths and duration, not these shapes.
+- **A-CHAR-2 Loader strictness.** `Character::load` rejects a manifest with type, range or
+  cross-reference errors (the validator's rules); unknown non-`x-` keys and tolerated ZIP
+  deviations (media entry not stored, manifest not first) are warnings; a sheet, sound or
+  icon that fails to decode only disables the animations using it (B-CHAR-2). Besides
+  8-bit indexed and RGBA, the loader accepts any PNG colour type and depth (indexed stays
+  indexed, others become RGBA). Reason: character-format 4 makes unknown keys a warning,
+  and editors export other PNG variants.
+- **A-CHAR-3 HiDPI file choice.** At output size O for canvas C, each sheet uses the file
+  (base = key 1, or a `hidpi` key) with the smallest `scale x key` at or above O / C,
+  else the densest file; `cell` and `sizes` are pixels of the base file and are
+  multiplied by the key; a picture's canvas size is its base size divided by `scale`,
+  truncated. Reason: character-format 8 defines the files, not the choice.
+- **A-CONV-1 Vector actor pictures (D2).** Each used pose is rasterised by the bentwire
+  WMF rasteriser at the display size (1x) and at 2x (`hidpi = { 2 = ... }`), aliased,
+  indexed. Palette: index 0 is a transparent key colour not painted by the actor, then the
+  exact distinct colours the metafiles paint, in first-use order (not quantised to the
+  Office palette). Reason: D2 asks for the exact WMF colours; act-format 4.6 accepts the
+  small deviation from Office 97's palette snapping.
+- **A-CONV-2 Sounds in converted packages.** Sounds are deduplicated by PCM; the id is
+  `sNN` of the first source index (ACS, ACT) or of the first occurrence over all
+  animations (ACF/ACA, 1.5). Unplayable ACF sounds are listed as `<animation>:<index>`.
+  Reason: character-format 6 identifies sounds by their PCM hash.
+- **A-CONV-3 ACT conversion options.** `character.info.lang` (default `en`) and the
+  codepage of the item name and of v1 strings (default windows-1252) are converter
+  options; `regenerate.sh` passes `ja` and `shift_jis` for the two Japanese actors
+  (OFFLADY, DOLPHIN). The D6 state aliases are added only for Office actors (kind 7) and
+  only to `[states]`, not to `office97.ids`. The Office palette for bitmap actors must be
+  given (an Office ACS or MSO97.DLL); there is no default. Reason: ACT carries no language
+  or codepage (character-format 9.4), and the palette must not be embedded.
+- **A-CONV-4 Agent 1.5 animation set.** The 1.5 formats store no animation set version;
+  `source.animation_set` is then omitted rather than filled with the runtime's 1.50.
+  Reason: `[source]` records the file, not runtime defaults.
+- **A-THEME-2 Theme extraction.** OBALLOON.DLL bitmaps are vertical strips; masks are
+  folded into alpha (black mask pixel opaque). Buttons 105 to 110 become 5-frame strips
+  named normal, default, hot, pressed, disabled; bullet 101 becomes the label bullet with
+  normal, hot, pressed, disabled; icon group 100 (32 x 32, deepest depth) becomes `tip`.
+  Bullet 102 and arrows 103/104 are extracted but not referenced by `theme.toml`. Reason:
+  office-assistant R-OB-8/11 give ids and frame counts; the state order is [inf] there.
 
 ## 4. Reconciliation
 
