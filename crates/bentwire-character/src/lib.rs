@@ -7,10 +7,12 @@
 //! ```
 
 pub mod audio;
+pub mod dump;
 pub mod image;
 pub mod model;
 pub mod parse;
 pub mod validate;
+pub mod write;
 pub mod zip;
 
 use std::collections::{HashMap, HashSet};
@@ -21,6 +23,7 @@ pub use image::{Image, Rgba, SheetSet};
 pub use model::*;
 pub use parse::cheap_check;
 pub use validate::validate;
+pub use write::PackageData;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
