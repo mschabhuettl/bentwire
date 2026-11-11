@@ -28,6 +28,12 @@ session() {
 
 bw_start_daemon
 "$BW_BIN/bentwire" show >/dev/null
+cat >"$BW_DIR/delay" <<EOF
+#!/bin/sh
+[ "\$*" = "play Processing" ] && sleep 2
+exec "$BENTWIRE_CLI" "\$@"
+EOF
+chmod +x "$BW_DIR/delay"
 
 for sh in bash zsh; do
     command -v $sh >/dev/null || { echo "  skip $sh (not installed)"; continue; }
@@ -68,6 +74,17 @@ for sh in bash zsh; do
     bw_check "Processing, then only stop (no success)" test "$(cut -f1 "$BW_LOG" | tr '\n' '|')" = \
         "play Processing|stop --all|"
     bw_check "daemon received each call (method, args, id)" bw_received '.'
+
+    # The Processing call of the timer and the calls at the end of the command run
+    # detached; a slow Processing call must still reach the daemon before the stop.
+    echo "$sh: slow Processing call, command ends meanwhile"
+    : >"$BW_LOG"
+    BENTWIRE_CLI=$BW_DIR/delay session $sh 'sleep 2'
+    bw_wait 15 bw_has '^say Done'
+    bw_check "client order Processing, stop, Congratulate, Done" \
+        test "$(cut -f1 "$BW_LOG" | cut -d' ' -f1-2 | tr '\n' '|')" = "play Processing|stop --all|play Congratulate|say Done|"
+    bw_check "daemon received them in that order" \
+        test "$(jq -r 'select(.type == "call") | .method' "$BW_TRACE" | tail -4 | tr '\n' ' ')" = "Play StopAll Play Speak "
 done
 
 echo "bash: the user's PROMPT_COMMAND still sees the exit status"
@@ -82,12 +99,20 @@ cat >"$BW_DIR/slow" <<'EOF'
 sleep 5
 EOF
 chmod +x "$BW_DIR/slow"
+# Compared with the same session and a CLI that returns at once, so machine load does
+# not matter: a waiting prompt would add at least 5 s.
+elapsed_ms() { # <cli> <shell>
+    local start
+    start=$(date +%s%N)
+    BENTWIRE_CLI=$1 session "$2" false false false 'sleep 1.5'
+    echo $((($(date +%s%N) - start) / 1000000))
+}
 for sh in bash zsh; do
     command -v $sh >/dev/null || continue
-    start=$(date +%s%N)
-    BENTWIRE_CLI=$BW_DIR/slow session $sh false false false 'sleep 1.5'
-    ms=$((($(date +%s%N) - start) / 1000000))
-    bw_check "$sh: 4 prompts with a 5 s CLI took ${ms} ms (< 2500)" test "$ms" -lt 2500
+    base=$(elapsed_ms true $sh)
+    ms=$(elapsed_ms "$BW_DIR/slow" $sh)
+    bw_check "$sh: 4 prompts with a 5 s CLI took ${ms} ms, ${base} ms with an instant one (< +2000)" \
+        test "$ms" -lt $((base + 2000))
 done
 
 echo "silent without a daemon"

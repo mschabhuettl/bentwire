@@ -67,8 +67,21 @@ _bw_send_now() {
     return 0
 }
 
+# Runs "$@" holding this shell's send lock, so the daemon gets the calls in the order the
+# shell decided them (the Processing timer and the end of a command race otherwise).
+_bw_locked() {
+    if command -v flock >/dev/null 2>&1; then
+        (
+            flock -w 15 9 || exit 0
+            "$@"
+        ) 9>"$(_bw_state_file).lock"
+    else
+        "$@"
+    fi
+}
+
 _bw_send() {
-    _bw_bg _bw_send_now "$@"
+    _bw_bg _bw_locked _bw_send_now "$@"
 }
 
 # First word of a command line, skipping assignments and wrappers like sudo or time.
@@ -119,6 +132,7 @@ _bw_preexec() { # <command line>
     esac
     _bw_watch=1
     token="$$.$SECONDS.$RANDOM"
+    _bw_token=$token
     printf '%s\n' "$token" >"$(_bw_state_file)" 2>/dev/null || return
     # The timer plays Processing only if this command is still running when it fires.
     _bw_bg _bw_timer "$token" "$long"
@@ -128,8 +142,14 @@ _bw_timer() { # <token> <seconds>
     local shell_pid=$$
     sleep "$2"
     kill -0 "$shell_pid" 2>/dev/null || return 0
+    # "long" is marked under the lock: the end of the command can only see it, and send
+    # its stop, once Processing has been sent
+    _bw_locked _bw_timer_fire "$1"
+}
+
+_bw_timer_fire() { # <token>
     [ "$(cat "$(_bw_state_file)" 2>/dev/null)" = "$1" ] || return 0
-    printf 'long\n' >>"$(_bw_state_file)"
+    printf '%s\n' "$1" >"$(_bw_state_file).long"
     _bw_send_now play Processing
 }
 
@@ -137,37 +157,48 @@ _bw_timer() { # <token> <seconds>
 _bw_precmd() { # <status>
     local rc=$1
     [ -n "${_bw_cmd+x}" ] || return 0
-    local cmd=$_bw_cmd elapsed=$((SECONDS - ${_bw_start:-$SECONDS})) long=0 f
+    local cmd=$_bw_cmd elapsed=$((SECONDS - ${_bw_start:-$SECONDS})) token=
     unset _bw_cmd
-    f=$(_bw_state_file)
     if [ "${_bw_watch:-0}" = 1 ]; then
-        grep -qx long "$f" 2>/dev/null && long=1
-        : >"$f" 2>/dev/null
+        token=${_bw_token:-}
+        : >"$(_bw_state_file)" 2>/dev/null # cancels a timer that has not fired yet
     fi
-    [ "${BENTWIRE_SHELL_OFF:-}" = 1 ] && return 0
-    case $rc in 0|130|148) ;; *)
-        local text
-        text=$(_bw_failure_text "$cmd" "$rc")
-        if [ $long = 1 ]; then
-            _bw_send stop --all -- play GetAttention -- say "$text"
-        else
-            _bw_send play GetAttention -- say "$text"
-        fi
-        return 0
-        ;;
-    esac
-    if [ $long = 1 ] && [ "$rc" != 0 ]; then
-        _bw_send stop --all # interrupted or suspended: end Processing, no success
-    elif [ $long = 1 ]; then
-        _bw_send stop --all -- play Congratulate -- say "Done after ${elapsed} s: $(_bw_command_word "$cmd")"
-    fi
+    [ "${BENTWIRE_SHELL_OFF:-}" = 1 ] && token=
+    [ "${BENTWIRE_SHELL_OFF:-}" = 1 ] && [ -z "$token" ] && return 0
+    local text=
+    case $rc in 0|130|148) ;; *) text=$(_bw_failure_text "$cmd" "$rc") ;; esac
+    [ -z "$token" ] && [ -z "$text" ] && return 0
+    # Whether Processing was sent is known only under the send lock (the timer marks it
+    # there), so the decision runs in the background too and the prompt never waits.
+    _bw_bg _bw_locked _bw_finish "$token" "$rc" "$text" "$elapsed" "$(_bw_command_word "$cmd")"
     return 0
+}
+
+_bw_finish() { # <token or ""> <status> <failure text or ""> <seconds> <command word>
+    local long=0 f
+    f=$(_bw_state_file).long
+    if [ -n "$1" ] && [ "$(cat "$f" 2>/dev/null)" = "$1" ]; then
+        long=1
+        rm -f "$f"
+    fi
+    if [ "${BENTWIRE_SHELL_OFF:-}" = 1 ]; then
+        [ $long = 1 ] && _bw_send_now stop --all
+    elif [ -n "$3" ] && [ $long = 1 ]; then
+        _bw_send_now stop --all -- play GetAttention -- say "$3"
+    elif [ -n "$3" ]; then
+        _bw_send_now play GetAttention -- say "$3"
+    elif [ $long = 1 ] && [ "$2" != 0 ]; then
+        _bw_send_now stop --all # interrupted or suspended: end Processing, no success
+    elif [ $long = 1 ]; then
+        _bw_send_now stop --all -- play Congratulate -- say "Done after $4 s: $5"
+    fi
 }
 
 # zsh also runs zshexit hooks when a subshell such as `(exit 1)` exits: clean up only
 # in the interactive shell itself
 _bw_exit() {
     [ "${ZSH_SUBSHELL:-0}" = 0 ] || return 0
+    # only the timer token: detached sends may still need the .lock and .long files
     rm -f "$(_bw_state_file)" 2>/dev/null
 }
 
