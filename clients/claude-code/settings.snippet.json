@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      { "hooks": [{ "type": "command", "command": "~/.local/share/bentwire/claude-code/bentwire-hook.sh thinking", "timeout": 5 }] }
+    ],
+    "PreToolUse": [
+      { "matcher": "Edit|MultiEdit|Write|NotebookEdit",
+        "hooks": [{ "type": "command", "command": "~/.local/share/bentwire/claude-code/bentwire-hook.sh writing", "timeout": 5 }] }
+    ],
+    "Notification": [
+      { "hooks": [{ "type": "command", "command": "~/.local/share/bentwire/claude-code/bentwire-hook.sh attention", "timeout": 5 }] }
+    ],
+    "Stop": [
+      { "hooks": [{ "type": "command", "command": "~/.local/share/bentwire/claude-code/bentwire-hook.sh done", "timeout": 5 }] }
+    ]
+  }
+}
