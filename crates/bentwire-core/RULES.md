@@ -147,6 +147,7 @@ R-OB-32 | r_ob_32_r_ob_11_b_ob_1_r_ob_4_button_row_and_fonts
 R-OB-34 | b_ob_3_b_ob_4_r_ob_17_r_ob_20_r_ob_34_placement_and_fit
 R-OB-4 | r_ob_32_r_ob_11_b_ob_1_r_ob_4_button_row_and_fonts
 R-OB-5 | r_ob_35_r_ob_5_vertical_spacing
+R-OB-7 | r_ob_35_r_ob_5_vertical_spacing (prefix column floor 17, label text at column + 5, bullet prefix)
 R-Q- | wildcard reference, see each R-Q-n
 R-Q-1 | r_q_1_b_q_1_ids_and_reply_before_signals
 R-Q-3 | r_q_3_immediate_calls

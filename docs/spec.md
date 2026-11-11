@@ -1455,6 +1455,39 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
 - **B-REN-8 Office font size** (clarifies B-OB-1, ruled by the lead): the Office balloon's
   13 / 16 px are the Tahoma cell height (positive lfHeight, R-OB-4), so TM.height is 13 / 16
   and G is 6 / 8. B-BAL-2's em rule applies to the Agent balloon's negative ACS heights.
+- **A-CORE-1 Office balloon sizing details** (R-OB-31 leaves them [inf]). Area terms:
+  heading block (37 + heading width with an icon) x max(32, heading height); each text line
+  unwrapped width x TM.height; each label and check-box row (text width + prefix column +
+  17) x max(TM.height, 15); button row (width + 12) x button height. Minimum body: width
+  12 + max(button row, 47 with an icon, prefix column + 15); height 12 + 32 (icon) +
+  button height, at least 12 + TM.height. A shape grows until its content area (w - 12) x
+  (h - 12) reaches the area. The shape fixes only the width: the body height is the
+  laid-out content height + 12. When neither shape has a score-0 candidate, the lowest
+  score over both shapes wins, ties to the landscape shape and the earlier candidate.
+  Reason: the report gives the method, not these constants.
+- **A-CORE-2 Office balloon controls.** Check-box rows use the label prefix column (13 x 13
+  glyph centred) and start their text at the column + 5 px, like labels. `&` mnemonics
+  apply to button and check-box captions; label text is plain. Markup (B-ASK-3) applies
+  to `text` and labels, not to the heading or check boxes. Space only toggles a focused
+  check box. Unknown `icon`, `label_type`, `mode` or set names and an empty custom
+  button list are `InvalidArgs`. Reason: native check boxes and buttons take mnemonics;
+  labels are owner-drawn rows (R-OB-7).
+- **A-CORE-3 Small engine choices.** Move(..., 4) after an output change only when the
+  position changed. An interrupted Speak hides its Agent balloon at once. A double-click
+  is any second press within `double_click_ms`, whatever the button; DragStart carries
+  the pointer position at drag start. Select of the current id reloads it (B-CHAR-5
+  applies). A program Hide that reaches execution closes the gallery as Cancel; Stop and
+  StopAll do not touch the gallery. A state member choice always takes a draw, also for
+  a single member (`rand() % n`). The Speak alternative is drawn when the request starts.
+  Reason: the spec is silent; these are the simplest consistent readings.
+- **A-CORE-4 office97 switch details.** The transition check (B-SW-O steps 2 to 4) also
+  runs when the previous animation ended normally, not after Showing, and chains at most
+  8 clips per switch. Reason: MSO97 checks when the queued animation starts; the cap
+  prevents a cyclic table from looping.
+- **A-CORE-5 Agent balloon tail and scroll.** The tail tip lies on the window edge at the
+  clamped anchor coordinate, and its base (2 x tailHalf) is centred on the tip coordinate.
+  The scroll (R-BAL-9) moves one pixel at a time, evenly over `60000 / effectiveSpeed` ms.
+  Reason: R-BAL-4/R-BAL-9 give lengths and duration, not these shapes.
 
 ## 4. Reconciliation
 
