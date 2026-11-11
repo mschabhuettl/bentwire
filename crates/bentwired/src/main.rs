@@ -6,6 +6,8 @@ mod dbus;
 mod discovery;
 mod library;
 mod model;
+#[cfg(test)]
+mod oracle;
 mod present;
 mod tray;
 mod wayland;
