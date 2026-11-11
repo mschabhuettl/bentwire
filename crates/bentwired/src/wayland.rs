@@ -313,6 +313,31 @@ impl Backend for Wayland {
     }
 }
 
+/// The mode size in the output's orientation: a 90 or 270 degree transform swaps axes.
+fn oriented((w, h): (i32, i32), t: wl_output::Transform) -> (i32, i32) {
+    use wl_output::Transform::*;
+    match t {
+        _90 | _270 | Flipped90 | Flipped270 => (h, w),
+        _ => (w, h),
+    }
+}
+
+/// B-WL-6: the output scale, fractional from the (oriented) mode width over the
+/// xdg-output logical width, else the integer wl_output scale.
+fn output_scale(mode: Option<(i32, i32)>, logical: Option<(i32, i32)>, integer: i32) -> f64 {
+    match (mode, logical) {
+        (Some((mw, _)), Some((lw, _))) if lw > 0 => {
+            let s = mw as f64 / lw as f64;
+            if (s - s.round()).abs() < 0.01 {
+                s.round()
+            } else {
+                s
+            }
+        }
+        _ => integer as f64,
+    }
+}
+
 fn button_code(b: u32) -> u32 {
     match b {
         BTN_LEFT => 1,
@@ -330,23 +355,16 @@ impl WlState {
             .filter_map(|o| self.output_state.info(&o))
             .filter_map(|i| {
                 let (x, y) = i.logical_position.unwrap_or(i.location);
-                let mode = i.modes.iter().find(|m| m.current).map(|m| m.dimensions);
+                let mode = i
+                    .modes
+                    .iter()
+                    .find(|m| m.current)
+                    .map(|m| oriented(m.dimensions, i.transform));
                 let (w, h) = i.logical_size.or(mode).unwrap_or((0, 0));
                 if w <= 0 || h <= 0 {
                     return None;
                 }
-                // Fractional scale from the mode and the logical size (xdg-output).
-                let scale = match (mode, i.logical_size) {
-                    (Some((mw, _)), Some((lw, _))) if lw > 0 => {
-                        let s = mw as f64 / lw as f64;
-                        if (s - s.round()).abs() < 0.01 {
-                            s.round()
-                        } else {
-                            s
-                        }
-                    }
-                    _ => i.scale_factor as f64,
-                };
+                let scale = output_scale(mode, i.logical_size, i.scale_factor);
                 Some(OutputInfo {
                     id: i.id,
                     rect: Rect::new(x, y, w, h),
@@ -1094,3 +1112,26 @@ impl ProvidesRegistryState for WlState {
 }
 
 smithay_client_toolkit::delegate_dispatch2!(WlState);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn b_wl_6_scale_of_rotated_and_fractional_outputs() {
+        use wl_output::Transform;
+        // 1920x1080 rotated by 90 degrees, scale 1: logical 1080x1920.
+        let m = oriented((1920, 1080), Transform::_90);
+        assert_eq!(m, (1080, 1920));
+        assert_eq!(output_scale(Some(m), Some((1080, 1920)), 1), 1.0);
+        let m = oriented((1920, 1080), Transform::Flipped270);
+        assert_eq!(output_scale(Some(m), Some((1080, 1920)), 1), 1.0);
+        // Not rotated: 1.5 stays fractional, 2 is exact.
+        let m = oriented((1920, 1080), Transform::Normal);
+        assert_eq!(output_scale(Some(m), Some((1280, 720)), 2), 1.5);
+        assert_eq!(output_scale(Some(m), Some((960, 540)), 2), 2.0);
+        assert_eq!(oriented((1920, 1080), Transform::_180), (1920, 1080));
+        // No xdg-output: the integer scale.
+        assert_eq!(output_scale(Some(m), None, 2), 2.0);
+    }
+}

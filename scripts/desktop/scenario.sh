@@ -291,6 +291,10 @@ if [ "$COMP" = sway ]; then
     check "viewporter on a scale-1.5 output (B-WL-6)" wait_for 5 snap 's["backend"]["character"]["viewport"] and s["backend"]["character"]["buffer_scale"] == 2'
     swaymsg -q output HEADLESS-1 scale 1
     check "back to buffer scale 1" wait_for 5 snap 's["backend"]["character"]["buffer_scale"] == 1'
+    swaymsg -q output HEADLESS-1 transform 90
+    check "rotated output keeps scale 1 (B-WL-6)" wait_for 5 snap "s['outputs'][0]['w'] == $H and s['outputs'][0]['scale'] == 1 and s['backend']['character']['buffer_scale'] == 1 and not s['backend']['character']['viewport']"
+    swaymsg -q output HEADLESS-1 transform normal
+    check "transform back to normal" wait_for 5 snap "s['outputs'][0]['w'] == $W and s['backend']['character']['buffer_scale'] == 1"
     swaymsg -q output HEADLESS-1 position 100 0
     check "margins follow a moved output origin (B-WL-2)" wait_for 5 snap 's["outputs"][0]["x"] == 100 and s["backend"]["character"]["margins_requested"] == {"left": s["left"] - 100, "top": s["top"]}'
     swaymsg -q output HEADLESS-1 position 0 0
