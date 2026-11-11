@@ -172,7 +172,8 @@ the `builtin` pack and `gallery/` of the classics checkout in `BENTWIRE_CLASSICS
 `../bentwire-classics`; skipped with a note when it is not there). For the classics pack it
 also rewrites the gallery table in its `README.md` between `<!-- gallery:start -->` and
 `<!-- gallery:end -->` (`scripts/gallery-table.py`; the product of each character comes
-from the format in `[source]` plus a per-id exception table there):
+from the format in `[source]`; per-id overrides and the product order come from the pack's
+`gallery.tsv`):
 
 ```sh
 scripts/gallery.sh

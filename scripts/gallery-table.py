@@ -5,10 +5,13 @@
 usage: gallery-table.py PACKDIR README
 
 One cell per character: rest-pose image gallery/<id>.png, English name, id, family and
-source product. The product comes from the manifest's [source] format (PRODUCT), with the
-per-id exceptions that the format cannot tell (PRODUCT_BY_ID). Rows are ordered by product
-(order of GROUPS), then the order of PRODUCT_BY_ID, then id, five cells per row. Alt texts are "<name> (<product>)"; when
-two characters would still share one, the id is added.
+source product. The product comes from the manifest's [source] format (PRODUCT). The pack
+may carry PACKDIR/gallery.tsv (columns id, product, name; '#' lines are comments) with
+what the format cannot tell: per-id product and name overrides (empty: none). Products
+are ordered as they first appear in gallery.tsv (rows with id '*' only set that order),
+else as in PRODUCT. Rows are ordered by product, then gallery.tsv row, then id, five
+cells per row. Alt texts are "<name> (<product>)"; when two characters would still share
+one, the id is added.
 """
 import sys
 import tomllib
@@ -21,27 +24,7 @@ PRODUCT = {
     "act-2.2": "Office 97",
     "act-1.0": "Microsoft Bob",
 }
-THIRD_PARTY_15 = ["al", "check", "gourdy", "max", "miku", "ozzar", "sharky", "spaceman", "totem"]
-PRODUCT_BY_ID = {
-    **{f"{i}-15": "Microsoft Agent 1.5 (third-party)" for i in THIRD_PARTY_15},
-    "dolphin-97": "Office 97 (Japanese)",
-    "offlady-97": "Office 97 (Japanese)",
-    "rocky-greetings-act": "Greetings Workshop",
-    "rocky-earlygreetings-act": "Greetings Workshop",
-    "tutor-act": "My Personal Tutor",
-}
-GROUPS = [
-    "Microsoft Agent 2.0",
-    "Microsoft Agent 1.5",
-    "Microsoft Agent 1.5 (third-party)",
-    "Office 97",
-    "Office 97 (Japanese)",
-    "Microsoft Bob",
-    "Greetings Workshop",
-    "My Personal Tutor",
-]
-# English names the manifest does not carry (offlady-97 has only its Japanese name).
-NAME_BY_ID = {"offlady-97": "Saeko-sensei", "tutor-act": "(unnamed)"}
+ORDER = list(PRODUCT.values())  # product order without a gallery.tsv
 START, END = "<!-- gallery:start -->", "<!-- gallery:end -->"
 CELL = (
     '<td align="center" valign="bottom"><img src="gallery/{id}.png" height="100" '
@@ -56,25 +39,41 @@ def manifest(path):
     return tomllib.loads((path / "character.toml").read_text())
 
 
-def entry(cid, m):
+def overrides(pack):
+    path = pack / "gallery.tsv"
+    if not path.is_file():
+        return ORDER, {}
+    order, rows = [], {}
+    for line in path.read_text().splitlines():
+        if not line or line.startswith("#"):
+            continue
+        cid, product, name = line.split("\t")
+        if product and product not in order:
+            order.append(product)
+        if cid != "*":
+            rows[cid] = (len(rows), product, name)
+    return order, rows
+
+
+def entry(cid, m, rows):
     infos = m["character"]["info"]
     en = [i for i in infos if i["lang"] == "en" or i["lang"].startswith("en-")]
-    name = NAME_BY_ID.get(cid) or (en or infos)[0]["name"]
-    product = PRODUCT_BY_ID.get(cid) or PRODUCT[m["source"]["format"]]
-    return {"id": cid, "name": name, "family": m["family"], "product": product}
+    rank, product, name = rows.get(cid, (-1, "", ""))
+    name = name or (en or infos)[0]["name"]
+    product = product or PRODUCT[m["source"]["format"]]
+    return {"id": cid, "name": name, "family": m["family"], "product": product, "rank": rank}
 
 
 def main():
     pack, readme = Path(sys.argv[1]), Path(sys.argv[2])
+    order, rows = overrides(pack)
     chars = []
     for p in pack.iterdir():
         if p.suffix == ".bwc":
-            chars.append(entry(p.stem, manifest(p)))
+            chars.append(entry(p.stem, manifest(p), rows))
         elif (p / "character.toml").is_file():
-            chars.append(entry(p.name, manifest(p)))
-    order = list(PRODUCT_BY_ID)
-    rank = lambda c: order.index(c["id"]) if c["id"] in order else -1
-    chars.sort(key=lambda c: (GROUPS.index(c["product"]), rank(c), c["id"]))
+            chars.append(entry(p.name, manifest(p), rows))
+    chars.sort(key=lambda c: (order.index(c["product"]), c["rank"], c["id"]))
     for c in chars:
         # "Microsoft Agent 1.5 (third-party)" -> "Microsoft Agent 1.5, third-party"
         name = "Unnamed character" if c["name"] == "(unnamed)" else c["name"]
