@@ -8,7 +8,7 @@ set -euo pipefail
 export PATH="$HOME/.cargo/bin:$PATH"
 cd "$(dirname "$0")/.."
 cargo build --release -q -p bentwired --example gallery
-gallery=target/release/examples/gallery
+gallery=${CARGO_TARGET_DIR:-target}/release/examples/gallery
 run() { # pack dir, output dir
   mkdir -p "$2"
   find "$2" -maxdepth 1 -name '*.png' -delete

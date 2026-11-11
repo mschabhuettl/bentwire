@@ -37,7 +37,7 @@ case "${1:-}" in
 --gifs) MODE=gifs; shift ;;
 --all) MODE=all; shift ;;
 esac
-BIN=$(cd "${1:-$REPO/target/debug}" && pwd)
+BIN=$(cd "${1:-${CARGO_TARGET_DIR:-$REPO/target}/debug}" && pwd)
 
 if [ -z "${BENTWIRE_SHOTS_INNER:-}" ]; then
     T=$(mktemp -d)
