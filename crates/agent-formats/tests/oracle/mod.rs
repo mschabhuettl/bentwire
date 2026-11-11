@@ -176,3 +176,77 @@ pub fn acs_json(a: &agent_formats::acs::Acs) -> Value {
         "sounds": a.sounds.iter().map(|s| json!([s.checksum, sha(&s.data)])).collect::<Vec<_>>(),
     })
 }
+
+fn picture_json(b: &agent_formats::common::Bitmap, r: &Option<Region>) -> Vec<Value> {
+    vec![
+        json!(sha(&b.pixels)),
+        json!(r.as_ref().map(|r| sha(&region_bytes(r)))),
+    ]
+}
+
+pub fn acf_character_json(c: &agent_formats::acf::AcfCharacter) -> Value {
+    json!({
+        "version": c.version,
+        "entries": c.animations.iter().map(|e| json!([e.name, e.file_name, e.return_animation, e.checksum])).collect::<Vec<_>>(),
+        "guid": c.guid.to_string(),
+        "localized": c.localized.iter().map(|l| json!([l.langid, l.name, l.description, l.extra])).collect::<Vec<_>>(),
+        "width": c.width, "height": c.height, "transparent": c.transparent, "flags": c.flags,
+        "animation_set": c.animation_set.map(|(a, b)| json!([a, b])),
+        "voice": voice_json(&c.voice),
+        "balloon": c.balloon.as_ref().map(|b| json!([b.lines, b.chars_per_line, b.foreground, b.background,
+            b.border, b.font, b.font_height, b.font_weight, b.italic, b.flag2])),
+        "palette": [c.palette.len(), sha(&palette_bytes(&c.palette))],
+        "tray_icon": c.tray_icon.as_ref().map(|t| json!([sha(&t.mask_dib), sha(&t.color_dib)])),
+        "states": c.states.iter().map(|s| json!([s.name, s.animations])).collect::<Vec<_>>(),
+    })
+}
+
+pub fn aca_json(a: &agent_formats::acf::Aca) -> Value {
+    use agent_formats::acf::{AcaHeader, BaseImage};
+    let an = &a.animation;
+    json!({
+        "header": match a.header { AcaHeader::Present { version, checksum } => json!([version, checksum]), _ => Value::Null },
+        "compressed": a.compressed,
+        "sounds": an.sounds.iter().map(|s| sha(s)).collect::<Vec<_>>(),
+        "images": an.images.iter().map(|i| i.as_ref().map(|i| {
+            let mut v = vec![json!(i.unknown)];
+            v.extend(picture_json(&i.bitmap, &i.region));
+            v
+        })).collect::<Vec<_>>(),
+        "transition": an.transition,
+        "frames": an.frames.iter().map(|f| json!({
+            "image": f.image, "sound": f.sound, "duration": f.duration, "offset": [f.offset_x, f.offset_y],
+            "exit": f.exit,
+            "branches": f.branches.iter().map(|b| json!([b.target, b.probability])).collect::<Vec<_>>(),
+            "base": match &f.base {
+                None => Value::Null,
+                Some(BaseImage::Absent) => json!("absent"),
+                Some(BaseImage::Empty) => json!("empty"),
+                Some(BaseImage::Image { bitmap, region }) => json!(picture_json(bitmap, region)),
+            },
+            "overlays": f.overlays.iter().map(|o| {
+                let mut v = vec![json!(o.mouth)];
+                if let Some(d) = &o.data {
+                    v.extend([json!(d.reserved), json!(d.replace_base), json!(d.x), json!(d.y),
+                        json!(d.bitmap.width), json!(d.bitmap.height), json!(sha(&d.bitmap.pixels)),
+                        json!(d.region.as_ref().map(|r| sha(&region_bytes(r))))]);
+                }
+                v
+            }).collect::<Vec<_>>(),
+        })).collect::<Vec<_>>(),
+    })
+}
+
+/// The layout written by `scripts/oracle/acf_dump.py`.
+pub fn web_json(w: &agent_formats::acf::WebCharacter) -> Value {
+    use agent_formats::acf::AnimationFile;
+    json!({
+        "magic": w.acf.magic,
+        "character": acf_character_json(&w.acf.character),
+        "animations": w.animations.iter().map(|a| match a {
+            AnimationFile::Missing => Value::Null,
+            AnimationFile::Loaded(a) => aca_json(a),
+            AnimationFile::Failed(e) => panic!("animation failed: {e}"),
+        }).collect::<Vec<_>>(),
+    })
+}

@@ -35,6 +35,10 @@ pub enum Error {
     Invalid { what: String, offset: usize },
     #[error("{context}: {source}")]
     Context { context: String, source: Box<Error> },
+    #[error("checksum {found:#010x} does not match the character's {expected:#010x}")]
+    ChecksumMismatch { expected: u32, found: u32 },
+    #[error("{path}: {message}")]
+    Io { path: String, message: String },
 }
 
 impl Error {
@@ -211,7 +215,6 @@ impl<'a> Reader<'a> {
     }
 
     /// ACF string: u32 count, then count UTF-16LE units, no terminator.
-    #[allow(dead_code)] // used by the ACF reader (next step)
     pub fn acf_string(&mut self) -> Result<String> {
         let n = self.u32()?;
         self.utf16(n)
