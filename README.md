@@ -240,6 +240,11 @@ cargo test --workspace -- --ignored      # or:
 scripts/oracle-check.sh
 ```
 
+`BENTWIRE_PACKS` points at a `characters/` directory with packs, for the test that loads
+every character of every pack in the daemon. `scripts/oracle-check.sh` sets it to the
+repository's `characters/` unless it is already set. To run that test alone:
+`BENTWIRE_PACKS=$PWD/characters cargo test --release -p bentwired --bin bentwired library -- --ignored`.
+
 With a variable unset, an ignored test fails with "NOT RUN", and `oracle-check.sh` prints
 "NOT RUN" and exits 77. They never count as passed.
 
@@ -303,6 +308,7 @@ itself are marked **bentwire decision** in its sections 3.1 to 3.13.
 | A-ID-1 | Unique character ids in `classics` (`clippit`; suffixes `-web`, `-15`, `-97`, `-bob`, `-act`) |
 | A-PACK-2 | `classics` holds every source that converts with no missing animations |
 | A-CHAR-1 | With only `builtin` installed, `bentwire-placeholder` is the default |
+| A-TEST-1 | Real-data tests read `BENTWIRE_REFERENCE`, `BENTWIRE_SOURCES` and `BENTWIRE_PACKS` (instead of `BENTWIRE_SAMPLES`) and fail with "NOT RUN" when unset |
 | A-THEME-1 | The Office balloon theme is pack data with a generic loader; the look-alike is the fallback |
 | A-TEST-3 | `--test-interface` exports a reduced `Test1` on the Wayland backend |
 | B-REN-1 | Text: advance-only, whole-pixel advances, OS/2 win metrics, cell versus em heights, fontconfig fallback |
