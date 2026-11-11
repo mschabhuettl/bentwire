@@ -96,8 +96,9 @@ fn r_bal_4_agent_balloon_golden() {
 
 #[test]
 fn r_bal_9_agent_balloon_scrolling_golden() {
+    // Mid-scroll: the outgoing top line moves up by 7 px (scroll_px runs 0 to -pitch).
     let f = Fonts::bundled();
-    let s = agent_scene(&f, (0, 0), &["first line", "second line", "third"], 7);
+    let s = agent_scene(&f, (0, 0), &["first line", "second line", "third"], -7);
     check("agent-balloon-scroll", &agent_image(&f, &s, 1));
 }
 
