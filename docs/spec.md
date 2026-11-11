@@ -1388,6 +1388,43 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   look-alike of B-OB-1 is the fallback.
 - **A-TEST-3** `bentwired --test-interface` exports a reduced `org.bentwire.Test1` on the
   Wayland backend. Reason: the desktop scenario must answer `ask` without a human.
+- **B-REN-1 Text.** Glyphs are drawn advance-only (no kerning or shaping), each advance
+  rounded to whole logical px, so measured and drawn widths agree; antialiased greyscale
+  coverage, no hinting. Ascent and descent are OS/2 usWinAscent/usWinDescent (GDI
+  tmAscent/tmDescent; hhea if there is no OS/2 table). A positive LOGFONT height is the
+  cell height (em = h x unitsPerEm / (winAscent + winDescent)), a negative one the em.
+  A missing italic face is sheared by 0.2. fontconfig is queried with `fc-match`; when
+  the returned family differs from the requested one, `sans-serif` is used; without
+  fontconfig, the bundled Tahoma. Text is rasterised at the buffer scale. Reason: GDI
+  draws Latin text without kerning; B-BAL-2 leaves the details open.
+- **B-REN-2 Office look-alike art.** Buttons: outline #868686 (normal), black (hot, with
+  white/#C0C0C0 inner bevel; pressed, #E7E7D6 fill, caption +1 px; focused, plus a dotted
+  focus rectangle inset 3 px), #C0C0C0 with #808080 caption (disabled). Check boxes in
+  the XP look (#1C5180 border, green tick, orange inner ring when hot). Hot clickable
+  labels are drawn underlined (R-OB-4). `alert` uses the same exclamation-triangle icon
+  as `warning` (R-OB-5 lists only four stock icons for five alert kinds). Reason:
+  R-OB-11 gives colours but only a guessed state order; no bitmaps may be shipped.
+- **B-REN-3 Menu metrics** (XP flat menu look): Tahoma em 11 px, item height 17,
+  separator 9 (1 px #ACA899 line), 1 px #ACA899 border plus 2 px padding, white
+  background, text at x = 21 with a 21 px right margin, minimum width 100, highlight
+  #316AC5 with white text; mnemonics are always underlined. Reason: B-WL-9 says "XP
+  style" without metrics.
+- **B-REN-4 HiDPI shape.** For a picture above 1x, a logical pixel belongs to the input
+  region when any buffer pixel it covers has alpha > 0. Reason: B-WL-6 keeps logical
+  sizes; for 1x pictures this equals B-PIX-3.
+- **B-REN-5 Headless frames** (T-4 `--dump-frames`): one RGBA PNG per output at
+  ceil(output scale), transparent background, z-order character, Agent balloon, Office
+  balloon, menu. Reason: the dump shows what bentwire draws, not a desktop.
+- **B-REN-6 Balloon outlines.** Body and tail are GDI-style regions (rounded rectangle
+  sampled per row at the pixel centre; polygon with right and bottom edges excluded);
+  the border is the region's inner 1 px frame (FrameRgn). The same region is the
+  balloon's input region (B-WL-8).
+- **B-REN-7 Theme format** (A-THEME-1): `balloon-themes/<id>/theme.toml` with
+  `format = 1`, `[buttons.small]` / `[buttons.large]` (`left`, `middle`, `right` PNG
+  strips, `frames` naming normal, default, hot, pressed, disabled), `[bullets]` (`label`,
+  `label_frames`) and `[icons]` (alert, tip, info, warning, query, critical; 32 x 32).
+  Masks are folded into alpha. A button strip is used when its height equals the button
+  height; anything missing falls back to B-REN-2.
 
 ## 4. Reconciliation
 
