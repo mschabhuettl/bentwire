@@ -173,7 +173,7 @@ pub fn cosmetic_line<P: Plot>(p: &mut P, a: (i64, i64), b: (i64, i64)) {
     let dx = (b.0 - a.0).abs();
     let dy = (b.1 - a.1).abs();
     let n = dx.max(dy);
-    // Skip lines that lie wholly outside the canvas (also bounds the loop).
+    // Skip lines that lie wholly outside the canvas.
     if a.0.max(b.0) < 0
         || a.1.max(b.1) < 0
         || a.0.min(b.0) >= i64::from(w)
@@ -181,8 +181,20 @@ pub fn cosmetic_line<P: Plot>(p: &mut P, a: (i64, i64), b: (i64, i64)) {
     {
         return;
     }
-    let n = n.min(1 << 20);
-    for k in 0..n {
+    // Restrict the steps to those that can land inside the canvas (exact test below).
+    let (mut k0, mut k1) = (0i64, n);
+    for (a, d, size) in [
+        (a.0, b.0 - a.0, i64::from(w)),
+        (a.1, b.1 - a.1, i64::from(h)),
+    ] {
+        if d != 0 {
+            let t0 = (-a) as f64 * n as f64 / d as f64;
+            let t1 = (size - a) as f64 * n as f64 / d as f64;
+            k0 = k0.max(t0.min(t1).floor() as i64 - 2);
+            k1 = k1.min(t0.max(t1).ceil() as i64 + 2);
+        }
+    }
+    for k in k0.max(0)..k1.min(n) {
         // round-half-up along the minor axis
         let x = a.0 + (2 * k * (b.0 - a.0) + n).div_euclid(2 * n);
         let y = a.1 + (2 * k * (b.1 - a.1) + n).div_euclid(2 * n);
@@ -211,4 +223,19 @@ pub fn wide_segment<P: Plot>(p: &mut P, a: Pt, b: Pt, r: f64) {
         let (dx, dy) = (x - a.0 - t * vx, y - a.1 - t * vy);
         dx * dx + dy * dy <= r * r
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn d2_wmf_long_cosmetic_line_is_clipped_not_truncated() {
+        let mut m = Mask::new(64, 16);
+        cosmetic_line(&mut m, (-10_000_000, 5), (10_000_000, 5));
+        assert_eq!(m.bits.iter().filter(|b| **b).count(), 64);
+        let mut m = Mask::new(64, 16);
+        cosmetic_line(&mut m, (-3_000_000, -3_000_000), (3_000_000, 3_000_000));
+        assert_eq!(m.bits.iter().filter(|b| **b).count(), 16);
+    }
 }
