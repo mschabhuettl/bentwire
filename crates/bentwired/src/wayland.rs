@@ -315,9 +315,9 @@ impl Backend for Wayland {
 
 /// The mode size in the output's orientation: a 90 or 270 degree transform swaps axes.
 fn oriented((w, h): (i32, i32), t: wl_output::Transform) -> (i32, i32) {
-    use wl_output::Transform::*;
+    use wl_output::Transform as T;
     match t {
-        _90 | _270 | Flipped90 | Flipped270 => (h, w),
+        T::_90 | T::_270 | T::Flipped90 | T::Flipped270 => (h, w),
         _ => (w, h),
     }
 }
