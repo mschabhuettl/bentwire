@@ -189,7 +189,6 @@ fn act_rejects_bad_container() {
 #[test]
 #[ignore = "real data: needs BENTWIRE_REFERENCE (research parser validates the fixtures)"]
 fn act_fixtures_accepted_by_research_parser() {
-    let research = act_common::research();
     let dir = act_common::temp_dir("act-fixtures");
     let mut files = Vec::new();
     for (name, a) in [
@@ -201,7 +200,7 @@ fn act_fixtures_accepted_by_research_parser() {
         std::fs::write(&p, a.to_bytes()).unwrap();
         files.push(p);
     }
-    let (list, out) = act_common::run_oracle(&research, &files);
+    let (list, out) = act_common::run_oracle(&files);
     assert_eq!(list.len(), 3);
     for (key, path) in &list {
         let f = act::parse(&std::fs::read(path).unwrap()).unwrap();

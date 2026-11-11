@@ -1,12 +1,11 @@
 # bentwire architecture and build rules
 
-This file is the shared contract for everyone building v1. `BRIEF.md` is the task,
-`docs/spec.md` the behaviour, `docs/character-format.md` the format. This file adds the
+This file is the shared contract for everyone building v1. `docs/spec.md` is the behaviour, `docs/character-format.md` the format. This file adds the
 crate layout, file ownership, cross-cutting decisions and working rules.
 
 ## 1. Crates
 
-The brief's layout, with two extra crates (reason: the behaviour core and the renderer
+The planned layout, with two extra crates (reason: the behaviour core and the renderer
 are large, have no I/O and are tested on their own; separate crates give each one owner
 and keep `bentwired` a thin shell around backends).
 
@@ -71,17 +70,23 @@ the pack search it draws its own look-alike (B-OB-1). Golden images in the code 
 only the look-alike.
 
 **A-TEST-1 Environment variables for real-data tests.**
-- `BENTWIRE_REFERENCE` = the research tree (parsers, prototype, samples under
-  `*/`).
-- `BENTWIRE_SOURCES` = the owner's files (the 12 ACS files, zips, DLLs).
+- `BENTWIRE_SOURCES` = one or more directories (colon-separated) with your own copies of
+  the original character files and DLLs, in any layout. Files are found by file name and
+  checked by SHA-256 against `docs/sources.md` (the pack's own list is `sources.sh` in
+  `bentwire-classics`).
+- `BENTWIRE_REFERENCE` = a directory with the Python reference parsers and prototype used
+  as test oracle (not public). Tests and scripts find the files they need by file name
+  below it (`acs.py`, `acfparse.py`, `agentlz.py`, `cfb.py`, `actparse.py`, the
+  prototype's `oracle.py`).
 - `BENTWIRE_CLASSICS` = a checkout of `bentwire-classics` (default `../bentwire-classics`).
 - `BENTWIRE_PACKS` = a `characters/` directory with packs, for the daemon's load-every-
   character test (`scripts/oracle-check.sh` defaults it to a temp directory holding
   `characters/builtin` and the classics pack).
-- Optional: `BENTWIRE_PROTO_COPY` = an existing scratch copy of `prototype`;
+- Optional: `BENTWIRE_PROTO_COPY` = an existing scratch copy of the prototype (the
+  directory holding `oracle.py`);
   `TMPDIR` on disk when `/tmp` is a small tmpfs.
-- These names replace spec T-0's `BENTWIRE_SAMPLES` (the user's files are split into
-  research and sources); see spec 3.14 A-TEST-1.
+- These names replace spec T-0's `BENTWIRE_SAMPLES` (original files and reference
+  parsers are separate inputs); see spec 3.14 A-TEST-1.
 - Real-data tests are `#[ignore]` and are run with `cargo test --workspace -- --ignored`
   or `scripts/oracle-check.sh`. When a needed variable is unset, an ignored test
   **panics** with "NOT RUN: set BENTWIRE_…" (so it can never count as passed) and
@@ -91,11 +96,11 @@ only the look-alike.
   `bentwire-classics` repository, never into tests or other paths of this repository.
 
 **A-TEST-2 Oracle comparison.** The Rust dump and traces are compared against the
-Python prototype `$BENTWIRE_REFERENCE/prototype/oracle.py` (canonical dump and
+Python prototype `oracle.py` in `$BENTWIRE_REFERENCE` (canonical dump and
 interpreter A), driven by our own driver script `scripts/oracle/dump.py`, which writes
 JSON to a temp dir. The draw source for traces is a shared generator defined in that
 driver and mirrored in Rust (splitmix64; `draw(s) = next() % s`), not Python's
-`random`. The driver must run against a scratch copy of `prototype` (it writes
+`random`. The driver must run against a scratch copy of the prototype (it writes
 pickles into `cache/`), with `PYTHONDONTWRITEBYTECODE=1` and `python3 -I`; never write
 into `$BENTWIRE_REFERENCE` or `$BENTWIRE_SOURCES`.
 - ACT state names: the oracle uses Office 97 type-library names, the Rust converter XP
@@ -117,19 +122,18 @@ exists in headless mode, spec 3.14 A-DESK-3). This lets the desktop scenario ans
 
 ## 3. Clean room (binding for every contributor)
 
-- **Allowed to read:** `docs/`; the Python reference parsers
-  `$BENTWIRE_REFERENCE/*.py`, `$BENTWIRE_REFERENCE/*.py`,
-  `$BENTWIRE_REFERENCE/agent15/` Python scripts, `$BENTWIRE_REFERENCE/` Python
-  scripts except `disasm.py`; the prototype `$BENTWIRE_REFERENCE/prototype/` (Python,
-  schema, `harness/`); sample files as data.
-- **Off-limits:** any `*.asm`, `*_decomp*`, `*_c`/`*_nc.c`, `ghproj/`,
-  `ghidra`, `disasm.py`, `acf/rea`, `agent15/d15.c`,
-  `agent15/d20.c`, `mso/`, `runtime/`, `prototype/msadp32/`; REA or any
-  disassembler on Microsoft binaries; web searches for Microsoft or third-party Agent
-  source code. Do not grep recursively over `$BENTWIRE_REFERENCE`; open the allowed
-  files by path.
-- `$BENTWIRE_SOURCES` and `$BENTWIRE_REFERENCE` are **read-only**. Extract zips into a
-  `mktemp -d` directory.
+- **Allowed to read:** `docs/`; the Python reference parsers in `$BENTWIRE_REFERENCE`
+  (`acs.py`, `render.py`, `checks.py` for ACS; `acfparse.py`, `agentlz.py` for ACF;
+  `cfb.py` and the Agent 1.5 scripts; `actparse.py` and the other ACT scripts except
+  `disasm.py`); the prototype (its Python modules, schema, `harness/`); sample files as
+  data.
+- **Off-limits:** any disassembly or decompiler output (`*.asm`, `*_decomp*`,
+  `*_c`/`*_nc.c`, Ghidra projects, REA exports, `disasm.py`), the analysis work files of
+  the Microsoft DLLs, the working copy of the ADPCM codec; REA or any disassembler on
+  Microsoft binaries; web searches for Microsoft or third-party Agent source code. Do not
+  grep recursively over `$BENTWIRE_REFERENCE`; open the allowed files by name.
+- `$BENTWIRE_SOURCES` and `$BENTWIRE_REFERENCE` are **read-only**. Extract archives into
+  a `mktemp -d` directory.
 - If the docs leave a gap: pick a sensible behaviour, add it to `docs/spec.md` 3.14 as
   a "bentwire decision" with a reason, and report it.
 

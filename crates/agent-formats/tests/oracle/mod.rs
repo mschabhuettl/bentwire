@@ -1,5 +1,6 @@
-//! Shared helpers for comparing the Rust readers with the Python research parsers
-//! (architecture A-TEST-1). Used by the `#[ignore]` oracle tests only.
+//! Shared helpers for comparing the Rust readers with the Python reference parsers
+//! (architecture A-TEST-1). Used by the `#[ignore]` oracle tests only. The real files are
+//! located with `agent_fixtures::real`.
 #![allow(dead_code)]
 
 use std::path::{Path, PathBuf};
@@ -8,13 +9,6 @@ use std::process::Command;
 use agent_formats::common::{Region, Voice};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-
-pub fn env_dir(var: &str) -> PathBuf {
-    match std::env::var_os(var) {
-        Some(v) if !v.is_empty() => PathBuf::from(v),
-        _ => panic!("NOT RUN: set {var} (see docs/architecture.md A-TEST-1)"),
-    }
-}
 
 pub fn sha(b: &[u8]) -> String {
     Sha256::digest(b)
@@ -41,13 +35,13 @@ fn repo() -> PathBuf {
 /// Runs `scripts/oracle/<script>` on `files` and returns one JSON value per file, read from
 /// `<out>/<basename>.json`.
 pub fn python(script: &str, files: &[PathBuf], extra: &[&str]) -> Vec<Value> {
-    let research = env_dir("BENTWIRE_REFERENCE");
+    let reference = agent_fixtures::real::reference_root();
     let out = temp_dir("oracle");
     let st = Command::new("python3")
         .arg("-I")
         .arg(repo().join("scripts/oracle").join(script))
-        .arg("--research")
-        .arg(&research)
+        .arg("--reference")
+        .arg(&reference)
         .arg("--out")
         .arg(&out)
         .args(extra)

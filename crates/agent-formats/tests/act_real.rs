@@ -4,15 +4,14 @@
 
 mod act_common;
 
-use act_common::{dump, research, run_oracle};
+use act_common::{dump, run_oracle, samples};
 use agent_formats::act;
 use serde_json::Value;
 
 #[test]
-#[ignore = "real data: needs BENTWIRE_REFERENCE"]
+#[ignore = "real data: needs BENTWIRE_SOURCES and BENTWIRE_REFERENCE"]
 fn act_real_samples_match_research_parser() {
-    let research = research();
-    let (list, out) = run_oracle(&research, &[]);
+    let (list, out) = run_oracle(&samples());
     assert!(!list.is_empty(), "no samples enumerated");
     let mut bad = Vec::new();
     for (key, path) in &list {

@@ -10,19 +10,9 @@ use bentwire_character::Character;
 use bentwire_character::dump::{Dumper, all_traces, diff};
 use serde_json::Value;
 
-pub fn env_dir(var: &str) -> PathBuf {
-    match std::env::var_os(var) {
-        Some(p) => PathBuf::from(p),
-        None => panic!("NOT RUN: set {var}"),
-    }
-}
-
-pub fn research() -> PathBuf {
-    env_dir("BENTWIRE_REFERENCE")
-}
-
-pub fn sources() -> PathBuf {
-    env_dir("BENTWIRE_SOURCES")
+/// The Office palette source for bitmap actors in the tests: `CLIPPIT.ACS`.
+pub fn office_palette() -> PathBuf {
+    agent_fixtures::real::locate_name("1.1", "CLIPPIT.ACS")
 }
 
 /// A fresh temp directory (removed by the OS, never inside the repo).
@@ -33,7 +23,7 @@ pub fn temp_dir(tag: &str) -> PathBuf {
     d
 }
 
-/// Scratch copy of prototype (it writes pickles into `cache/`). `BENTWIRE_PROTO_COPY`
+/// Scratch copy of the prototype (it writes pickles into `cache/`). `BENTWIRE_PROTO_COPY`
 /// reuses an existing copy (scripts/oracle-check.sh makes one); otherwise one is made here.
 pub fn proto_copy() -> &'static Path {
     static P: OnceLock<PathBuf> = OnceLock::new();
@@ -41,7 +31,7 @@ pub fn proto_copy() -> &'static Path {
         if let Some(p) = std::env::var_os("BENTWIRE_PROTO_COPY") {
             return PathBuf::from(p);
         }
-        let src = research().join("prototype");
+        let src = agent_fixtures::real::prototype_dir();
         let dst = temp_dir("proto");
         let st = Command::new("rsync")
             .args([
@@ -57,7 +47,7 @@ pub fn proto_copy() -> &'static Path {
             .arg(format!("{}/", dst.display()))
             .status()
             .expect("rsync");
-        assert!(st.success(), "copying prototype failed");
+        assert!(st.success(), "copying the prototype failed");
         dst
     })
 }
@@ -83,24 +73,41 @@ pub fn oracle_json(args: &[&str], out: &Path) -> Value {
     serde_json::from_slice(&std::fs::read(out).unwrap()).unwrap()
 }
 
-/// The sample list of prototype `sources.SAMPLES` as (kind, path).
+/// ACT actors converted fully (bitmap actors and one vector actor); every other actor of
+/// docs/sources.md 1.4 is kind `actg` (animation graph only, pictures replaced by 1x1
+/// placeholders).
+const ACT_FULL: &[&str] = &[
+    "GENIUS.act",
+    "MNATURE.act",
+    "EARL.act",
+    "ROBOT.act",
+    "ROCKY(Office).act",
+    "OFFLADY.act",
+    "TOFFLOGO.act",
+    "TUTOR.ACT",
+    "ROCKY(Greetings).ACT",
+    "ROCKY(EarlyGreetings).ACT",
+    "CLIPPIT.ACT",
+];
+
+/// The round-trip samples as (kind, path), from docs/sources.md: `acs` 1.1, `acf` 1.2 (the
+/// character folders), `ole15` 1.3, `act` and `actg` 1.4.
 pub fn samples() -> Vec<(String, PathBuf)> {
-    let out = Command::new("python3")
-        .env("PYTHONDONTWRITEBYTECODE", "1")
-        .arg("-I")
-        .arg(repo().join("scripts/oracle/dump.py"))
-        .arg("--proto")
-        .arg(proto_copy())
-        .arg("list")
-        .output()
-        .expect("python3");
-    assert!(out.status.success());
-    String::from_utf8(out.stdout)
-        .unwrap()
-        .lines()
-        .filter_map(|l| l.split_once(' '))
-        .map(|(k, p)| (k.to_owned(), PathBuf::from(p)))
-        .collect()
+    use agent_fixtures::real::{listed, locate, locate_dir, locate_section};
+    let mut out = Vec::new();
+    let mut add = |kind: &str, ps: Vec<PathBuf>| {
+        out.extend(ps.into_iter().map(|p| (kind.to_owned(), p)));
+    };
+    add("acs", locate_section("1.1"));
+    add("acf", listed("1.2").iter().map(locate_dir).collect());
+    add("ole15", locate_section("1.3"));
+    let act = listed("1.4");
+    let (full, graph): (Vec<_>, Vec<_>) = act
+        .iter()
+        .partition(|l| ACT_FULL.contains(&l.name.as_str()));
+    add("act", full.into_iter().map(locate).collect());
+    add("actg", graph.into_iter().map(locate).collect());
+    out
 }
 
 /// Rust dump and traces of a converted character.
@@ -276,7 +283,6 @@ pub fn round_trip_with(
     kind: &str,
     opts: &bentwire_convert::ConvertOptions,
 ) -> (usize, usize, usize) {
-    let _ = sources();
     let list: Vec<PathBuf> = samples()
         .into_iter()
         .filter(|(k, _)| k == kind)

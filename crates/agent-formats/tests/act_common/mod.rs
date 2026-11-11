@@ -19,11 +19,18 @@ pub fn hex(b: &[u8]) -> String {
     b.iter().map(|x| format!("{x:02x}")).collect()
 }
 
-pub fn research() -> PathBuf {
-    match std::env::var_os("BENTWIRE_REFERENCE") {
-        Some(p) => PathBuf::from(p),
-        None => panic!("NOT RUN: set BENTWIRE_REFERENCE"),
-    }
+/// The ACT and ACP sample set: the actor collection (docs/sources.md 1.4) and the actors
+/// and previews of the Office 97 CD (1.5), in table order.
+pub fn samples() -> Vec<PathBuf> {
+    use agent_fixtures::real::{listed, locate};
+    let mut out: Vec<PathBuf> = listed("1.4").iter().map(locate).collect();
+    out.extend(
+        listed("1.5")
+            .iter()
+            .filter(|l| l.name.ends_with(".ACT") || l.name.ends_with(".ACP"))
+            .map(locate),
+    );
+    out
 }
 
 pub fn temp_dir(tag: &str) -> PathBuf {
@@ -37,13 +44,13 @@ pub fn temp_dir(tag: &str) -> PathBuf {
 }
 
 /// Run the oracle driver; returns (key, path) pairs and the output directory.
-pub fn run_oracle(research: &Path, files: &[PathBuf]) -> (Vec<(String, PathBuf)>, PathBuf) {
+pub fn run_oracle(files: &[PathBuf]) -> (Vec<(String, PathBuf)>, PathBuf) {
     let out = temp_dir("act-oracle");
     let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../scripts/oracle/act_dump.py");
     let st = Command::new("python3")
         .arg("-I")
         .arg(&script)
-        .arg(research)
+        .arg(agent_fixtures::real::reference_root())
         .arg(out.join("json"))
         .args(files)
         .env("PYTHONDONTWRITEBYTECODE", "1")

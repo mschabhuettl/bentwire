@@ -25,7 +25,7 @@ fn pack() -> PathBuf {
 #[test]
 #[ignore]
 fn classics_pack_loads_and_is_reproducible() {
-    let _ = (oracle_common::research(), oracle_common::sources());
+    agent_fixtures::real::sources_dirs();
     let pack = pack();
     let mut committed: Vec<PathBuf> = std::fs::read_dir(&pack)
         .unwrap()

@@ -1,9 +1,10 @@
 """Dump ACS 2.0 files as JSON with the research parser acs.py (the independent oracle).
 
-Usage: PYTHONDONTWRITEBYTECODE=1 python3 -I acs_dump.py --research DIR --out OUTDIR FILE...
+Usage: PYTHONDONTWRITEBYTECODE=1 python3 -I acs_dump.py --reference DIR --out OUTDIR FILE...
 
-Copies $BENTWIRE_REFERENCE/acs.py into a fresh temp directory and imports it from there, so
-nothing is written next to the research files. Writes OUTDIR/<basename>.json per input.
+Copies acs.py (found by name below the reference directory) into a fresh temp directory and
+imports it from there, so nothing is written next to the reference files. Writes
+OUTDIR/<basename>.json per input.
 The JSON layout is mirrored by crates/agent-formats/tests/oracle/mod.rs (acs_json).
 """
 import argparse
@@ -16,14 +17,17 @@ import struct
 import sys
 import tempfile
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from reference import find_dir  # noqa: E402
+
 
 def sha(b):
     return hashlib.sha256(bytes(b)).hexdigest()
 
 
-def load_module(research):
+def load_module(src):
     d = tempfile.mkdtemp(prefix="bentwire-acs-oracle-")
-    shutil.copy(os.path.join(research, "acs.py"), d)
+    shutil.copy(os.path.join(src, "acs.py"), d)
     sys.path.insert(0, d)
     import acs  # noqa: E402
     sys.path.remove(d)
@@ -104,8 +108,8 @@ def dump(acs, path):
 
 
 def work(args):
-    research, outdir, path = args
-    acs = load_module(research)
+    src, outdir, path = args
+    acs = load_module(src)
     res = dump(acs, path)
     with open(os.path.join(outdir, os.path.basename(path) + ".json"), "w") as f:
         json.dump(res, f, ensure_ascii=False)
@@ -114,11 +118,12 @@ def work(args):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--research", required=True)
+    ap.add_argument("--reference", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("files", nargs="+")
     a = ap.parse_args()
-    jobs = [(a.research, a.out, p) for p in a.files]
+    src = find_dir(a.reference, "acs.py")
+    jobs = [(src, a.out, p) for p in a.files]
     with multiprocessing.get_context("fork").Pool(min(len(jobs), os.cpu_count() or 1)) as pool:
         for p in pool.imap_unordered(work, jobs):
             print("dumped", p)

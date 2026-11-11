@@ -241,7 +241,6 @@ fn source_of(stem: &str) -> (String, PathBuf) {
 #[test]
 #[ignore]
 fn mutations_are_detected() {
-    let _ = sources();
     let tmp = temp_dir("mutate");
     let mut stems: Vec<&str> = CASES.iter().map(|c| c.0).collect();
     stems.dedup();
@@ -254,7 +253,7 @@ fn mutations_are_detected() {
             &tmp.join(format!("{stem}.json")),
         );
         let opts = bentwire_convert::ConvertOptions {
-            office_palette: Some(sources().join("CLIPPIT.ACS")),
+            office_palette: Some(office_palette()),
             ..Default::default()
         };
         let pkg = match bentwire_convert::convert_to_package_with(&path, &opts) {

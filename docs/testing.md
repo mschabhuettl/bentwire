@@ -12,9 +12,12 @@ renderer's golden images (`crates/bentwire-render/tests/golden`; regenerate with
 `BENTWIRE_BLESS=1`) and the D-Bus end-to-end tests on a private bus
 (`cargo test -p bentwired --test e2e`).
 
-Real-data tests compare against the original files and the research oracle. The files
-are not public, so CI does not run these tests. They need `BENTWIRE_REFERENCE` (the research
-tree), `BENTWIRE_SOURCES` (the owner's files) and the classics pack in `BENTWIRE_CLASSICS`
+Real-data tests compare against the original files and the reference oracle. The files
+are not public, so CI does not run these tests. They need `BENTWIRE_SOURCES` (one or more
+directories, colon-separated, with your own copies of the original character files and
+DLLs, in any layout; files are found by file name and checked by SHA-256 against
+`docs/sources.md`), `BENTWIRE_REFERENCE` (a directory with the Python reference parsers
+and prototype used as test oracle, not public) and the classics pack in `BENTWIRE_CLASSICS`
 (default `../bentwire-classics`, a checkout of
 [bentwire-classics](https://github.com/mschabhuettl/bentwire-classics) next to this one):
 

@@ -5,10 +5,9 @@ reader (from a converted character) and writes JSON: {"dump": ..., "traces": {na
 Traces follow the shared plan, mirrored in bentwire_character::dump::{trace_params, all_traces}:
 for every animation, seeds 0..12 x modes 0..3; splitmix64 parameters and draws, draw(s) = next() % s.
 
-Must run against a SCRATCH COPY of prototype (it writes pickles into its cache/):
+Must run against a SCRATCH COPY of the prototype (it writes pickles into its cache/):
   PYTHONDONTWRITEBYTECODE=1 python3 -I scripts/oracle/dump.py --proto COPY oracle KIND SOURCE OUT.json
   PYTHONDONTWRITEBYTECODE=1 python3 -I scripts/oracle/dump.py --proto COPY reader CONVERTED OUT.json
-  PYTHONDONTWRITEBYTECODE=1 python3 -I scripts/oracle/dump.py --proto COPY list
 """
 import json
 import os
@@ -60,16 +59,11 @@ def main(argv):
     if len(argv) < 3 or argv[0] != "--proto":
         sys.exit(__doc__)
     proto = os.path.abspath(argv[1])
-    if os.path.realpath(proto).startswith(os.path.realpath(os.path.expanduser("$BENTWIRE_REFERENCE"))):
-        sys.exit("refusing to run inside $BENTWIRE_REFERENCE: pass a scratch copy of prototype")
+    ref = os.environ.get("BENTWIRE_REFERENCE")
+    if ref and os.path.commonpath([os.path.realpath(proto), os.path.realpath(ref)]) == os.path.realpath(ref):
+        sys.exit("refusing to run inside BENTWIRE_REFERENCE: pass a scratch copy of the prototype")
     sys.path.insert(0, proto)
     cmd, rest = argv[2], argv[3:]
-    if cmd == "list":
-        import sources
-        for kind, paths in sources.SAMPLES.items():
-            for p in paths:
-                print(kind, p)
-        return
     if cmd == "oracle":
         kind, src, out = rest
         import oracle

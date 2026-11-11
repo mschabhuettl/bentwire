@@ -7,7 +7,7 @@ use bentwire_convert::ConvertOptions;
 
 fn opts() -> ConvertOptions {
     ConvertOptions {
-        office_palette: Some(oracle_common::sources().join("CLIPPIT.ACS")),
+        office_palette: Some(oracle_common::office_palette()),
         ..Default::default()
     }
 }

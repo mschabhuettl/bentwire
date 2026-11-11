@@ -11,24 +11,17 @@ use std::path::PathBuf;
 use agent_formats::act::{self, CMD_FRAME, NONE, Payload};
 use bentwire_convert::wmf::{self, Canvas};
 
+/// The actor collection (docs/sources.md 1.4) and the actors and previews of the Office 97
+/// CD (1.5).
 fn samples() -> Vec<PathBuf> {
-    let r = match std::env::var_os("BENTWIRE_REFERENCE") {
-        Some(p) => PathBuf::from(p),
-        None => panic!("NOT RUN: set BENTWIRE_REFERENCE"),
-    };
-    let base = r.join("act/downloads");
-    let mut out = Vec::new();
-    for (dir, all) in [("source-files", true), ("source-files", false)] {
-        let mut v: Vec<PathBuf> = std::fs::read_dir(base.join(dir))
-            .unwrap()
-            .map(|e| e.unwrap().path())
-            .collect();
-        v.sort();
-        out.extend(v.into_iter().filter(|p| {
-            let n = p.to_string_lossy().to_uppercase();
-            all || n.ends_with(".ACT") || n.ends_with(".ACP")
-        }));
-    }
+    use agent_fixtures::real::{listed, locate};
+    let mut out: Vec<PathBuf> = listed("1.4").iter().map(locate).collect();
+    out.extend(
+        listed("1.5")
+            .iter()
+            .filter(|l| l.name.ends_with(".ACT") || l.name.ends_with(".ACP"))
+            .map(locate),
+    );
     out
 }
 
@@ -47,7 +40,7 @@ pub fn vector_palette(f: &act::ActFile) -> (Vec<[u8; 3]>, u8) {
 }
 
 #[test]
-#[ignore = "real data: needs BENTWIRE_REFERENCE"]
+#[ignore = "real data: needs BENTWIRE_SOURCES"]
 fn wmf_real_every_vector_pose_rasterises() {
     let keep = std::env::var_os("BENTWIRE_WMF_OUT").map(PathBuf::from);
     let mut actors = 0;

@@ -6,7 +6,7 @@ mod oracle;
 use std::path::PathBuf;
 
 use agent_formats::acf::read_web_character;
-use oracle::{assert_same, env_dir, python, temp_dir, web_json};
+use oracle::{assert_same, python, temp_dir, web_json};
 
 fn compare(dirs: &[PathBuf]) {
     let py = python("acf_dump.py", dirs, &[]);
@@ -54,10 +54,9 @@ fn acf_fixtures_match_python() {
 #[test]
 #[ignore]
 fn acf_real_data_matches_python() {
-    let r = env_dir("BENTWIRE_REFERENCE");
-    let dirs: Vec<PathBuf> = ["merlin", "genie", "peedy", "robby"]
+    let dirs: Vec<PathBuf> = agent_fixtures::real::listed("1.2")
         .iter()
-        .map(|c| r.join("acf/downloads").join(c))
+        .map(agent_fixtures::real::locate_dir)
         .collect();
     compare(&dirs);
 }

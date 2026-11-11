@@ -1,10 +1,10 @@
 """Dump ACF + ACA/AAF characters as JSON with the research parser acfparse.py (the oracle).
 
-Usage: PYTHONDONTWRITEBYTECODE=1 python3 -I acf_dump.py --research DIR --out OUTDIR CHARDIR...
+Usage: PYTHONDONTWRITEBYTECODE=1 python3 -I acf_dump.py --reference DIR --out OUTDIR CHARDIR...
 
 Each CHARDIR holds one *.acf file and the animation files it references (matched
-case-insensitively). Copies $BENTWIRE_REFERENCE/{acfparse,agentlz}.py into a fresh temp
-directory and imports them from there. Writes OUTDIR/<basename of CHARDIR>.json.
+case-insensitively). Copies acfparse.py and agentlz.py (found by name below the reference
+directory) into a fresh temp directory and imports them from there. Writes OUTDIR/<basename of CHARDIR>.json.
 
 Fields a version does not store are written as null (the research parser substitutes the
 runtime defaults; the Rust reader keeps them absent). The layout is mirrored by
@@ -18,15 +18,19 @@ import shutil
 import sys
 import tempfile
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from reference import find_dir  # noqa: E402
+
 
 def sha(b):
     return hashlib.sha256(bytes(b)).hexdigest()
 
 
-def load_modules(research, subdir="acf/scripts", names=("agentlz", "acfparse")):
+def load_modules(reference, names=("agentlz", "acfparse")):
+    src = find_dir(reference, *(n + ".py" for n in names))
     d = tempfile.mkdtemp(prefix="bentwire-acf-oracle-")
     for n in names:
-        shutil.copy(os.path.join(research, subdir, n + ".py"), d)
+        shutil.copy(os.path.join(src, n + ".py"), d)
     sys.path.insert(0, d)
     mods = [__import__(n) for n in names]
     sys.path.remove(d)
@@ -106,11 +110,11 @@ def dump_dir(ap, chardir):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--research", required=True)
+    p.add_argument("--reference", required=True)
     p.add_argument("--out", required=True)
     p.add_argument("dirs", nargs="+")
     a = p.parse_args()
-    _, ap = load_modules(a.research)
+    _, ap = load_modules(a.reference)
     for d in a.dirs:
         res = dump_dir(ap, d)
         with open(os.path.join(a.out, os.path.basename(d.rstrip("/")) + ".json"), "w") as f:

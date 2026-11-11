@@ -5,7 +5,7 @@ mod oracle;
 use std::path::PathBuf;
 
 use agent_formats::acs::Acs;
-use oracle::{acs_json, assert_same, env_dir, python, temp_dir};
+use oracle::{acs_json, assert_same, python, temp_dir};
 
 fn compare(files: &[PathBuf]) {
     let py = python("acs_dump.py", files, &[]);
@@ -50,15 +50,8 @@ fn acs_fixtures_match_python() {
 #[test]
 #[ignore]
 fn acs_real_data_matches_python() {
-    let up = env_dir("BENTWIRE_SOURCES");
-    env_dir("BENTWIRE_REFERENCE");
-    let mut files: Vec<PathBuf> = std::fs::read_dir(&up)
-        .unwrap()
-        .map(|e| e.unwrap().path())
-        .filter(|p| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("acs")))
-        .collect();
-    files.sort();
-    assert!(!files.is_empty(), "no ACS files in {}", up.display());
+    agent_fixtures::real::reference_root();
+    let files = agent_fixtures::real::locate_section("1.1");
     compare(&files);
     eprintln!("{} ACS files agree", files.len());
 }

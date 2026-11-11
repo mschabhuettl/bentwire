@@ -2,17 +2,10 @@
 
 use bentwire_character::*;
 
-fn research() -> std::path::PathBuf {
-    match std::env::var_os("BENTWIRE_REFERENCE") {
-        Some(p) => p.into(),
-        None => panic!("NOT RUN: set BENTWIRE_REFERENCE"),
-    }
-}
-
 #[test]
 #[ignore]
 fn prototype_output_loads() {
-    let out = research().join("prototype/out");
+    let out = agent_fixtures::real::prototype_dir().join("out");
     let mut n = 0;
     let mut entries: Vec<_> = std::fs::read_dir(&out)
         .unwrap()

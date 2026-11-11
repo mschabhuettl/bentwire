@@ -1,8 +1,7 @@
-"""Structural dump of ACT/ACP files by the research parser (actparse.py).
+"""Structural dump of ACT/ACP files by the research parser actparse.py.
 
-Usage: PYTHONDONTWRITEBYTECODE=1 python3 -I act_dump.py <BENTWIRE_REFERENCE> <out_dir> [file...]
-Without files, enumerates the sample set: every file in source-files
-(sources.py SAMPLES "act" + "actg") plus the .ACT/.ACP files in source-files.
+Usage: PYTHONDONTWRITEBYTECODE=1 python3 -I act_dump.py <BENTWIRE_REFERENCE> <out_dir> file...
+actparse.py is found by name below the reference directory.
 Writes <out_dir>/<basename>.json and <out_dir>/index.json (list of [basename, path]).
 The Rust test crates/agent-formats/tests/act_real.rs builds the same JSON and compares.
 """
@@ -13,9 +12,15 @@ import os
 import struct
 import sys
 
-research, out_dir = sys.argv[1], sys.argv[2]
-sys.argv = [sys.argv[0], os.path.join(research, "act/scripts")] + sys.argv[3:]
-sys.path.insert(0, os.path.join(research, "act/scripts"))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from reference import find_dir  # noqa: E402
+
+if len(sys.argv) < 4:
+    sys.exit(__doc__)
+scripts = find_dir(sys.argv[1], "actparse.py")
+out_dir = sys.argv[2]
+sys.argv = [sys.argv[0], scripts] + sys.argv[3:]
+sys.path.insert(0, scripts)
 import actparse  # noqa: E402
 
 
@@ -81,16 +86,7 @@ def dump(path):
     }
 
 
-def samples():
-    base = os.path.join(research, "act/downloads")
-    ma = os.path.join(base, "source-files")
-    iso = os.path.join(base, "source-files")
-    out = [os.path.join(ma, f) for f in sorted(os.listdir(ma))]
-    out += [os.path.join(iso, f) for f in sorted(os.listdir(iso)) if f.upper().endswith((".ACT", ".ACP"))]
-    return out
-
-
-files = sys.argv[2:] or samples()
+files = sys.argv[2:]
 os.makedirs(out_dir, exist_ok=True)
 index = []
 for p in files:

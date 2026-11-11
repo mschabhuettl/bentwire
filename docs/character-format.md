@@ -3,8 +3,8 @@
 Status: 2026-11-11. Design, prototype and measurements. The owner accepted the eight
 recommendations in section 13 as written (D1 to D8, 2026-11-11); the open items left are in
 section 14. Sources: `docs/research/*.md` (cited as
-acs-format, acf-aaf-format, agent15-format, act-format, agent-runtime) and the prototype in
-`$BENTWIRE_REFERENCE/prototype/` (section 15). All numbers were measured on the real
+acs-format, acf-aaf-format, agent15-format, act-format, agent-runtime) and the prototype
+(section 15, not public). All numbers were measured on the real
 files; commands are given next to each table.
 
 ## 1. Summary
@@ -86,7 +86,7 @@ reproducible. Folder and ZIP are interchangeable; the prototype checks both.
 
 ## 4. Manifest
 
-TOML 1.0. Machine-readable schema: `prototype/character.schema.json` (JSON Schema
+TOML 1.0. Machine-readable schema: the prototype's `character.schema.json` (JSON Schema
 2020-12, applied to the parsed tree); `validate.py` adds the cross-reference rules a schema
 cannot express. All 63 converted manifests validate.
 
@@ -637,7 +637,7 @@ source file name and SHA-256 in `[source]`.
 
 ## 11. Round-trip check
 
-Definition, to be carried into the build brief:
+Definition, to be carried into the build:
 
 1. **Canonical dump.** A JSON document with: family, canvas, display, GUID, info list,
    balloon, voice, icon hash, palette (count, hash of the RGB triples, transparent index),
@@ -893,11 +893,12 @@ Ozzar streams). `bentwire-characters` only ships complete characters.
 
 ## 15. Prototype
 
-`$BENTWIRE_REFERENCE/prototype/` (throwaway, outside Git; run with `python3 -I`):
+The prototype lives in the reference directory `$BENTWIRE_REFERENCE` (throwaway, outside
+Git, not public; run with `python3 -I`):
 
 | File | Role |
 |---|---|
-| `sources.py` | Loads the samples through the research parsers (`$BENTWIRE_REFERENCE/{acs,acf,agent15,act}`), cached in `cache/`. |
+| `sources.py` | Loads the samples through the reference parsers (ACS, ACF, Agent 1.5, ACT), cached in `cache/`. |
 | `convert.py` | Source structures to the neutral model, sheets, manifest, FLAC audio (D1), folder and `.bwc`. `python3 -I convert.py` writes `out/` (63 characters, plus `out/variants/`). |
 | `reader.py` | Loads a converted character only; compositor, canonical dump, interpreter B. |
 | `oracle.py` | Canonical dump and interpreter A from the research parsers' structures. |
@@ -905,7 +906,7 @@ Ozzar streams). `bentwire-characters` only ships complete characters.
 | `character.schema.json`, `validate.py` | Manifest schema and cross-reference rules. |
 | `measure.py` (`breakdown`, `layout`, `audio`, `total`), `measure_wmf.py`, `timing.py` | Section 12; raw output in `results/`. |
 | `common.py` (`msadpcm_decode_ms`), `measure_ms.py`, `measure_adpcm.py` | Microsoft's ADPCM rule, its comparison with the earlier reference and with sox, libsndfile, ffmpeg, symphonia (section 6). |
-| `msadp32/` | Working copy of the codec and its disassembly (`text.asm`, objdump). The original in `$BENTWIRE_SOURCES` is untouched. |
+| `msadp32/` | Working copy of the codec and its disassembly (`text.asm`, objdump). The original `msadp32.acm` is untouched. |
 | `harness/` | Rust: ACS loader with LZ decompressor, new-format loader, symphonia decode. `~/.cargo/bin/cargo build --release`. `harness-rodio/`: rodio decode test (feature `adpcm` adds `symphonia-adpcm`). |
 | `probe_act*.py` | Script and pose statistics behind 7.3 and 2. |
 

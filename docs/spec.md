@@ -369,7 +369,7 @@ Note: the one-slot queue of MSO97 is not used (see B-FAM-1).
 **B-O97-4 Variants.**
 - In an `office97` manifest an Office animation id is a state (a group). For example
   `Greeting = ["Greeting.1", "Greeting.2", "Greeting.3"]`, as found in
-  `prototype/out/genius-act/character.toml`.
+  the prototype's converted `genius-act/character.toml`.
 - A Play by name resolves the name to that state and picks a variant uniformly
   (= act-format 4.10 "rand() % count"). B-FB-1 step 2 does this.
 
@@ -757,7 +757,7 @@ logical rectangle of the output that holds the character surface, B-WL-2.)
 
 **B-BAL-4 Mouth point without anchor.**
 - A mouth without `anchor` (ACA and 1.5 characters,
-  `prototype/out/merlin-web/character.toml`) uses the centre of the mouth layer's
+  the prototype's converted `merlin-web/character.toml`) uses the centre of the mouth layer's
   opaque bounding box, floored, in canvas coordinates.
 - **bentwire decision**, closing character-format 14 item 4. Reason: in ACS, 275 of 291
   stored mouth points equal that centre within 1 px (acs-format 3.4).
@@ -1321,7 +1321,7 @@ the acs-format parser:
   - `&Optionen`
   - `Ja, &alle`
 - English: verbatim from the English (1033) OBALLOON.DLL 10.0.2607 RT_STRING 112..126
-  (Office XP CD, public archive X09-23849, OFFICE1.CAB):
+  (Office XP CD, `OFFICE1.CAB`):
   - `OK`
   - `Cancel`
   - `&Yes`
@@ -1377,7 +1377,7 @@ Each item is a **bentwire decision** made while building v1, where the docs abov
 gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
 
 - **A-PACK-1** Packs and search roots extend B-CHAR-1 (`pack.toml`, config
-  `character_paths`, `--characters`). Reason: the brief requires packs; B-CHAR-1 only
+  `character_paths`, `--characters`). Reason: the project requires packs; B-CHAR-1 only
   knows flat character entries.
 - **A-ID-1** Unique ids in `classics` (`clippit` = Office XP Clippit; suffixes `-web`,
   `-15`, `-97`, `-bob`, `-act`). Reason: several sources carry the same character name.
@@ -1387,10 +1387,11 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   `bentwire-placeholder`.
 - **A-THEME-1** The Office balloon theme is pack data with a generic loader; the
   look-alike of B-OB-1 is the fallback.
-- **A-TEST-1** Real-data tests use `BENTWIRE_REFERENCE` and `BENTWIRE_SOURCES` (plus
-  `BENTWIRE_PACKS` for the packs) instead of T-0's `BENTWIRE_SAMPLES`; unset variables make
-  an ignored test fail with "NOT RUN". Reason: the inputs live in two separate read-only
-  trees.
+- **A-TEST-1** Real-data tests use `BENTWIRE_SOURCES` (the original files, found by name
+  and SHA-256) and `BENTWIRE_REFERENCE` (the Python reference parsers and prototype),
+  plus `BENTWIRE_PACKS` for the packs, instead of T-0's `BENTWIRE_SAMPLES`; unset variables
+  make an ignored test fail with "NOT RUN". Reason: original files and oracle are separate
+  read-only inputs.
 - **A-TEST-3** `bentwired --test-interface` exports a reduced `org.bentwire.Test1` on the
   Wayland backend. Reason: the desktop scenario must answer `ask` without a human.
 - **B-REN-1 Text.** Glyphs are drawn advance-only (no kerning or shaping), each advance
@@ -1847,8 +1848,8 @@ Exit status:
 - CI tests use synthetic characters written for the tests (manifests plus tiny PNGs and
   WAVs) and a bundled free font for every metric vector (B-BAL-2, B-OB-1). Pick one font
   and pin it by hash.
-- Oracle tests against the real files run only when `BENTWIRE_SAMPLES` (the user's files)
-  and `BENTWIRE_REFERENCE` (the research tree) are set. They write results outside the
+- Oracle tests against the real files run only when `BENTWIRE_SAMPLES` (the original
+  files) and the reference parsers are available (names as built: A-TEST-1). They write results outside the
   repo.
 - When the variables are unset, the oracle suite reports "not run" as a separate target.
   It must never count as passed.
@@ -1868,15 +1869,15 @@ with a fake clock and scripted draws. In particular:
 **T-2 Interpreter traces against the oracle.**
 - For each converted real character, the Rust interpreters run every animation twice: in
   normal mode, and with exit mode entered at a scripted step. They use the same draw
-  scripts as `prototype/oracle.py` interpreter A, the source runtime's rules over the
+  scripts as the prototype's `oracle.py` interpreter A, the source runtime's rules over the
   research parsers.
 - The sequences of (picture hash, ms, sound hash) must be equal (character-format 11.3).
 
 **T-3 Golden frames.**
 - Rust compositing of converted characters must equal frames rendered from the source
   files by the research Python parsers. The Python side is the independent oracle:
-  - `render.py` and `prototype/oracle.py` for ACS, ACF and 1.5;
-  - `render.py` for ACT bitmap actors.
+  - the ACS `render.py` and the prototype's `oracle.py` for ACS, ACF and 1.5;
+  - the ACT `render.py` for ACT bitmap actors.
 - Equality is compared on canonical RGBA hashes at display size, before B-PIX-2.
 
 **T-4 Headless render mode.** `bentwired --headless` uses the headless backend:

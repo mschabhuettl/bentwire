@@ -10,7 +10,7 @@ writing the spec itself are marked **bentwire decision** in its sections 3.1 to 
 | A-ID-1 | Unique character ids in `classics` (`clippit`; suffixes `-web`, `-15`, `-97`, `-bob`, `-act`) |
 | A-PACK-2 | `classics` holds every source that converts with no missing animations |
 | A-CHAR-1 | With only `builtin` installed, `bentwire-placeholder` is the default |
-| A-TEST-1 | Real-data tests read `BENTWIRE_REFERENCE`, `BENTWIRE_SOURCES` and `BENTWIRE_PACKS` (instead of `BENTWIRE_SAMPLES`) and fail with "NOT RUN" when unset |
+| A-TEST-1 | Real-data tests read `BENTWIRE_SOURCES`, `BENTWIRE_REFERENCE` and `BENTWIRE_PACKS` (instead of `BENTWIRE_SAMPLES`) and fail with "NOT RUN" when unset |
 | A-THEME-1 | The Office balloon theme is pack data with a generic loader; the look-alike is the fallback |
 | A-TEST-3 | `--test-interface` exports a reduced `Test1` on the Wayland backend |
 | B-REN-1 | Text: advance-only, whole-pixel advances, OS/2 win metrics, cell versus em heights, fontconfig fallback |
