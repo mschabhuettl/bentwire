@@ -4,9 +4,11 @@ pub mod acf;
 pub mod acs;
 pub mod act;
 pub mod build;
+pub mod classics;
 mod lcid_table;
 pub mod placeholder;
 pub mod sound;
+pub mod theme;
 pub mod wmf;
 
 use std::path::Path;
@@ -133,10 +135,27 @@ pub fn convert_to_package_with(source: &Path, opts: &ConvertOptions) -> Result<P
             .iter()
             .any(|p| matches!(p, agent_formats::act::Payload::Wmf(_)));
         if vector {
-            return Err(Error::Unsupported(format!(
-                "{}: vector (WMF) actor; rasteriser not wired up yet",
-                source.display()
-            )));
+            // D2: indexed, aliased; palette = one transparent slot plus the exact colours the
+            // metafiles paint (bentwire decision, spec 3.14 A-CONV-1).
+            let colours = crate::wmf::collect_colors(&act_file);
+            if colours.len() > 255 {
+                return Err(Error::Source(format!(
+                    "{}: {} distinct WMF colours do not fit an indexed sheet",
+                    source.display(),
+                    colours.len()
+                )));
+            }
+            let key = (0..=255u8)
+                .flat_map(|r| [[r, 0, 255], [255, r, 0]])
+                .find(|c| !colours.contains(c))
+                .expect("a free key colour");
+            let mut palette = vec![key];
+            palette.extend(colours);
+            let pics = act::Pictures::Vector {
+                palette,
+                transparent: 0,
+            };
+            return act::convert_act(&act_file, &pics, &o, &file, &sha);
         }
         let pal_path = opts.office_palette.as_deref().ok_or_else(|| {
             Error::Source(

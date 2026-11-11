@@ -68,13 +68,11 @@ pub const STATE_ALIASES: [(&str, u16); 7] = [
 pub enum Pictures<'a> {
     /// Bitmap actor: the Office palette (256 entries, index 10 transparent).
     Bitmaps(&'a [[u8; 3]; 256]),
-    /// Vector actor: each pose already rasterised at the display size (1x) and, optionally, at
-    /// 2x, as indexed pictures with one palette.
-    Raster {
+    /// Vector actor: poses rasterised by the bentwire WMF rasteriser (D2) at the display size,
+    /// aliased, plus a 2x hidpi sheet, into this palette.
+    Vector {
         palette: Vec<[u8; 3]>,
         transparent: u8,
-        /// Pose id to (1x pixels, 2x pixels).
-        poses: BTreeMap<u16, (Vec<u8>, Option<Vec<u8>>)>,
     },
 }
 
@@ -319,7 +317,7 @@ pub fn convert_act(
     let mut hidpi2 = std::collections::HashMap::new();
     let (palette, transparent) = match pictures {
         Pictures::Bitmaps(pal) => (pal.to_vec(), 10u8),
-        Pictures::Raster {
+        Pictures::Vector {
             palette,
             transparent,
             ..
@@ -328,27 +326,32 @@ pub fn convert_act(
     used.sort_unstable();
     for &pid in &used {
         let layers = match pictures {
-            Pictures::Raster { poses, .. } => {
-                let (one, two) = poses
-                    .get(&pid)
-                    .ok_or_else(|| Error::Source(format!("pose {pid} not rasterised")))?;
+            Pictures::Vector {
+                palette,
+                transparent,
+            } => {
+                let raster = |k: u32| -> Result<Vec<u8>, Error> {
+                    let mut cv =
+                        crate::wmf::Canvas::new(dw * k, dh * k, palette.clone(), *transparent);
+                    crate::wmf::draw_pose(&mut cv, act, pid)
+                        .map_err(|e| Error::Source(format!("pose {pid}: {e}")))?;
+                    Ok(cv.pixels)
+                };
                 let i = pool.add(Pic {
                     w: dw,
                     h: dh,
                     rgba: false,
-                    px: one.clone(),
+                    px: raster(1)?,
                 });
-                if let Some(two) = two {
-                    hidpi2.insert(
-                        i,
-                        Pic {
-                            w: dw * 2,
-                            h: dh * 2,
-                            rgba: false,
-                            px: two.clone(),
-                        },
-                    );
-                }
+                hidpi2.insert(
+                    i,
+                    Pic {
+                        w: dw * 2,
+                        h: dh * 2,
+                        rgba: false,
+                        px: raster(2)?,
+                    },
+                );
                 vec![pool_layer(i, 0, 0, Some([lw, lh]))]
             }
             Pictures::Bitmaps(_) => {
@@ -437,7 +440,7 @@ pub fn convert_act(
         ("item_name", toml::Value::from(item_name)),
         ("header", toml::Value::Table(hdr)),
     ];
-    if matches!(pictures, Pictures::Raster { .. }) {
+    if matches!(pictures, Pictures::Vector { .. }) {
         src.push(("wmf_raster", toml::Value::from("bentwire, aliased")));
     }
     m.source = Some(source_table(src));
