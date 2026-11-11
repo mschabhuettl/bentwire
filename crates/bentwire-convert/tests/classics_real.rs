@@ -54,11 +54,22 @@ fn classics_pack_loads_and_is_reproducible() {
             _ => None,
         })
         .collect();
-    assert_eq!(
-        ids.len(),
-        committed.len(),
-        "included set differs from the committed pack"
-    );
+    if ids.len() != committed.len() {
+        let why: Vec<String> = res
+            .iter()
+            .filter_map(|r| match r {
+                Outcome::Excluded { path, reason } => Some(format!("{}: {reason}", path.display())),
+                _ => None,
+            })
+            .collect();
+        panic!(
+            "included {} of {} committed characters (a full $TMPDIR is a common cause; set \
+             TMPDIR to a disk directory). Excluded:\n{}",
+            ids.len(),
+            committed.len(),
+            why.join("\n")
+        );
+    }
     for id in ids {
         let a = std::fs::read(tmp.join(format!("{id}.bwc"))).unwrap();
         let b = std::fs::read(pack.join(format!("{id}.bwc")))
