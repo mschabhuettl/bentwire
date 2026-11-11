@@ -19,6 +19,9 @@ A cleanup release: no new daemon features. The matching classics pack is
 - A gallery: `scripts/gallery.sh` renders every character in its rest pose at 1x on a
   transparent background, byte-identical on every run; `docs/gallery/` holds the `builtin`
   pack's image.
+- Animated GIFs: `scripts/screenshots.sh --gifs` (or `scripts/gifs.sh`) records the
+  character appearing, `say`, `ask` with a click, the menu, a drag and a tour, and `--all`
+  makes PNGs and GIFs.
 - `docs/sources.md` lists the sources of the new classics characters Genie, Peedy, Robby
   (Agent 2.0) and Ozzar (Agent 1.5).
 
@@ -33,6 +36,9 @@ A cleanup release: no new daemon features. The matching classics pack is
   internal planning files were removed from every commit. `docs/sources.md` and
   `docs/research/` now give product, version, file name, size and SHA-256 of each source
   file, and no download locations.
+- `scripts/screenshots.sh` runs a real KDE Plasma 6 session headless (KWin nested in
+  headless sway, the default Breeze look and wallpaper, the tray icon in the panel)
+  instead of a plain sway desktop. `docs/credits.md` credits the KDE artwork.
 - The README follows a new layout (header with badges, features, quick start, contents),
   with a short note to Microsoft.
 
