@@ -76,6 +76,42 @@ fn invisible(f: &Frame) -> bool {
     !f.has_picture && f.ms == 0
 }
 
+/// A-CORE-6: can exit-mode `next()` reach END from frame `from`? Static reachability
+/// over the exit target, else the branches with p > 0 and the `cur + 1` fallthrough
+/// (taken when the branch probabilities sum to less than 100).
+pub fn exit_end_reachable(frames: &[Frame], from: usize) -> bool {
+    let mut seen = vec![false; frames.len()];
+    let mut stack = vec![from];
+    while let Some(i) = stack.pop() {
+        if i >= frames.len() {
+            return true;
+        }
+        if std::mem::replace(&mut seen[i], true) {
+            continue;
+        }
+        let f = &frames[i];
+        match f.exit {
+            Exit::End => return true,
+            Exit::To(t) => stack.push(t),
+            Exit::None => {
+                let mut sum = 0;
+                for b in &f.branches {
+                    if let Branch::Prob { target, p } = *b
+                        && p > 0
+                    {
+                        sum += p;
+                        stack.push(target);
+                    }
+                }
+                if sum < 100 {
+                    stack.push(i + 1);
+                }
+            }
+        }
+    }
+    false
+}
+
 /// Agent start frame: 0, or `next(0)` if frame 0 is invisible.
 pub fn agent_start(frames: &[Frame], draws: &mut dyn Draws) -> Option<usize> {
     if frames.is_empty() {
@@ -315,7 +351,9 @@ impl Player {
             // B-SW-A case 1: exit mode, first step at once.
             self.pending = Some(Pending::Target(x));
             self.exit_seen = vec![p.frame];
-            match agent_next(&a.frames, p.frame, true, env.draws).filter(|t| *t != p.frame) {
+            match agent_next(&a.frames, p.frame, true, env.draws)
+                .filter(|t| *t != p.frame || exit_end_reachable(&a.frames, p.frame))
+            {
                 None => {
                     self.pending = None;
                     self.prev = Some(Prev { ended: true, ..p });
@@ -518,10 +556,13 @@ impl Player {
         if r.exiting
             && let Some(t) = next
         {
-            // A-CORE-6: an exit run that would revisit a frame ends (a loop without
-            // exit branches must not block the queue forever).
+            // A-CORE-6: an exit run that revisits a frame ends only when END is
+            // unreachable (a loop without exits must not block the queue forever;
+            // random revisits on a path to END terminate as in the original).
             if self.exit_seen.contains(&t) {
-                next = None;
+                if !exit_end_reachable(frames, r.frame) {
+                    next = None;
+                }
             } else {
                 self.exit_seen.push(t);
             }
@@ -1070,6 +1111,45 @@ pub(crate) mod tests {
         let mut h = H::new(o97(vec![anim("A", vec![o])]), vec![]);
         h.play(0, "A");
         assert_eq!(h.p.deadline(), Some(14));
+    }
+
+    #[test]
+    fn a_core_6_random_revisit_on_exit_path_reaches_end() {
+        // Exit path 1 -> 2; frame 2 branches back to 1 with 50 % or falls through to
+        // END. Draws: back (revisit), back (revisit), then fall through.
+        let mut f0 = fr(100);
+        f0.branches = vec![Branch::Prob { target: 0, p: 100 }];
+        f0.exit = Exit::To(1);
+        let mut f2 = fr(100);
+        f2.branches = vec![Branch::Prob { target: 1, p: 50 }];
+        let m = agent(vec![
+            anim("L", vec![f0, fr(100), f2]),
+            anim("X", vec![fr(100)]),
+        ]);
+        let mut h = H::new(m, vec![0, 0, 10, 10, 90]);
+        h.play(0, "L");
+        h.run(250);
+        h.stop(250);
+        h.play(250, "X");
+        let (_, v) = h.run(10_000);
+        let frames: Vec<Pic> = v.iter().map(|x| x.1).collect();
+        // 1 (first exit step at once), 2, 1, 2, 1, 2, then X.
+        assert_eq!(
+            frames,
+            vec![
+                Pic::Frame(0, 2),
+                Pic::Frame(0, 1),
+                Pic::Frame(0, 2),
+                Pic::Frame(0, 1),
+                Pic::Frame(0, 2),
+                Pic::Frame(1, 0)
+            ]
+        );
+        assert!(exit_end_reachable(&h.m.animations[0].frames, 1));
+        // A loop without exits: END unreachable.
+        let mut g = fr(100);
+        g.branches = vec![Branch::Prob { target: 0, p: 100 }];
+        assert!(!exit_end_reachable(&[g], 0));
     }
 
     #[test]

@@ -1506,11 +1506,15 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   The scroll (R-BAL-9) moves one pixel at a time, evenly over `60000 / effectiveSpeed` ms;
   the outgoing top line stays drawn and slides out, and is dropped when the scroll ends.
   Reason: R-BAL-4/R-BAL-9 give lengths and duration, not these shapes.
-- **A-CORE-6 Exit runs end on a revisit.** In exit mode (B-SW-A case 1) a frame without an
-  `exit` index continues normal sequencing; when that would show a frame the same exit
-  run already showed, the animation ends instead. Reason: a loop without exit branches
-  (allowed by the format) would otherwise block the queue forever after Stop or user
-  Hide (R-Q-6, B-UI-4); real exit paths are forward chains and are not affected.
+- **A-CORE-6 Endless exit runs end.** In exit mode (B-SW-A case 1) a frame without an
+  `exit` index continues normal sequencing. When an exit run would show a frame it already
+  showed, it ends only if END is unreachable from the current frame in the exit-mode graph
+  (static reachability over exit targets, branches with p > 0, and the `cur + 1`
+  fallthrough when a frame's probabilities sum to less than 100); otherwise it goes on,
+  since random revisits on a path to END terminate with probability 1, as in the
+  original. Reason: a loop without a way to END (allowed by the format, and present in
+  real characters) would otherwise block the queue forever after Stop or user Hide (R-Q-6,
+  B-UI-4); the T-2 traces show that cutting at the first revisit shortens real exits.
 - **A-CHAR-2 Loader strictness.** `Character::load` rejects a manifest with type, range or
   cross-reference errors (the validator's rules); unknown non-`x-` keys and tolerated ZIP
   deviations (media entry not stored, manifest not first) are warnings; a sheet, sound or
