@@ -9,10 +9,19 @@ use std::path::PathBuf;
 use bentwire_character::Character;
 use bentwire_convert::classics::{Outcome, generate, parse_overrides};
 
+/// The classics pack: `BENTWIRE_CLASSICS`, else `$BENTWIRE_PACKS/classics` (the pack may live
+/// outside this repository).
 fn pack() -> PathBuf {
-    let p = oracle_common::repo().join("characters/classics");
+    let p = match (
+        std::env::var_os("BENTWIRE_CLASSICS"),
+        std::env::var_os("BENTWIRE_PACKS"),
+    ) {
+        (Some(c), _) => PathBuf::from(c),
+        (None, Some(packs)) => PathBuf::from(packs).join("classics"),
+        (None, None) => panic!("NOT RUN: set BENTWIRE_CLASSICS or BENTWIRE_PACKS"),
+    };
     if !p.join("pack.toml").exists() {
-        panic!("NOT RUN: characters/classics is not present");
+        panic!("NOT RUN: no classics pack at {}", p.display());
     }
     p
 }
