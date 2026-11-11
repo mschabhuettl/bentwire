@@ -238,6 +238,7 @@ pub fn convert_acf(
         sounds,
         icon,
         drop_unused: false,
+        hidpi2: Default::default(),
     }
     .finish(vec![format!("Converted by bentwire-convert from {file}")])
 }

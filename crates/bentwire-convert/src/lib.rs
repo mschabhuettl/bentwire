@@ -2,6 +2,7 @@
 
 pub mod acf;
 pub mod acs;
+pub mod act;
 pub mod build;
 mod lcid_table;
 pub mod sound;
@@ -32,8 +33,49 @@ pub fn sha16(b: &[u8]) -> String {
     bentwire_character::sha16(b)
 }
 
-/// Convert a source file into a package in memory. The format is detected from the content.
+/// Conversion settings that a source file does not carry.
+#[derive(Clone, Debug, Default)]
+pub struct ConvertOptions {
+    /// Where the Office palette for ACT bitmap actors is read from: an Office ACS (its 256-entry
+    /// palette) or `MSO97.DLL` (architecture section 4: never embedded).
+    pub office_palette: Option<std::path::PathBuf>,
+    /// Language tag for ACT actors (`character.info.lang`); default `en`.
+    pub lang: Option<String>,
+    /// Codepage label (WHATWG, e.g. `shift_jis`) for ACT item names and v1 strings; default
+    /// `windows-1252`.
+    pub codepage: Option<String>,
+}
+
+/// Read the 256-entry Office palette from an Office ACS file or MSO97.DLL.
+pub fn read_office_palette(path: &Path) -> Result<[[u8; 3]; 256], Error> {
+    let d = std::fs::read(path)?;
+    if d.starts_with(b"MZ") {
+        return agent_formats::act::office_palette_from_mso97(&d)
+            .map_err(|e| Error::Source(format!("{}: {e}", path.display())));
+    }
+    let acs = agent_formats::acs::Acs::parse(&d)?;
+    let p = &acs.character.palette;
+    if p.len() != 256 {
+        return Err(Error::Source(format!(
+            "{}: palette has {} entries, not 256",
+            path.display(),
+            p.len()
+        )));
+    }
+    let mut out = [[0u8; 3]; 256];
+    for (o, q) in out.iter_mut().zip(p) {
+        *o = [q.r, q.g, q.b];
+    }
+    Ok(out)
+}
+
+/// Convert a source file into a package in memory with default options.
 pub fn convert_to_package(source: &Path) -> Result<PackageData, Error> {
+    convert_to_package_with(source, &ConvertOptions::default())
+}
+
+/// Convert a source file into a package in memory. The format is detected from the content.
+pub fn convert_to_package_with(source: &Path, opts: &ConvertOptions) -> Result<PackageData, Error> {
     let data = std::fs::read(source)?;
     let file = source
         .file_name()
@@ -74,6 +116,36 @@ pub fn convert_to_package(source: &Path) -> Result<PackageData, Error> {
             .collect();
         return acf::convert_acf(&ole.character, &anims, "acs-1.5", &file, &sha);
     }
+    if data.starts_with(b"LP") {
+        let act_file = agent_formats::act::parse(&data)
+            .map_err(|e| Error::Source(format!("{}: {e}", source.display())))?;
+        let mut o = act::ActOptions::default();
+        if let Some(l) = &opts.lang {
+            o.lang = l.clone();
+        }
+        if let Some(c) = &opts.codepage {
+            o.codepage = encoding_rs::Encoding::for_label(c.as_bytes())
+                .ok_or_else(|| Error::Source(format!("unknown codepage {c:?}")))?;
+        }
+        let vector = act_file
+            .payloads
+            .iter()
+            .any(|p| matches!(p, agent_formats::act::Payload::Wmf(_)));
+        if vector {
+            return Err(Error::Unsupported(format!(
+                "{}: vector (WMF) actor; rasteriser not wired up yet",
+                source.display()
+            )));
+        }
+        let pal_path = opts.office_palette.as_deref().ok_or_else(|| {
+            Error::Source(
+                "ACT bitmap actor: an Office palette source is needed (an Office ACS or MSO97.DLL)"
+                    .into(),
+            )
+        })?;
+        let pal = read_office_palette(pal_path)?;
+        return act::convert_act(&act_file, &act::Pictures::Bitmaps(&pal), &o, &file, &sha);
+    }
     Err(Error::Unsupported(format!(
         "{}: unknown file format",
         source.display()
@@ -83,6 +155,11 @@ pub fn convert_to_package(source: &Path) -> Result<PackageData, Error> {
 /// Convert `source` and write it to `dest`: a `.bwc` file when `dest` ends in `.bwc`,
 /// otherwise a folder.
 pub fn convert(source: &Path, dest: &Path) -> Result<(), Error> {
-    convert_to_package(source)?.write(dest)?;
+    convert_with(source, dest, &ConvertOptions::default())
+}
+
+/// [`convert`] with options.
+pub fn convert_with(source: &Path, dest: &Path, opts: &ConvertOptions) -> Result<(), Error> {
+    convert_to_package_with(source, opts)?.write(dest)?;
     Ok(())
 }

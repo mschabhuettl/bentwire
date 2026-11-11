@@ -277,6 +277,7 @@ pub fn convert_acs(acs: &Acs, file: &str, sha: &str) -> Result<PackageData, Erro
         sounds: snd.list,
         icon,
         drop_unused: false,
+        hidpi2: Default::default(),
     };
     model.finish(vec![format!("Converted by bentwire-convert from {file}")])
 }

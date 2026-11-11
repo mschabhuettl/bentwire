@@ -12,6 +12,7 @@ thiserror.workspace = true
 ttf-parser = { version = "0.25", default-features = false, features = ["std"] }
 toml.workspace = true
 serde_json.workspace = true
+encoding_rs = "0.8"
 
 [dev-dependencies]
 png.workspace = true

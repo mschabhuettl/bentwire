@@ -67,6 +67,9 @@ pub struct Model {
     pub icon: Option<Rgba>,
     /// Pool pictures to drop when no layer uses them (ACT: unused payloads are dropped).
     pub drop_unused: bool,
+    /// Optional 2x pictures by pool index (vector actors, D2). When non-empty, every picture
+    /// of the sheet needs one; they are written as `hidpi = { 2 = ... }` with the same grid.
+    pub hidpi2: HashMap<u32, Pic>,
 }
 
 fn for_each_layer(m: &mut Manifest, f: &mut dyn FnMut(&mut Layer)) {
@@ -160,19 +163,21 @@ impl Model {
             } else {
                 vec![self.transparent.unwrap_or(0)]
             };
-            let mut buf = fill.repeat((sw * sh) as usize);
-            for (n, p) in pics.iter().enumerate() {
-                let (ox, oy) = ((n as u32 % cols) * cw, (n as u32 / cols) * ch);
-                for y in 0..p.h {
-                    let d = (((oy + y) * sw + ox) * bpp) as usize;
-                    let s = (y * p.w * bpp) as usize;
-                    let len = (p.w * bpp) as usize;
-                    buf[d..d + len].copy_from_slice(&p.px[s..s + len]);
+            let encode = |pics: &[&Pic], k: u32| -> Result<Vec<u8>, Error> {
+                let (cw, ch, sw, sh) = (cw * k, ch * k, sw * k, sh * k);
+                let mut buf = fill.repeat((sw * sh) as usize);
+                for (n, p) in pics.iter().enumerate() {
+                    let (ox, oy) = ((n as u32 % cols) * cw, (n as u32 / cols) * ch);
+                    for y in 0..p.h {
+                        let d = (((oy + y) * sw + ox) * bpp) as usize;
+                        let s = (y * p.w * bpp) as usize;
+                        let len = (p.w * bpp) as usize;
+                        buf[d..d + len].copy_from_slice(&p.px[s..s + len]);
+                    }
                 }
-            }
-            let png = if rgba {
-                encode_png_rgba(sw, sh, &buf)?
-            } else {
+                if rgba {
+                    return Ok(encode_png_rgba(sw, sh, &buf)?);
+                }
                 let plte = self
                     .palette
                     .as_ref()
@@ -182,8 +187,29 @@ impl Model {
                     v.push(0);
                     v
                 });
-                encode_png_indexed(sw, sh, &buf, plte, trns.as_deref())?
+                Ok(encode_png_indexed(sw, sh, &buf, plte, trns.as_deref())?)
             };
+            let png = encode(&pics, 1)?;
+            let mut hidpi = std::collections::BTreeMap::new();
+            if !self.hidpi2.is_empty() {
+                let two: Vec<&Pic> = order
+                    .iter()
+                    .map(|i| {
+                        self.hidpi2
+                            .get(i)
+                            .filter(|q| q.rgba == rgba)
+                            .ok_or_else(|| Error::Source("2x picture missing".into()))
+                    })
+                    .collect::<Result<_, _>>()?;
+                for (a, b) in pics.iter().zip(&two) {
+                    if (b.w, b.h) != (a.w * 2, a.h * 2) {
+                        return Err(Error::Source("2x picture is not twice the 1x size".into()));
+                    }
+                }
+                let f2 = format!("sheets/{SHEET}@2x.png");
+                files.push((f2.clone(), encode(&two, 2)?));
+                hidpi.insert(2, f2);
+            }
             let sizes = pics
                 .iter()
                 .any(|p| (p.w, p.h) != (cw, ch))
@@ -196,7 +222,7 @@ impl Model {
                 count: pics.len() as u32,
                 sizes,
                 scale: None,
-                hidpi: Default::default(),
+                hidpi,
             }];
             files.push((file, png));
         }

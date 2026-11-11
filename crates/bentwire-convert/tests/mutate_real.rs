@@ -187,27 +187,20 @@ fn o97_transition_pose(d: &Path) {
 
 fn o97_exit_branch(d: &Path) {
     edit_manifest(d, |m| {
-        let a = m
-            .animations
-            .iter_mut()
-            .find(|a| {
-                let n = a.frames.len() as u32;
-                a.frames.iter().any(|f| {
-                    f.branch
-                        .iter()
-                        .any(|b| matches!(b, Branch::Random { p: 0, target } if *target + 1 < n))
-                })
-            })
-            .unwrap();
-        let b = a
-            .frames
-            .iter_mut()
-            .flat_map(|f| f.branch.iter_mut())
-            .find(|b| matches!(b, Branch::Random { p: 0, .. }))
-            .unwrap();
-        if let Branch::Random { target, .. } = b {
-            *target += 1;
+        for a in &mut m.animations {
+            let n = a.frames.len() as u32;
+            for f in &mut a.frames {
+                for b in &mut f.branch {
+                    if let Branch::Random { p: 0, target } = b
+                        && *target + 1 < n
+                    {
+                        *target += 1;
+                        return;
+                    }
+                }
+            }
         }
+        panic!("no p=0 branch to move");
     });
 }
 
@@ -260,7 +253,11 @@ fn mutations_are_detected() {
             &["oracle", &kind, path.to_str().unwrap()],
             &tmp.join(format!("{stem}.json")),
         );
-        let pkg = match bentwire_convert::convert_to_package(&path) {
+        let opts = bentwire_convert::ConvertOptions {
+            office_palette: Some(sources().join("CLIPPIT.ACS")),
+            ..Default::default()
+        };
+        let pkg = match bentwire_convert::convert_to_package_with(&path, &opts) {
             Ok(p) => p,
             Err(e) if kind == "act" => panic!("{stem}: ACT conversion failed: {e}"),
             Err(e) => panic!("{stem}: {e}"),
