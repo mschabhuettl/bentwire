@@ -69,9 +69,9 @@ the pack search it draws its own look-alike (B-OB-1). Golden images in the code 
 only the look-alike.
 
 **A-TEST-1 Environment variables for real-data tests.**
-- `BENTWIRE_REFERENCE` = `$BENTWIRE_REFERENCE` (parsers, prototype, samples under
+- `BENTWIRE_REFERENCE` = the research tree (parsers, prototype, samples under
   `*/`).
-- `BENTWIRE_SOURCES` = `~/Sources/bentwire` (the 12 ACS files, zips, DLLs).
+- `BENTWIRE_SOURCES` = the owner's files (the 12 ACS files, zips, DLLs).
 - `BENTWIRE_PACKS` = a `characters/` directory with packs, for the daemon's load-every-
   character test (`scripts/oracle-check.sh` defaults it to the repo's `characters/`).
 - Optional: `BENTWIRE_PROTO_COPY` = an existing scratch copy of `prototype`;
@@ -93,7 +93,7 @@ JSON to a temp dir. The draw source for traces is a shared generator defined in 
 driver and mirrored in Rust (splitmix64; `draw(s) = next() % s`), not Python's
 `random`. The driver must run against a scratch copy of `prototype` (it writes
 pickles into `cache/`), with `PYTHONDONTWRITEBYTECODE=1` and `python3 -I`; never write
-into `$BENTWIRE_REFERENCE` or `~/Sources`.
+into `$BENTWIRE_REFERENCE` or `$BENTWIRE_SOURCES`.
 - ACT state names: the oracle uses Office 97 type-library names, the Rust converter XP
   names (D6). The comparison maps both through `office97.ids`; it is never loosened.
 - WMF characters: no pixel oracle. Checked by golden images produced by our rasteriser
@@ -124,7 +124,7 @@ exists in headless mode, spec 3.14 A-DESK-3). This lets the desktop scenario ans
   disassembler on Microsoft binaries; web searches for Microsoft or third-party Agent
   source code. Do not grep recursively over `$BENTWIRE_REFERENCE`; open the allowed
   files by path.
-- `~/Sources/bentwire` and `$BENTWIRE_REFERENCE` are **read-only**. Extract zips into a
+- `$BENTWIRE_SOURCES` and `$BENTWIRE_REFERENCE` are **read-only**. Extract zips into a
   `mktemp -d` directory.
 - If the docs leave a gap: pick a sensible behaviour, add it to `docs/spec.md` 3.14 as
   a "bentwire decision" with a reason, and report it.

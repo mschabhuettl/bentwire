@@ -598,7 +598,7 @@ to 6, "a" to 4), but they are names, not behaviour.
 
 ## 6. Per-file verification results
 
-Command: `python3 -I acs.py ~/Sources/bentwire/*.ACS ~/Sources/bentwire/*.acs`
+Command: `python3 -I acs.py $BENTWIRE_SOURCES/*.ACS $BENTWIRE_SOURCES/*.acs`
 (output saved as `tools/all.txt`). Result: exit 0, 0 anomalies, and `gaps: []`
 and `overlaps: []` for all 12 files. `checks.py` reports the cross-checks quoted
 in this document (output in `tools/checks.txt`).

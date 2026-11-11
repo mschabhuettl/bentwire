@@ -1847,7 +1847,7 @@ Exit status:
   WAVs) and a bundled free font for every metric vector (B-BAL-2, B-OB-1). Pick one font
   and pin it by hash.
 - Oracle tests against the real files run only when `BENTWIRE_SAMPLES` (the user's files)
-  and `BENTWIRE_REFERENCE` (`$BENTWIRE_REFERENCE`) are set. They write results outside the
+  and `BENTWIRE_REFERENCE` (the research tree) are set. They write results outside the
   repo.
 - When the variables are unset, the oracle suite reports "not run" as a separate target.
   It must never count as passed.

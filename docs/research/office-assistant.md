@@ -16,7 +16,7 @@ reproduced. No Microsoft tip texts are quoted (none are stored in MSO.DLL anyway
 
 ## Method
 
-- Input: `~/Sources/bentwire/MSO.DLL`, SHA-256
+- Input: `$BENTWIRE_SOURCES/MSO.DLL`, SHA-256
   `14b7a79ad2cd96524671f8a63d63ed665253efcf02da74a814fec83f33225134`, x86 PE, image
   base 0x30B00000. Never executed.
 - The REA MCP server holds one active target per server, and during this work it was

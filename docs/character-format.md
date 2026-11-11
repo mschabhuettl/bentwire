@@ -905,7 +905,7 @@ Ozzar streams). `bentwire-characters` only ships complete characters.
 | `character.schema.json`, `validate.py` | Manifest schema and cross-reference rules. |
 | `measure.py` (`breakdown`, `layout`, `audio`, `total`), `measure_wmf.py`, `timing.py` | Section 12; raw output in `results/`. |
 | `common.py` (`msadpcm_decode_ms`), `measure_ms.py`, `measure_adpcm.py` | Microsoft's ADPCM rule, its comparison with the earlier reference and with sox, libsndfile, ffmpeg, symphonia (section 6). |
-| `msadp32/` | Working copy of the codec and its disassembly (`text.asm`, objdump). The original in `~/Sources` is untouched. |
+| `msadp32/` | Working copy of the codec and its disassembly (`text.asm`, objdump). The original in `$BENTWIRE_SOURCES` is untouched. |
 | `harness/` | Rust: ACS loader with LZ decompressor, new-format loader, symphonia decode. `~/.cargo/bin/cargo build --release`. `harness-rodio/`: rodio decode test (feature `adpcm` adds `symphonia-adpcm`). |
 | `probe_act*.py` | Script and pose statistics behind 7.3 and 2. |
 

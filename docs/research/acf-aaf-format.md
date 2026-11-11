@@ -483,7 +483,7 @@ All run with `python3 -I`.
 | Image size | same | 796/796 images are `stride * height` of the ACF size |
 | Regions | `rgncheck.py` (all 4 chars) | 796/796 regions == set of non-transparent pixels (top-down) |
 | Overlay sizes | `run.py` | 329/329 overlays: size == `((w+3)&~3) * h` |
-| ACS cross-check, frames | `xcheck.py ~/Sources/bentwire/merlin.acs merlin <acs tools dir>` | GUID, palette, states equal; 444/444 frames with an image are pixel-identical to the ACS frame composited with the **last listed image drawn first**; 0 metadata mismatches (transition, return, frame count, duration, exit, branches) |
+| ACS cross-check, frames | `xcheck.py $BENTWIRE_SOURCES/merlin.acs merlin <acs tools dir>` | GUID, palette, states equal; 444/444 frames with an image are pixel-identical to the ACS frame composited with the **last listed image drawn first**; 0 metadata mismatches (transition, return, frame count, duration, exit, branches) |
 | ACS cross-check, sounds and overlays | `xcheck2.py` (same args) | 30/30 sound uses byte-identical; 147/147 overlays have identical opaque pixels and positions |
 | Visual | rendered a few frames and an overlay composite to PNG (kept out of the repo) | correct orientation and colors, mouth placed on the face |
 

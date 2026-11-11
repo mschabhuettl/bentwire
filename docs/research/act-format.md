@@ -137,10 +137,10 @@ Personal Tutor); 17 Microsoft Bob actors plus ZSPEAKER and ZVISIBLE (format v1.0
 
 ### 2.3 Read-only comparison material
 
-- `~/Sources/bentwire/MSO.DLL` (Office XP, FileVersion 10.0.2625, SHA-256
+- `$BENTWIRE_SOURCES/MSO.DLL` (Office XP, FileVersion 10.0.2625, SHA-256
   `14b7a79ad2cd96524671f8a63d63ed665253efcf02da74a814fec83f33225134`): used only for the
   MsoAnimationType to Agent animation name table (section 6).
-- `~/Sources/bentwire/*.ACS`: used only to show that the Office palette is embedded there.
+- `$BENTWIRE_SOURCES/*.ACS`: used only to show that the Office palette is embedded there.
 
 ### 2.4 Prior public work (lead only, everything below re-verified)
 

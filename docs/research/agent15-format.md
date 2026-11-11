@@ -542,7 +542,7 @@ all run with `python3 -I` from the `agent15` directory:
   field-for-field equal (names, return animations, checksums, GUID, localized strings,
   size, flags, voice, balloon, palette, states) except the file-name column
   (`Blink.aaf` vs `anim2.aaf`). So the docfile is a container around the web files.
-- **1.5 vs 2.0 (`~/Sources/bentwire/merlin.acs`):**
+- **1.5 vs 2.0 (`$BENTWIRE_SOURCES/merlin.acs`):**
   - Same GUID {4E574F44-B521-11D0-9E9A-00C04FD7081F}, size 128x128, transparent index
     10, identical 256-entry palette, same balloon except 28 vs 32 chars per line, same
     16 state names (1.5 mixed case, 2.0 upper case).
