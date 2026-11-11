@@ -40,8 +40,9 @@ type Frame = (String, u32, Option<String>);
 enum Outcome {
     Equal,
     /// The core's exit run stopped at a revisited frame (A-CORE-6) where interpreter B,
-    /// which has no such rule, goes on.
-    Core6,
+    /// which has no such rule, goes on: to END or CUT within the trace cap (`false`), or
+    /// until the cap, an endless exit loop (`true`).
+    Core6(bool),
     /// Agent frames with `ms = 0` cannot be observed on the player (it shows them and
     /// moves on in the same timer callback); exit-mode traces of such animations are
     /// not comparable step by step.
@@ -191,10 +192,12 @@ fn compare_agent(
     }
     let n = want.len().min(got.len());
     if limited || got.len() >= TRACE_LIMIT {
-        return if want[..n] == got[..n] {
-            Outcome::Equal
-        } else {
+        return if want[..n] != got[..n] {
             Outcome::Mismatch(first_diff(&want, &got))
+        } else if exited && got.len() < want.len() && got.len() < TRACE_LIMIT {
+            Outcome::Core6(true)
+        } else {
+            Outcome::Equal
         };
     }
     if want == got {
@@ -204,7 +207,7 @@ fn compare_agent(
             Outcome::Mismatch(format!("draws: interpreter B {bn}, core {}", draws.n))
         }
     } else if exited && got.len() < want.len() && want[..got.len()] == got[..] {
-        Outcome::Core6
+        Outcome::Core6(false)
     } else {
         Outcome::Mismatch(first_diff(&want, &got))
     }
@@ -292,7 +295,9 @@ fn first_diff(want: &[Frame], got: &[Frame]) -> String {
 fn t_2_core_player_matches_interpreter_b() {
     let entries = packs();
     assert!(!entries.is_empty(), "no characters found");
-    let (mut chars, mut anims, mut traces, mut equal, mut core6, mut skipped) = (0, 0, 0, 0, 0, 0);
+    let (mut chars, mut anims, mut traces, mut equal, mut skipped) = (0, 0, 0, 0, 0);
+    // A-CORE-6 cases: interpreter B ends within the cap / loops until the cap.
+    let (mut core6_end, mut core6_loop) = (Vec::new(), Vec::new());
     let mut failures = Vec::new();
     for e in &entries {
         let c = Character::load(&e.path).unwrap_or_else(|err| panic!("{}: {err}", e.id));
@@ -313,7 +318,14 @@ fn t_2_core_player_matches_interpreter_b() {
                     };
                     match o {
                         Outcome::Equal => equal += 1,
-                        Outcome::Core6 => core6 += 1,
+                        Outcome::Core6(endless) => {
+                            let name = format!("{}/{}", e.id, m.animations[a].name);
+                            if endless {
+                                core6_loop.push(name)
+                            } else {
+                                core6_end.push(name)
+                            }
+                        }
                         Outcome::Skipped => skipped += 1,
                         Outcome::Mismatch(why) => failures.push(format!(
                             "{} {} seed {seed} mode {mode}: {why}",
@@ -326,10 +338,23 @@ fn t_2_core_player_matches_interpreter_b() {
     }
     eprintln!(
         "T-2 via the daemon path: {chars} characters, {anims} animations, {traces} traces: \
-         {equal} equal, {core6} ended by A-CORE-6, {skipped} skipped (0 ms frames in exit \
+         {equal} equal, {} ended by A-CORE-6 ({} where interpreter B reaches END/CUT within \
+         the cap, {} where it loops to the cap), {skipped} skipped (0 ms frames in exit \
          mode), {} mismatches",
+        core6_end.len() + core6_loop.len(),
+        core6_end.len(),
+        core6_loop.len(),
         failures.len()
     );
+    for (what, v) in [("B ends", &mut core6_end), ("B loops", &mut core6_loop)] {
+        v.sort();
+        v.dedup();
+        eprintln!(
+            "A-CORE-6, {what}: {} animations: {:?}",
+            v.len(),
+            &v[..v.len().min(12)]
+        );
+    }
     assert!(
         failures.is_empty(),
         "{:#?}",
