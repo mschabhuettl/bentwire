@@ -59,8 +59,9 @@ Release binaries for x86_64 Linux are attached to each
 
 ### The classics pack
 
-Microsoft's characters (Clippit, Merlin, Rocky, the Office 97 and Microsoft Bob actors and
-more, 57 in all) and the Office balloon theme come as a separate pack:
+The classic characters (Clippit, Merlin, Rocky, the Office 97 and Microsoft Bob actors and
+more, 57 in all, most of them Microsoft's) and the Office balloon theme come as a separate
+pack:
 
 ```sh
 git clone https://github.com/mschabhuettl/bentwire-classics ~/.local/share/bentwire/characters/classics

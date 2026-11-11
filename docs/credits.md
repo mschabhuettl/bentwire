@@ -41,7 +41,7 @@ correction no longer applies.
 ## Tahoma replacement (Wine)
 
 `assets/fonts/tahoma.ttf` and `tahomabd.ttf` are Wine's metric-compatible Tahoma
-replacements, copyright the Wine project (https://www.winehq.org), licensed under the LGPL
+replacements, copyright the Wine project (https://gitlab.winehq.org/wine/wine), licensed under the LGPL
 2.1 or later (`assets/fonts/LICENSE-LGPL-2.1.txt`). Details in `assets/fonts/README.md`.
 
 ## Rust crates

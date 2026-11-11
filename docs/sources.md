@@ -160,7 +160,9 @@ The theme (`balloon-themes/office`) is extracted from `OBALLOON.DLL` inside this
 ## 2. Analysed Microsoft binaries
 
 All were analysed statically and never executed. Sizes and SHA-256 values of files inside a
-zip were computed from the extracted file.
+zip were computed from the extracted file. The values for the two Agent 1.5 `agentdpv.dll`
+files, `MSagent.exe`, `the Agent 1.5 files` and `ACE.EXE` are quoted from `docs/research/` (the files are
+not in the two input trees); the English `OBALLOON.DLL` was not kept.
 
 | Binary | Version | Bytes | SHA-256 | Origin |
 |---|---|---|---|---|
@@ -171,6 +173,11 @@ zip were computed from the extracted file.
 | `agentctl.dll` | 2.00.0.3427 | 214,016 | `b50ca2fdd6c41b9c7637c486a49f044286f19f83b7d9fc97cce3eb2e21ae315c` | same zip |
 | `AgentDPv.dll` (Agent 1.5) | 1.5.2.416 | not recorded | `4a5de7cc6327db9e8a610451b91343aa24f270e9f7050808087d0d9760a7b6d1` | `MSagent.exe` (340,112 bytes, SHA-256 `5e00fe1b303dc56e3cf556adaf23a956ccf2ab2bb42b1a50736ad5bd4f3d5208`), Wayback Machine: (public archive copy) |
 | `agentdpv.dll` (Agent 1.5) | 1.5.0.225 | not recorded | `039e856fa12f9d029e5faa2de7c7bd0ad00807ed3c74ae09d429c26f489da506` | public archive `source-files`, `the Agent 1.5 files` (SHA-256 `22a69838b5e8fc52b85354eefc5fce430f011b5841978d849f502eebbad2163d`) |
+| `mslwvtts.dll` | not recorded (part of the 2.00.0.3427 runtime) | 39,936 | `2cd78839b82fd0c1f170f7a9fa7d1a6d44bea1564370f337f7c0ef1baac0d9da` | `$BENTWIRE_SOURCES/the Agent installer files` |
+| `intl/agt0409.dll` (English UI strings) | not recorded (part of the 2.00.0.3427 runtime) | 19,968 | `fb0dcabdb076b8f81a5416c107e5ced3222cce4a1c2135f0068e3410be15ad88` | same zip |
+| `intl/agt0407.dll` (German UI strings) | not recorded (part of the 2.00.0.3427 runtime) | 21,504 | `4e2503e1281f9530c0d83d3692d867a4c4c794003e69e8121fc6676d2e320010` | same zip |
+| `agtctl15.tlb` (type library of the 1.5 control) | not recorded (part of the 2.00.0.3427 runtime) | 18,432 | `7bdbbe55f8f84cdec639e53a427229f73d507cee22a0c65a8bb2009e3807b4a2` | same zip |
+| `ACE.EXE` (Agent Character Editor, September 1998) | not recorded | not recorded | `1f2856e79f764eb8a6dfb259cc47240e929db412e10ba512790d69367cef20a2` | self-extracting CAB, Wayback Machine: (public archive copy) |
 | `msadp32.acm` | 5.1.2600.5512 (Windows XP SP3, German) | 14,848 | `81eac2425efa2c31edf22d4c8a87e9fdadeb380b2471779c508f00145c5dd243` | `$BENTWIRE_SOURCES/msadp32.acm` (owner's own copy) |
 | `MSO.DLL` (Office XP) | 10.0.2625 | 9,995,680 | `14b7a79ad2cd96524671f8a63d63ed665253efcf02da74a814fec83f33225134` | `$BENTWIRE_SOURCES/MSO.DLL` (owner's own copy) |
 | `MSO97.DLL` (Office 97) | 8.0.3507 | 3,774,224 | `4d382905037551ef6b830a28b5b70b55043332c064665da30bae32095da1722d` | Office 97 Professional CD, see 1.5 |
