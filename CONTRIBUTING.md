@@ -71,17 +71,18 @@ without them you can run the rest of the suite as above. They are `#[ignore]` te
 one script:
 
 ```sh
-scripts/oracle-check.sh
+BENTWIRE_SOURCES=<dir>[:<dir>...] BENTWIRE_REFERENCE=<dir> scripts/oracle-check.sh
 ```
 
 The script reads these variables:
 
 | Variable | Meaning |
 |---|---|
-| `BENTWIRE_SOURCES` | Directories with your own copies of the original files, separated by `:`. Any layout: files are found by name and checked by SHA-256 (the list is in [docs/sources.md](docs/sources.md)). |
-| `BENTWIRE_REFERENCE` | The reference Python parsers from the format research (not public). |
+| `BENTWIRE_SOURCES` | One or more directories, separated by `:`, with your own copies of the original character files and DLLs, in any layout. Files are found by file name and checked by SHA-256 against [docs/sources.md](docs/sources.md). |
+| `BENTWIRE_REFERENCE` | A directory with the Python reference parsers and the prototype from the format research, used as test oracle (not public). |
 | `BENTWIRE_CLASSICS` | A checkout of [bentwire-classics](https://github.com/mschabhuettl/bentwire-classics). Default: `../bentwire-classics`, next to this checkout. |
 | `BENTWIRE_PACKS` | A `characters/` directory with the packs to load. Set by the script (see below); set it yourself only when running the tests without the script. |
+| `BENTWIRE_PROTO_COPY` | Optional: an existing scratch copy of the prototype, which keeps its cache between runs. Without it the script makes a fresh copy in a temporary directory and removes it afterwards. |
 
 The script builds a temporary `characters/` directory with `builtin` and `classics` and
 points `BENTWIRE_PACKS` at it, for the test that loads every character of every pack through
