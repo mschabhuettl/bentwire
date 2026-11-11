@@ -9,3 +9,10 @@ license.workspace = true
 agent-formats.workspace = true
 bentwire-character.workspace = true
 thiserror.workspace = true
+ttf-parser = { version = "0.25", default-features = false, features = ["std"] }
+toml.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+png.workspace = true
+agent-fixtures.workspace = true
