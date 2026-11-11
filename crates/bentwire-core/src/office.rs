@@ -554,6 +554,24 @@ fn wrap_pieces(
     lines
 }
 
+/// Find caption char `idx` in the wrapped runs: (line, run, char index in run).
+fn locate(caption: &str, idx: usize, lines: &[TextLine]) -> Option<(usize, usize, usize)> {
+    let chars: Vec<char> = caption.chars().collect();
+    let mut cursor = 0;
+    for (li, l) in lines.iter().enumerate() {
+        for (ri, r) in l.runs.iter().enumerate() {
+            let rc: Vec<char> = r.text.chars().collect();
+            let start = (cursor..=chars.len().saturating_sub(rc.len()))
+                .find(|&p| chars[p..p + rc.len()] == rc[..])?;
+            if idx >= start && idx < start + rc.len() {
+                return Some((li, ri, idx - start));
+            }
+            cursor = start + rc.len();
+        }
+    }
+    None
+}
+
 fn plain(s: &str) -> Vec<Piece> {
     vec![Piece {
         text: s.to_string(),
@@ -733,7 +751,7 @@ pub fn layout(a: &AskModel, cw: i32, cx: &Ctx, it: &Interaction) -> Layout {
             y += g;
         }
         any = true;
-        let (cap, _, letter) = mnemonic(l);
+        let (cap, midx, letter) = mnemonic(l);
         let w = wrap_pieces(&plain(&cap), cw - tx, cx.m, &cx.body);
         let h = (w.len() as i32 * tm).max(13);
         let c = Control::Checkbox(i);
@@ -743,9 +761,13 @@ pub fn layout(a: &AskModel, cw: i32, cx: &Ctx, it: &Interaction) -> Layout {
             checked: it.checked.get(i).copied().unwrap_or(false),
             lines: to_lines(w, tx, y, tm, BODY_COLOR),
             mnemonic: letter,
+            mnemonic_at: None,
             state: state_of(c, true),
             focused: focused == Some(c),
         });
+        if let (Some(cb), Some(m)) = (checkboxes.last_mut(), midx) {
+            cb.mnemonic_at = locate(&cap, m, &cb.lines);
+        }
         y += h;
     }
     let mut buttons = Vec::new();
@@ -1502,5 +1524,25 @@ mod tests {
         let l = p.scene.labels[0].rect;
         assert_eq!(hit(&p.scene, l.x + 1, l.y + 1), Some(Control::Label(0)));
         assert_eq!(p.scene.checkboxes[0].mnemonic, Some('c'));
+        assert_eq!(p.scene.checkboxes[0].mnemonic_at, Some((0, 0, 0)));
+        let lines = vec![TextLine {
+            y: 0,
+            runs: vec![
+                TextRun {
+                    x: 0,
+                    text: "Enable".into(),
+                    color: [0; 3],
+                    underline: false,
+                },
+                TextRun {
+                    x: 50,
+                    text: "network".into(),
+                    color: [0; 3],
+                    underline: false,
+                },
+            ],
+        }];
+        let (cap, idx, _) = mnemonic("Enable &network");
+        assert_eq!(locate(&cap, idx.unwrap(), &lines), Some((0, 1, 0)));
     }
 }

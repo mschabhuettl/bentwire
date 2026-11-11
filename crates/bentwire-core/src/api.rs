@@ -556,6 +556,8 @@ pub struct CheckboxScene {
     pub lines: Vec<TextLine>,
     /// Mnemonic letter (from `&` in the caption), if any.
     pub mnemonic: Option<char>,
+    /// Where to underline it: (line, run, char index in that run's text).
+    pub mnemonic_at: Option<(usize, usize, usize)>,
     pub state: ControlState,
     pub focused: bool,
 }
