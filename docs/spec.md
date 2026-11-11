@@ -1544,6 +1544,15 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   normal, hot, pressed, disabled; icon group 100 (32 x 32, deepest depth) becomes `tip`.
   Bullet 102 and arrows 103/104 are extracted but not referenced by `theme.toml`. Reason:
   office-assistant R-OB-8/11 give ids and frame counts; the state order is [inf] there.
+- **A-CONV-5 Ids of qualified file names.** A-ID-1 uses the file stem; a parenthesised
+  qualifier (`WILL(Bob).ACT`, `ROCKY(Greetings).ACT`) is dropped unless another source would
+  then get the same id, in which case it is kept as `-qualifier` (`rocky-greetings-act`).
+  Characters outside `[a-z0-9]` become `-`; the Office CD prefix `office-actors-` is removed.
+  Byte-identical sources are converted once. Reason: A-ID-1 does not say how to spell such
+  stems; the rule keeps ids short and still never guesses between two different files.
+- **A-PACK-3 Helper actors.** A source whose every frame is fully transparent (the Bob helper
+  ZVISIBLE.ACT, whose metafile draws nothing) is excluded from `classics` with that reason.
+  Reason: a character without a visible picture has no use as a desktop character.
 - **W-RAST-1 WMF geometry (D2, act-format 4.6).** Logical points go through
   MM_ANISOTROPIC (viewport = destination rectangle, window = placeable bbox until the
   metafile's own SetWindowOrg/SetWindowExt) in floating point and are rounded to whole
