@@ -42,6 +42,28 @@ fn act_vector_round_trip_and_structure() {
         let (_, _, t) = img.palette_info().unwrap().unwrap();
         assert_eq!(t, Some(0), "{}: transparent index", path.display());
         let act = agent_formats::act::parse(&std::fs::read(&path).unwrap()).unwrap();
+        // A-CHAR-3: at density 2 every pose shows its 2x cell unscaled.
+        let two = c.sheets.file("a", 2).expect("2x file");
+        let [cw, ch] = [sheet.cell[0] * 2, sheet.cell[1] * 2];
+        let cols = two.width / cw;
+        for layers in c.manifest.poses.values() {
+            let n = layers[0].image.index;
+            let (ox, oy) = ((n % cols) * cw, (n / cols) * ch);
+            let pic = c.compose(layers, 2);
+            for y in 0..ch {
+                for x in 0..cw {
+                    let p = two.pixel(ox + x, oy + y);
+                    let want = if p[3] == 0 { [0; 4] } else { p };
+                    let i = ((y * cw + x) * 4) as usize;
+                    assert_eq!(
+                        pic.data[i..i + 4],
+                        want,
+                        "{}: 2x pose differs",
+                        path.display()
+                    );
+                }
+            }
+        }
         for (pid, layers) in &c.manifest.poses {
             for k in [1, 2] {
                 let pic = c.compose(layers, k);

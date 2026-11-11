@@ -135,12 +135,28 @@ fn id_for(path: &Path, stem: &str, data: &[u8]) -> Result<String, Error> {
     )))
 }
 
-/// Options per source: Japanese actors get `ja` and Shift_JIS (A-CONV-3).
-fn options(id: &str, base: &ConvertOptions) -> ConvertOptions {
+/// Per-id converter options (A-CONV-3): `id lang codepage` per line, `#` comments. The pack
+/// script keeps them in `characters/classics/options.txt`.
+pub fn parse_overrides(text: &str) -> Vec<(String, String, String)> {
+    text.lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && !l.starts_with('#'))
+        .filter_map(|l| {
+            let f: Vec<&str> = l.split_whitespace().collect();
+            (f.len() == 3).then(|| (f[0].to_owned(), f[1].to_owned(), f[2].to_owned()))
+        })
+        .collect()
+}
+
+fn options(
+    id: &str,
+    base: &ConvertOptions,
+    overrides: &[(String, String, String)],
+) -> ConvertOptions {
     let mut o = base.clone();
-    if id.starts_with("offlady-") || id.starts_with("dolphin-") {
-        o.lang = Some("ja".into());
-        o.codepage = Some("shift_jis".into());
+    if let Some((_, lang, cp)) = overrides.iter().find(|(i, _, _)| i == id) {
+        o.lang = Some(lang.clone());
+        o.codepage = Some(cp.clone());
     }
     o
 }
@@ -151,6 +167,7 @@ pub fn generate(
     sources: &[PathBuf],
     out: &Path,
     base: &ConvertOptions,
+    overrides: &[(String, String, String)],
 ) -> Result<Vec<Outcome>, Error> {
     std::fs::create_dir_all(out)?;
     let mut by_hash: BTreeMap<String, PathBuf> = BTreeMap::new();
@@ -196,7 +213,7 @@ pub fn generate(
         }
         by_id.insert(id.clone(), p.clone());
         let p = p.clone();
-        match convert_to_package_with(&p, &options(&id, base)) {
+        match convert_to_package_with(&p, &options(&id, base, overrides)) {
             Err(e) => res.push(Outcome::Excluded {
                 path: p.clone(),
                 reason: e.to_string(),

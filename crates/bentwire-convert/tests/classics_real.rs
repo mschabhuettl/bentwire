@@ -7,7 +7,7 @@ mod oracle_common;
 use std::path::PathBuf;
 
 use bentwire_character::Character;
-use bentwire_convert::classics::{Outcome, enumerate, generate};
+use bentwire_convert::classics::{Outcome, enumerate, generate, parse_overrides};
 
 fn pack() -> PathBuf {
     let p = oracle_common::repo().join("characters/classics");
@@ -45,7 +45,8 @@ fn classics_pack_loads_and_is_reproducible() {
         office_palette: Some(research.join("MSO97.DLL")),
         ..Default::default()
     };
-    let res = generate(&enumerate(&research, &sources), &tmp, &opts).unwrap();
+    let overrides = parse_overrides(&std::fs::read_to_string(pack.join("options.txt")).unwrap());
+    let res = generate(&enumerate(&research, &sources), &tmp, &opts, &overrides).unwrap();
     let ids: Vec<&String> = res
         .iter()
         .filter_map(|r| match r {

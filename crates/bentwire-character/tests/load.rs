@@ -282,3 +282,70 @@ fn scaled_layers_use_pixel_centre_sampling() {
     assert_eq!(p[3 * 8 + 3], T);
     assert_eq!(p[3 * 8 + 1], RED);
 }
+
+/// A-CHAR-3: office97-like geometry (canvas in logical units, display in pixels, explicit layer
+/// size) uses the 2x file at density 2, so the 2x pixels arrive unscaled.
+#[test]
+fn hidpi_file_chosen_by_destination_size() {
+    let m = r##"
+format = 1
+family = "agent"
+[character]
+canvas = [400, 400]
+display = [4, 4]
+[[sheets]]
+id = "a"
+file = "sheets/a.png"
+cell = [4, 4]
+count = 1
+[sheets.hidpi]
+2 = "sheets/a@2x.png"
+[[animations]]
+name = "A"
+frames = [{ ms = 10, layers = [["a:0", 0, 0, 400, 400]] }]
+"##;
+    let d = tmp("hidpi-dest");
+    std::fs::create_dir_all(d.join("sheets")).unwrap();
+    std::fs::write(d.join("character.toml"), m).unwrap();
+    std::fs::write(d.join("sheets/a.png"), png_rgba(4, 4, &[255; 64])).unwrap();
+    // 2x: a gradient, so any rescaling would show.
+    let px: Vec<u8> = (0..64u32).flat_map(|i| [i as u8 * 4, 0, 0, 255]).collect();
+    std::fs::write(d.join("sheets/a@2x.png"), png_rgba(8, 8, &px)).unwrap();
+    let c = Character::load(&d).unwrap();
+    let f = &c.manifest.animations[0].frames[0];
+    assert_eq!(c.compose_frame(f, None, 2).data, px);
+    assert_eq!(c.compose_frame(f, None, 1).data, vec![255; 64]);
+}
+
+/// A sheet stored only at a higher density (`scale = 2`): pictures are half as large in canvas
+/// units and are sampled down at density 1, copied 1:1 at density 2.
+#[test]
+fn scale_sheet() {
+    let m = r##"
+format = 1
+family = "agent"
+[character]
+canvas = [4, 4]
+[[sheets]]
+id = "a"
+file = "sheets/a.png"
+cell = [8, 8]
+count = 1
+scale = 2
+[[animations]]
+name = "A"
+frames = [{ ms = 10, layers = ["a:0"] }]
+"##;
+    let d = tmp("scale");
+    std::fs::create_dir_all(d.join("sheets")).unwrap();
+    std::fs::write(d.join("character.toml"), m).unwrap();
+    let px: Vec<u8> = (0..64u32).flat_map(|i| [i as u8 * 4, 0, 0, 255]).collect();
+    std::fs::write(d.join("sheets/a.png"), png_rgba(8, 8, &px)).unwrap();
+    let c = Character::load(&d).unwrap();
+    let f = &c.manifest.animations[0].frames[0];
+    assert_eq!(c.compose_frame(f, None, 2).data, px);
+    let one = c.compose_frame(f, None, 1);
+    assert_eq!((one.width, one.height), (4, 4));
+    // Destination (0, 0) samples source (floor(1 * 8 / 8), ...) = (1, 1): value 9 * 4.
+    assert_eq!(one.data[0], 36);
+}

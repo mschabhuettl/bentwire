@@ -1513,11 +1513,13 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   8-bit indexed and RGBA, the loader accepts any PNG colour type and depth (indexed stays
   indexed, others become RGBA). Reason: character-format 4 makes unknown keys a warning,
   and editors export other PNG variants.
-- **A-CHAR-3 HiDPI file choice.** At output size O for canvas C, each sheet uses the file
-  (base = key 1, or a `hidpi` key) with the smallest `scale x key` at or above O / C,
-  else the densest file; `cell` and `sizes` are pixels of the base file and are
-  multiplied by the key; a picture's canvas size is its base size divided by `scale`,
-  truncated. Reason: character-format 8 defines the files, not the choice.
+- **A-CHAR-3 HiDPI file choice.** Per layer, the file (base = key 1, or a `hidpi` key) with
+  the smallest key whose picture (base size x key) covers the destination rectangle of
+  character-format 5.3 step 3, else the densest decoded file; `cell` and `sizes` are pixels
+  of the base file and are multiplied by the key; a picture's canvas size is its base size
+  divided by `scale`, truncated. Reason: character-format 8 defines the files, not the
+  choice; deciding per destination rectangle also works for office97 canvases in logical
+  units.
 - **A-CONV-1 Vector actor pictures (D2).** Each used pose is rasterised by the bentwire
   WMF rasteriser at the display size (1x) and at 2x (`hidpi = { 2 = ... }`), aliased,
   indexed. Palette: index 0 is a transparent key colour not painted by the actor, then the
@@ -1530,7 +1532,7 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   Reason: character-format 6 identifies sounds by their PCM hash.
 - **A-CONV-3 ACT conversion options.** `character.info.lang` (default `en`) and the
   codepage of the item name and of v1 strings (default windows-1252) are converter
-  options; `regenerate.sh` passes `ja` and `shift_jis` for the two Japanese actors
+  options; `characters/classics/options.txt` sets `ja` and `shift_jis` for the two Japanese actors
   (OFFLADY, DOLPHIN). The D6 state aliases are added only for Office actors (kind 7) and
   only to `[states]`, not to `office97.ids`. The Office palette for bitmap actors must be
   given (an Office ACS or MSO97.DLL); there is no default. Reason: ACT carries no language

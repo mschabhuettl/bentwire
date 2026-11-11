@@ -219,6 +219,13 @@ impl SheetSet {
             .and_then(|r| r.as_ref().ok())
     }
 
+    /// The decoded file of `sheet` at density `key` (1 = base file).
+    pub fn file(&self, sheet: &str, key: u32) -> Option<&Image> {
+        self.files
+            .get(&(sheet.to_owned(), key))
+            .and_then(|r| r.as_ref().ok())
+    }
+
     /// True when the base file of `sheet` decoded and holds every cell.
     pub fn ok(&self, sheet: &str) -> bool {
         self.base(sheet).is_some()
@@ -250,9 +257,9 @@ fn trunc_div(a: i64, b: i64) -> i64 {
 
 /// Composite `layers` back to front at output size `out` (character-format 5.3).
 ///
-/// Sheet file choice (bentwire decision, spec 3.14): for each sheet the file whose density
-/// (`scale * key`, key 1 for the base file) is the smallest one at or above the output density
-/// `out / canvas`, else the densest file.
+/// Sheet file choice (bentwire decision A-CHAR-3): per layer, the file (base = key 1, or a
+/// `hidpi` key) with the smallest key whose picture covers the destination rectangle, else the
+/// densest file.
 pub fn compose(m: &Manifest, sheets: &SheetSet, layers: &[Layer], out: [u32; 2]) -> Rgba {
     let [ow, oh] = out;
     let [cw, ch] = m.canvas();
@@ -262,17 +269,8 @@ pub fn compose(m: &Manifest, sheets: &SheetSet, layers: &[Layer], out: [u32; 2])
             continue;
         };
         let scale = sheet.scale.unwrap_or(1);
-        let key = pick_density(sheet, sheets, ow, cw);
-        let Some(Ok(img)) = sheets.files.get(&(sheet.id.clone(), key)) else {
-            continue;
-        };
         let n = l.image.index;
         if n >= sheet.count {
-            continue;
-        }
-        let cell = [sheet.cell[0] * key, sheet.cell[1] * key];
-        let cols = img.width / cell[0];
-        if cols == 0 {
             continue;
         }
         let base_size = sheet
@@ -281,11 +279,6 @@ pub fn compose(m: &Manifest, sheets: &SheetSet, layers: &[Layer], out: [u32; 2])
             .and_then(|s| s.get(n as usize))
             .copied()
             .unwrap_or(sheet.cell);
-        let (sw, sh) = (base_size[0] * key, base_size[1] * key);
-        let (px, py) = ((n % cols) * cell[0], (n / cols) * cell[1]);
-        if px + sw > img.width || py + sh > img.height {
-            continue;
-        }
         let [lw, lh] = l
             .size
             .unwrap_or([base_size[0] / scale, base_size[1] / scale]);
@@ -295,7 +288,21 @@ pub fn compose(m: &Manifest, sheets: &SheetSet, layers: &[Layer], out: [u32; 2])
         let y0 = trunc_div(y * oh as i64, ch as i64);
         let y1 = trunc_div((y + lh as i64) * oh as i64, ch as i64);
         let (dw, dh) = (x1 - x0, y1 - y0);
-        if dw <= 0 || dh <= 0 || sw == 0 || sh == 0 {
+        if dw <= 0 || dh <= 0 {
+            continue;
+        }
+        let key = pick_density(sheet, sheets, base_size, dw, dh);
+        let Some(Ok(img)) = sheets.files.get(&(sheet.id.clone(), key)) else {
+            continue;
+        };
+        let cell = [sheet.cell[0] * key, sheet.cell[1] * key];
+        let cols = img.width / cell[0];
+        if cols == 0 {
+            continue;
+        }
+        let (sw, sh) = (base_size[0] * key, base_size[1] * key);
+        let (px, py) = ((n % cols) * cell[0], (n / cols) * cell[1]);
+        if px + sw > img.width || py + sh > img.height || sw == 0 || sh == 0 {
             continue;
         }
         let identity = dw == sw as i64 && dh == sh as i64;
@@ -356,11 +363,12 @@ fn blend(d: &mut [u8], s: [u8; 4]) {
     d[3] = ((2 * den + 255) / 510) as u8;
 }
 
-fn pick_density(sheet: &Sheet, sheets: &SheetSet, ow: u32, cw: u32) -> u32 {
+/// The file for one layer: the smallest density key whose picture is at least as large as the
+/// destination rectangle `dw x dh`, else the densest decoded file (A-CHAR-3).
+fn pick_density(sheet: &Sheet, sheets: &SheetSet, base: [u32; 2], dw: i64, dh: i64) -> u32 {
     if sheet.hidpi.is_empty() {
         return 1;
     }
-    let scale = sheet.scale.unwrap_or(1) as u64;
     let mut keys: Vec<u32> = std::iter::once(1)
         .chain(sheet.hidpi.keys().copied())
         .filter(|k| matches!(sheets.files.get(&(sheet.id.clone(), *k)), Some(Ok(_))))
@@ -368,7 +376,7 @@ fn pick_density(sheet: &Sheet, sheets: &SheetSet, ow: u32, cw: u32) -> u32 {
     keys.sort_unstable();
     keys.iter()
         .copied()
-        .find(|&k| scale * k as u64 * cw as u64 >= ow as u64)
+        .find(|&k| base[0] as i64 * k as i64 >= dw && base[1] as i64 * k as i64 >= dh)
         .or_else(|| keys.last().copied())
         .unwrap_or(1)
 }
