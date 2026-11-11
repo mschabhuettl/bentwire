@@ -1,4 +1,4 @@
-//! Sensitivity of the round-trip check (character-format 11, prototype mutate.py): one small
+//! Sensitivity of the round-trip check (character-format 11, the prototype's mutate.py): one small
 //! mutation of a converted character must make its dump or traces differ from the oracle.
 
 mod oracle_common;

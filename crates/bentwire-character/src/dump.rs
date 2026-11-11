@@ -1,4 +1,4 @@
-//! Canonical dump (character-format 11.1) and interpreter B (11.3), as prototype
+//! Canonical dump (character-format 11.1) and interpreter B (11.3), as the prototype
 //! `reader.py` produces them, so dumps compare equal as JSON with the Python oracle.
 
 use std::cell::RefCell;

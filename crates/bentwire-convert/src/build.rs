@@ -293,7 +293,7 @@ pub fn empty_manifest(family: Family, canvas: [u32; 2]) -> Manifest {
     }
 }
 
-/// Windows LANGID to BCP 47 ([MS-LCID]; prototype `common.lang_tag`): the table entry, else
+/// Windows LANGID to BCP 47 ([MS-LCID]; the prototype's `common.lang_tag`): the table entry, else
 /// for a primary-only id the language of the first entry with that primary language, else a
 /// private-use tag.
 pub fn lang_tag(langid: u16) -> String {
@@ -319,7 +319,7 @@ pub fn colorref(v: u32) -> String {
     )
 }
 
-/// Canonical spelling of the Agent state names (prototype `norm_states`); others unchanged.
+/// Canonical spelling of the Agent state names (the prototype's `norm_states`); others unchanged.
 pub fn canonical_state(name: &str) -> String {
     AGENT_STATES
         .iter()

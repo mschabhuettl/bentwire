@@ -1,4 +1,5 @@
-//! Cross-reference rules a schema cannot express (prototype `validate.py`, character-format 4).
+//! Cross-reference rules a schema cannot express (the prototype's `validate.py`,
+//! character-format 4).
 
 use std::collections::HashSet;
 

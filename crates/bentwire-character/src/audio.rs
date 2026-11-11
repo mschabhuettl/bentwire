@@ -64,7 +64,7 @@ impl Pcm {
 
     /// Container-independent identity: first 16 hex digits of SHA-256 over
     /// `<channels u16><rate u32><bits u16>` (little endian) plus the PCM bytes
-    /// (prototype `common.pcm_hash`).
+    /// (the prototype's `common.pcm_hash`).
     pub fn hash(&self) -> String {
         let mut h = Vec::with_capacity(8 + self.data.len());
         h.extend_from_slice(&self.channels.to_le_bytes());

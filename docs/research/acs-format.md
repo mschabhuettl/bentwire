@@ -672,9 +672,9 @@ regions compressed), 211 sounds.
   - Its balloon has custom colours and the Arial font.
 
 **Proof render** (scratchpad only, not part of the deliverable):
-- `.../scratchpad/clippit_restpose_0.png`: Clippit RestPose frame 0,
+- `clippit_restpose_0.png`: Clippit RestPose frame 0,
   one image.
-- `.../scratchpad/dot_restpose_0.png`: Dot RestPose frame 0, 8 layered
+- `dot_restpose_0.png`: Dot RestPose frame 0, 8 layered
   images.
 - Both look correct, which confirms bottom-up rows, BGR palette order, the
   last-to-first draw order and colour keying.
