@@ -13,6 +13,7 @@ pub mod l10n;
 pub mod lipsync;
 pub mod model;
 pub mod office;
+pub mod player;
 pub mod speak;
 
 pub use crate::core::Core;
