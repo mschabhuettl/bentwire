@@ -839,3 +839,16 @@ fn b_gal_1_gallery_next_cancel_and_ok() {
     let st = std::fs::read_to_string(e.dir.join("state/bentwire/state.toml")).unwrap();
     assert!(st.contains(&format!("character = \"{second}\"")), "{st}");
 }
+
+#[test]
+fn spec_5_5_cli_wait_ends_when_the_daemon_exits() {
+    let mut e = ready("cliquit");
+    let w = e.cli_bg(&["play", "Loop", "--wait"]);
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    e.advance(300);
+    e.client().call_unit(AGENT, AGENT_IF, "Quit", &()).unwrap();
+    assert_eq!(e.wait_exit(10), Some(0));
+    let (code, _, se) = finish(w);
+    assert_eq!(code, 1, "{se}");
+    assert!(se.contains("bentwired exited"), "{se}");
+}

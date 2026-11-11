@@ -178,6 +178,16 @@ impl Client {
         let conn = Connection::session()
             .map_err(|e| Fail::Exit(1, Some(format!("bentwired is not running ({e})"))))?;
         let signals = if wait {
+            // Notice the daemon going away while we wait for its signals.
+            conn.call_method(
+                Some("org.freedesktop.DBus"),
+                "/org/freedesktop/DBus",
+                Some("org.freedesktop.DBus"),
+                "AddMatch",
+                &(format!(
+                    "type='signal',sender='org.freedesktop.DBus',member='NameOwnerChanged',arg0='{BUS_NAME}'"
+                ),),
+            )?;
             Some(MessageIterator::from(&conn))
         } else {
             None
@@ -216,9 +226,17 @@ impl Client {
         for msg in it {
             let msg = msg?;
             let h = msg.header();
-            if h.message_type() != Type::Signal
-                || h.interface().map(|i| i.as_str()) != Some(CHAR_IFACE)
+            if h.message_type() != Type::Signal {
+                continue;
+            }
+            if h.member().map(|m| m.as_str()) == Some("NameOwnerChanged")
+                && let Ok((name, _, new)) = msg.body().deserialize::<(String, String, String)>()
+                && name == BUS_NAME
+                && new.is_empty()
             {
+                return Err(Fail::Exit(1, Some("bentwired exited while waiting".into())));
+            }
+            if h.interface().map(|i| i.as_str()) != Some(CHAR_IFACE) {
                 continue;
             }
             match h.member().map(|m| m.as_str().to_string()).as_deref() {

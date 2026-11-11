@@ -31,6 +31,8 @@ pub struct CharSurface {
     pub y: i32,
     /// Fractional output scale: shown through a viewport (B-WL-6).
     pub viewport: bool,
+    /// Origin of the output the surface is on; margins are relative to it (B-WL-2).
+    pub origin: (i32, i32),
     pub output: Option<u32>,
     pub dragging: bool,
     pub buf: Buf,
@@ -95,6 +97,12 @@ pub fn render(scene: &Scene, lib: &Library, fonts: &Fonts, theme: Option<&Theme>
         x: ch.x,
         y: ch.y,
         viewport,
+        origin: scene
+            .outputs
+            .iter()
+            .find(|o| Some(o.id) == ch.output)
+            .map(|o| (o.rect.x, o.rect.y))
+            .unwrap_or((0, 0)),
         output: ch.output,
         dragging: ch.dragging,
         buf: Buf {

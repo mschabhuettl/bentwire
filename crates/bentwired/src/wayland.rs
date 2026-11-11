@@ -58,12 +58,15 @@ struct CharSurf {
     layer: LayerSurface,
     output: Option<u32>,
     configured: bool,
-    /// Global position whose margins were last committed.
+    /// Margins (left, top) last sent, and the global position they stand for.
+    margin: (i32, i32),
     requested: (i32, i32),
     /// Global position the compositor has applied (frame callback seen), B-WL-7.
     applied: (i32, i32),
-    /// Committed position waiting for its frame callback.
-    in_flight: Option<(i32, i32)>,
+    /// Committed positions waiting for their frame callbacks, oldest first. A surface
+    /// that is not shown gets no callbacks; the compositor fires the queued ones in order
+    /// once it is shown again.
+    in_flight: std::collections::VecDeque<(i32, i32)>,
     size: (u32, u32),
     keyboard: bool,
     buffer: Option<smithay_client_toolkit::shm::slot::Buffer>,
@@ -252,7 +255,7 @@ impl Backend for Wayland {
             "character": s.ch.as_ref().map(|c| json!({
                 "output": c.output,
                 "configured": c.configured,
-                "margins_requested": {"left": c.requested.0, "top": c.requested.1},
+                "margins_requested": {"left": c.margin.0, "top": c.margin.1},
                 "position_applied": [c.applied.0, c.applied.1],
                 "size": [c.size.0, c.size.1],
                 "keyboard_interactivity": if c.keyboard { "on_demand" } else { "none" },
@@ -326,14 +329,6 @@ impl WlState {
             .find(|o| self.output_state.info(o).is_some_and(|i| i.id == id))
     }
 
-    fn origin_of(&self, id: Option<u32>) -> (i32, i32) {
-        self.outputs()
-            .into_iter()
-            .find(|o| Some(o.id) == id)
-            .map(|o| (o.rect.x, o.rect.y))
-            .unwrap_or((0, 0))
-    }
-
     fn destroy_menu(&mut self) {
         self.menu = None;
     }
@@ -386,9 +381,10 @@ impl WlState {
                 layer,
                 output: want.output,
                 configured: false,
-                requested: (i32::MIN, i32::MIN),
+                margin: (i32::MIN, i32::MIN),
+                requested: (want.x, want.y),
                 applied: (want.x, want.y),
-                in_flight: None,
+                in_flight: Default::default(),
                 size: (0, 0),
                 keyboard: false,
                 buffer: None,
@@ -396,20 +392,25 @@ impl WlState {
                 viewport,
             });
         }
-        let origin = self.origin_of(want.output);
+        let origin = want.origin;
         let kb = self.desired.keyboard;
         let qh = self.qh.clone();
         let viewporter = self.viewporter.clone();
         let c = self.ch.as_mut().expect("created above");
         let mut dirty = false;
-        // Throttled to one margin change per frame, so pointer positions can be mapped
-        // with the position the compositor has applied (B-WL-7).
-        if c.requested != (want.x, want.y) && c.in_flight.is_none() {
-            // B-WL-2: margins = top-left minus the output origin (not clamped, B-WL-4).
-            c.layer
-                .set_margin(want.y - origin.1, 0, 0, want.x - origin.0);
+        let mut frame = false;
+        // B-WL-2: margins = top-left minus the output origin (not clamped, B-WL-4). Each
+        // change asks for a frame callback, so pointer positions are mapped with the
+        // position the compositor has applied (B-WL-7).
+        let margin = (want.x - origin.0, want.y - origin.1);
+        if c.margin != margin {
+            c.layer.set_margin(margin.1, 0, 0, margin.0);
+            c.margin = margin;
             c.requested = (want.x, want.y);
-            c.in_flight = Some((want.x, want.y));
+            if c.configured {
+                c.in_flight.push_back((want.x, want.y));
+                frame = true;
+            }
             dirty = true;
         }
         if c.size != (want.buf.w, want.buf.h) {
@@ -463,7 +464,7 @@ impl WlState {
         self.apply_menu(&wl, (want.x, want.y));
         if dirty {
             let c = self.ch.as_mut().expect("present");
-            if c.in_flight.is_some() {
+            if frame {
                 wl.frame(&qh, FrameCallbackData(wl.clone()));
             }
             c.layer.commit();
@@ -697,17 +698,9 @@ impl CompositorHandler for WlState {
         // The margins committed with this frame are now in effect (B-WL-7).
         if let Some(c) = &mut self.ch
             && c.layer.wl_surface() == s
-            && let Some(p) = c.in_flight.take()
+            && let Some(p) = c.in_flight.pop_front()
         {
             c.applied = p;
-            if self
-                .desired
-                .character
-                .as_ref()
-                .is_some_and(|w| (w.x, w.y) != p)
-            {
-                self.apply();
-            }
         }
     }
     fn surface_enter(
@@ -765,7 +758,7 @@ impl LayerShellHandler for WlState {
         {
             c.configured = true;
             c.applied = c.requested;
-            c.in_flight = None;
+            c.in_flight.clear();
             self.apply();
         }
     }

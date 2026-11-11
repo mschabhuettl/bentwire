@@ -246,6 +246,7 @@ fn run(args: args::Args) -> Result<(), String> {
         } else {
             audio::Audio::open()
         },
+        silent: headless || args.no_audio,
         tray: if headless || args.no_tray {
             None
         } else {
@@ -281,6 +282,24 @@ fn run(args: args::Args) -> Result<(), String> {
     let now = app.clock.now();
     let out = app.core.start(now);
     app.process(out);
+    if !headless {
+        // B-O97-1 daypart: follow the local hour (the fake clock keeps the start hour).
+        let mut hour = local_hour();
+        event_loop
+            .handle()
+            .insert_source(
+                calloop::timer::Timer::from_duration(std::time::Duration::from_secs(60)),
+                move |_, _, app: &mut App| {
+                    let h = local_hour();
+                    if h != hour {
+                        hour = h;
+                        app.event(Event::LocalHour(h));
+                    }
+                    calloop::timer::TimeoutAction::ToDuration(std::time::Duration::from_secs(60))
+                },
+            )
+            .map_err(|e| e.to_string())?;
+    }
 
     while !app.quit {
         app.backend.flush();

@@ -1626,9 +1626,9 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   `<seq>-t<ms>-out<id>.png` per output whenever the drawn scene changes. Headless mode
   uses only the bundled fonts (A-FONT-1), opens no audio device and no tray item.
   Reason: the spec lists the contents, not the encoding.
-- **A-DESK-5 Wayland details.** Margin changes are throttled to one commit per frame
-  callback; pointer positions on the character are mapped with the position the
-  compositor has applied (B-WL-7). A fractional output scale is the current mode width
+- **A-DESK-5 Wayland details.** Every margin change asks for a frame callback; pointer
+  positions on the character are mapped with the last position whose callback arrived,
+  i.e. the one the compositor has applied (B-WL-7). A fractional output scale is the current mode width
   over the xdg-output logical width (no fractional-scale protocol). The Agent and the
   Office balloon are separate subsurfaces when both are open, the Office one above. A
   menu opened without a real press serial (Test1) is shown without a grab. Reason:

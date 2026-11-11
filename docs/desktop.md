@@ -72,8 +72,8 @@ The T-6 checklist items that need a real seat, a real panel or a GPU:
 - K4 keyboard focus of the ask balloon after a real click (`on_demand` is requested and
   checked, focus itself is not).
 - K5 click-through on transparent pixels (the input region is set and checked).
-- K6 drag with a real pointer staying 1:1 (margin commits are throttled to frame
-  callbacks; only synthetic drags are tested).
+- K6 drag with a real pointer staying 1:1 (pointer positions are mapped with the
+  position confirmed by frame callbacks; only synthetic drags are tested).
 - K7 the tray in Plasma's system tray (tested against a minimal watcher: registration,
   Id, Title, dbusmenu labels, Activate).
 - K8 output hot-plug on KWin (tested on sway).

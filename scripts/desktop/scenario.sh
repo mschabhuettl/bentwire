@@ -215,6 +215,8 @@ check "ask prints button:2" grep -qx 'button:2' "$T/ask.out"
 check "keyboard back to none" wait_for 5 snap 's["backend"]["character"]["keyboard_interactivity"] == "none"'
 
 echo "5. moveto"
+check "moveto fully off-screen" "$BIN/bentwire" moveto -100 -100 --speed 0 --wait
+check "margins follow off-screen (B-WL-4, no clamping)" wait_for 5 snap 's["backend"]["character"]["margins_requested"] == {"left": -100, "top": -100}'
 check "moveto 200 150 --wait" "$BIN/bentwire" moveto 200 150 --speed 300 --wait
 check "status position 200,150" test "$(status left),$(status top)" = "200,150"
 check "margins requested 200,150" wait_for 5 snap 's["backend"]["character"]["margins_requested"] == {"left": 200, "top": 150}'
@@ -248,6 +250,10 @@ if [ "$COMP" = sway ]; then
     check "viewporter on a scale-1.5 output (B-WL-6)" wait_for 5 snap 's["backend"]["character"]["viewport"] and s["backend"]["character"]["buffer_scale"] == 2'
     swaymsg -q output HEADLESS-1 scale 1
     check "back to buffer scale 1" wait_for 5 snap 's["backend"]["character"]["buffer_scale"] == 1'
+    swaymsg -q output HEADLESS-1 position 100 0
+    check "margins follow a moved output origin (B-WL-2)" wait_for 5 snap 's["outputs"][0]["x"] == 100 and s["backend"]["character"]["margins_requested"] == {"left": s["left"] - 100, "top": s["top"]}'
+    swaymsg -q output HEADLESS-1 position 0 0
+    check "margins back with the origin" wait_for 5 snap 's["outputs"][0]["x"] == 0 and s["backend"]["character"]["margins_requested"] == {"left": s["left"], "top": s["top"]}'
     swaymsg -q create_output
     swaymsg -q output HEADLESS-2 resolution 640x480 position $W 0
     check "second output seen" wait_for 5 snap 'len(s["outputs"]) == 2'

@@ -60,6 +60,9 @@ pub struct App {
     pub next_output_id: u32,
     pub backend: Box<dyn Backend>,
     pub audio: Option<crate::audio::Audio>,
+    /// No audio device by design (headless, `--no-audio`): sounds count as played, so
+    /// timing is as with sound. A device that failed to open reports failures instead.
+    pub silent: bool,
     pub tray: Option<crate::tray::Tray>,
     pub fonts: Fonts,
     pub theme: Option<Theme>,
@@ -428,7 +431,7 @@ impl App {
         self.trace(serde_json::json!({"type": "sound_start", "sound": sound, "duration_ms": dur}));
         let ok = match (&mut self.audio, pcm) {
             (Some(a), Some(p)) => a.play(&p),
-            (None, Some(_)) => true,
+            (None, Some(_)) => self.silent,
             (_, None) => false,
         };
         if !ok {
@@ -557,7 +560,11 @@ pub fn parse_key(s: &str) -> Option<(Key, u32)> {
     let mut rest = s;
     'prefix: loop {
         for (p, m) in [("shift+", 1), ("ctrl+", 2), ("alt+", 4)] {
-            if rest.len() > p.len() && rest[..p.len()].eq_ignore_ascii_case(p) {
+            if rest.len() > p.len()
+                && rest
+                    .get(..p.len())
+                    .is_some_and(|x| x.eq_ignore_ascii_case(p))
+            {
                 mods |= m;
                 rest = &rest[p.len()..];
                 continue 'prefix;
@@ -612,6 +619,8 @@ mod tests {
         assert_eq!(parse_key("Return"), Some((Key::Enter, 0)));
         assert_eq!(parse_key("Alt+n"), Some((Key::Char('n'), 4)));
         assert_eq!(parse_key("ä"), Some((Key::Char('ä'), 0)));
+        assert_eq!(parse_key("Alt+ä"), Some((Key::Char('ä'), 4)));
+        assert_eq!(parse_key("äää+x"), None);
         assert_eq!(parse_key("+"), Some((Key::Char('+'), 0)));
         assert_eq!(parse_key("bogus"), None);
     }
