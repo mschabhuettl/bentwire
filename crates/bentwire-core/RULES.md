@@ -1,0 +1,175 @@
+# bentwire-core rule coverage
+
+One line per token of `grep -o 'R-[A-Z0-9-]*\|B-[A-Z0-9-]*' docs/spec.md | sort -u`, in
+that order: `ID | tests` (test names in `crates/bentwire-core/src`, run with
+`cargo test -p bentwire-core`), or the reason a rule is not testable in the core and where
+it is tested. Regenerate the ID column with the grep above and diff it against
+`cut -d' ' -f1 crates/bentwire-core/RULES.md | grep -v '^#' | grep .`.
+
+B- | prefix token (from "B-<AREA>-n" in spec 0), not a rule
+B-ANIM-1 | b_sw_a_r_anim_7_b_anim_1_loop_stopped_resumes_through_exit, r_anim_7_b_anim_1_stop_cuts_and_no_animation_requests_keep_previous
+B-ANIM-2 | b_anim_2_r_anim_3_completion_waits_for_sound
+B-ASK- | wildcard reference to the B-ASK rules, see each B-ASK-n
+B-ASK-1 | b_ask_1_contract
+B-ASK-2 | b_ask_2_keyboard_and_clicks, b_ask_2_sets_and_results
+B-ASK-3 | b_ask_3_r_ob_16_markup
+B-ASK-4 | b_ask_4_b_wl_8_phases_and_answer, b_ask_4_hidden_and_too_big
+B-ASK-5 | b_ask_5_validation
+B-ASK-6 | b_ask_6_autodown
+B-ASK-7 | b_ask_7_matrix_modal, b_ask_7_matrix_autodown_and_switch
+B-BAL-1 | b_bal_1_no_balloon
+B-BAL-2 | b_bal_2_font_choice (family, config override, px = |font_height|); TM metrics from the font in bentwire-render
+B-BAL-3 | b_bal_3_anchor_is_lowest_mouth_point, b_bal_3_r_bal_4_r_bal_5_vectors
+B-BAL-4 | b_bal_4_mouth_point_from_bbox
+B-CFG-1 | b_cfg_1_defaults (struct and defaults); file parsing and SIGHUP in bentwired
+B-CFG-2 | b_cfg_2_b_run_1_persist_throttle_and_quit
+B-CFG-3 | b_cfg_3_first_run_and_b_char_4
+B-CHAR-1 | not testable in core: discovery is file I/O; tested in bentwired (discovery)
+B-CHAR-2 | b_fb_1_b_char_2_play_errors_and_unavailable (unavailable animation fails AnimationUnavailable), r_state_1_uniform_member_and_r_state_2 (unavailable members skipped); decoding failures detected by the loader in bentwire-character/bentwired
+B-CHAR-3 | b_char_3_display_names
+B-CHAR-4 | b_cfg_3_first_run_and_b_char_4, b_char_4_state_then_config_then_sorted, b_char_4_startup_order
+B-CHAR-5 | b_char_5_switch, b_char_5_invalid_character
+B-CORE-1 | structural: the crate has no I/O; every engine test runs it with fake clock and draws
+B-CORE-2 | b_core_2_draw_sources
+B-CORE-3 | structural: all timers come from Core::next_deadline/tick on the caller's clock; every engine test uses the fake clock (core_tests::T::advance)
+B-FAM-1 | structural: family dispatch in player.rs; per-row tests: b_seq_a_*, b_o97_*, b_sw_a_*, b_sw_o_*, b_idle_t_*, b_idle_o_office97, b_fb_1_b_o97_5_*
+B-FB-1 | b_fb_1_b_char_2_play_errors_and_unavailable, b_fb_1_b_o97_5_alias_and_office97_groups, b_fb_1_error_lists_chain
+B-FB-2 | b_fb_2_rover_like, b_fb_2_courtney_earl_merlin_qmark_like, b_fb_2_office_names_resolve_to_themselves
+B-GAL-1 | b_gal_1_gallery
+B-IDLE-O | b_idle_o_office97
+B-IDLE-T | b_idle_t_r_idle_1_r_idle_2_r_idle_3_vector, b_idle_t_r_idle_4_play_interrupts_idle
+B-L10N-1 | b_l10n_1_language
+B-L10N-2 | b_l10n_2_captions, b_ask_2_sets_and_results; CLI result names used by crates/bentwire
+B-LIP-1 | b_lip_1_r_lip_2_quantisation
+B-LIP-2 | b_lip_2_no_mouth_during_text_speak
+B-MENU-1 | b_menu_1_r_ui_3_b_menu_2_b_menu_3
+B-MENU-2 | b_menu_1_r_ui_3_b_menu_2_b_menu_3, b_menu_2_strings
+B-MENU-3 | b_menu_1_r_ui_3_b_menu_2_b_menu_3 (Output::OpenConfig); writing the file and xdg-open in bentwired
+B-MENU-4 | b_menu_4_animate_shuffle
+B-MOVE-1 | b_move_1_slide_vectors, b_move_1_period_floor
+B-O97-1 | b_o97_1_branches
+B-O97-2 | b_o97_2_zero_frames_and_blank
+B-O97-3 | b_o97_3_coalescing_vector, b_o97_3_minimum_tick_and_late_reset
+B-O97-4 | b_o97_4_play_group_picks_variant
+B-O97-5 | b_fb_1_b_o97_5_alias_and_office97_groups
+B-OB- | wildcard reference to the B-OB rules, see each B-OB-n
+B-OB-1 | r_ob_32_r_ob_11_b_ob_1_r_ob_4_button_row_and_fonts
+B-OB-2 | b_ob_2_r_ob_27_tail
+B-OB-3 | b_ob_3_b_ob_4_r_ob_17_r_ob_20_r_ob_34_placement_and_fit
+B-OB-4 | b_ob_3_b_ob_4_r_ob_17_r_ob_20_r_ob_34_placement_and_fit
+B-PICK-A | b_pick_a_speakable_keeps_animation_with_mouths
+B-PIX-1 | not testable in core: compositing; tested in bentwire-character/bentwire-render
+B-PIX-2 | not testable in core: mouth clipping is a pixel step; tested in bentwire-render (core never sets a mouth in v1, b_lip_2_no_mouth_during_text_speak)
+B-PIX-3 | not testable in core: alpha shape from pixels; tested in bentwire-render
+B-Q-1 | r_q_1_b_q_1_ids_and_reply_before_signals
+B-Q-2 | b_q_2_r_q_5_unicast_and_events
+B-Q-3 | b_q_3_hidden_moveto_r_move_4
+B-Q-4 | r_q_4_b_q_4_stop_zero
+B-Q-5 | b_q_5_stop_all
+B-REN-1 | not core: render decision, tested in bentwire-render
+B-REN-2 | not core: render decision, tested in bentwire-render
+B-REN-3 | not core: render decision, tested in bentwire-render
+B-REN-4 | not core: render decision, tested in bentwire-render
+B-REN-5 | not core: render decision, tested in bentwire-render/bentwired
+B-REN-6 | not core: render decision, tested in bentwire-render
+B-REN-7 | not core: render decision, tested in bentwire-render
+B-REN-8 | core sets Tahoma 13/16 (b_ob_1 in r_ob_32_r_ob_11_b_ob_1_r_ob_4_button_row_and_fonts); cell-height metrics in bentwire-render
+B-RUN-1 | b_cfg_2_b_run_1_persist_throttle_and_quit (Quit: reply, state, quit); bus name and signals in bentwired
+B-SEQ-A | b_seq_a_r_anim_4_branch_vector
+B-SHOW-3 | b_show_3_fast_show_picture
+B-SHOW-4 | b_show_4_cause_codes
+B-SPEAK- | wildcard reference, see B-SPEAK-1 and B-SPEAK-2
+B-SPEAK-1 | b_speak_1_tags, b_speak_1_r_q_7_bookmark_range
+B-SPEAK-2 | r_bal_8_r_bal_7_b_speak_2_r_speak_4_pacing_vector
+B-SW-A | b_sw_a_r_anim_7_b_anim_1_loop_stopped_resumes_through_exit, b_sw_a_return_after_finished, b_sw_a_r_anim_6_transition_exit_and_showing_drops, b_sw_a_agent15_exit_end_plays_return
+B-SW-O | b_sw_o_exit_and_transitions, b_sw_o_start_pose
+B-TRAY-1 | b_tray_1_r_ui_4_activate, b_tray_1_title_cut, b_ui_4_user_hide (tray menu); SNI in bentwired
+B-UI-1 | r_ui_1_b_ui_1_click_and_double_click
+B-UI-4 | b_ui_4_user_hide
+B-WL-1 | output rects in global logical coords are core input (OutputInfo); used by b_wl_2_output_choice, b_ob_3_*; Wayland side in bentwired
+B-WL-2 | b_wl_2_output_choice
+B-WL-3 | not testable in core: layer choice; bentwired / T-6 K2
+B-WL-4 | b_wl_4_output_change_pulls_back, b_wl_4_pull_inside
+B-WL-5 | structural: pointer events carry global coordinates (api::PointerEvent); conversion in bentwired
+B-WL-6 | not testable in core: buffers, scale, input region; bentwired and bentwire-render
+B-WL-7 | core part: 1:1 drag from the grab offset in r_ui_2_r_win_4_drag; margin compensation in bentwired
+B-WL-8 | b_ask_4_b_wl_8_phases_and_answer
+B-WL-9 | core part: menu model and keys in b_menu_1_r_ui_3_b_menu_2_b_menu_3; xdg_popup in bentwired
+R- | prefix token (from "R-..." in spec 0), not a rule
+R-1 | grep artefact (suffix of B-CHAR-1/A-CHAR-1/R-DIR-1), not a rule
+R-ANIM-1 | covered by r_anim_2_frame_clock (frame ms used unchanged); the x10 conversion is the converter's (tested in bentwire-convert)
+R-ANIM-10 | structural: one Player per loaded character (core::Char.player); every player test exercises it
+R-ANIM-2 | r_anim_2_frame_clock, r_anim_2_late_frame_no_catch_up
+R-ANIM-3 | b_anim_2_r_anim_3_completion_waits_for_sound
+R-ANIM-4 | b_seq_a_r_anim_4_branch_vector
+R-ANIM-5 | r_anim_5_invisible_frames, r_anim_5_zero_ms_frame_with_layers_is_shown
+R-ANIM-6 | b_sw_a_r_anim_6_transition_exit_and_showing_drops
+R-ANIM-7 | b_sw_a_r_anim_7_b_anim_1_loop_stopped_resumes_through_exit, r_anim_7_b_anim_1_stop_cuts_and_no_animation_requests_keep_previous
+R-ANIM-8 | r_anim_8_sound_gating, r_anim_8_sound_commands
+R-ANIM-9 | r_anim_9_hidden_play_fails
+R-BAL- | wildcard reference, see each R-BAL-n
+R-BAL-1 | r_bal_1_r_bal_3_size
+R-BAL-10 | r_bal_10_no_auto_hide_and_click
+R-BAL-2 | r_bal_2_defaults
+R-BAL-3 | r_bal_1_r_bal_3_size
+R-BAL-4 | b_bal_3_r_bal_4_r_bal_5_vectors (tail 16/4 geometry); drawing in bentwire-render
+R-BAL-5 | b_bal_3_r_bal_4_r_bal_5_vectors, r_bal_5_clamps
+R-BAL-6 | r_bal_6_word_wrap
+R-BAL-7 | r_bal_8_r_bal_7_b_speak_2_r_speak_4_pacing_vector, r_bal_7_not_shown_during_drag
+R-BAL-8 | r_bal_8_r_bal_7_b_speak_2_r_speak_4_pacing_vector, r_bal_8_r_ui_5_interval
+R-BAL-9 | r_bal_9_scroll
+R-DIR-1 | r_dir_1_vectors, r_dir_1_degenerate
+R-GEST-1 | r_gest_1_via_core, r_gest_1_vectors
+R-IDLE | wildcard reference ("R-IDLE applies"), see R-IDLE-1..5
+R-IDLE-1 | b_idle_t_r_idle_1_r_idle_2_r_idle_3_vector, r_idle_4_idle_on_false_and_r_idle_1_conditions
+R-IDLE-2 | b_idle_t_r_idle_1_r_idle_2_r_idle_3_vector
+R-IDLE-3 | b_idle_t_r_idle_1_r_idle_2_r_idle_3_vector
+R-IDLE-4 | b_idle_t_r_idle_4_play_interrupts_idle, r_idle_4_idle_on_false_and_r_idle_1_conditions
+R-IDLE-5 | r_idle_5_missing_level
+R-LIP-1 | r_lip_1_table_size_and_unique, r_lip_1_vectors
+R-LIP-2 | b_lip_1_r_lip_2_quantisation
+R-LIP-3 | replaced by B-LIP-2: b_lip_2_no_mouth_during_text_speak
+R-MOVE- | wildcard reference, see R-MOVE-1..4
+R-MOVE-1 | r_move_1_r_move_2_r_move_3_phases, r_move_1_vectors
+R-MOVE-2 | r_move_1_r_move_2_r_move_3_phases, r_move_2_drag_cancels_slide
+R-MOVE-3 | r_move_1_r_move_2_r_move_3_phases
+R-MOVE-4 | b_q_3_hidden_moveto_r_move_4
+R-OB- | wildcard reference, see each R-OB-n
+R-OB-1 | background colour is drawn by bentwire-render (B-OB-1); not a core decision
+R-OB-11 | r_ob_32_r_ob_11_b_ob_1_r_ob_4_button_row_and_fonts
+R-OB-16 | b_ask_3_r_ob_16_markup
+R-OB-17 | b_ob_3_b_ob_4_r_ob_17_r_ob_20_r_ob_34_placement_and_fit
+R-OB-2 | r_ob_2_text_colours
+R-OB-20 | b_ob_3_b_ob_4_r_ob_17_r_ob_20_r_ob_34_placement_and_fit
+R-OB-27 | b_ob_2_r_ob_27_tail
+R-OB-31 | r_ob_31_sizes_landscape_portrait
+R-OB-32 | r_ob_32_r_ob_11_b_ob_1_r_ob_4_button_row_and_fonts
+R-OB-34 | b_ob_3_b_ob_4_r_ob_17_r_ob_20_r_ob_34_placement_and_fit
+R-OB-4 | r_ob_32_r_ob_11_b_ob_1_r_ob_4_button_row_and_fonts
+R-OB-5 | r_ob_35_r_ob_5_vertical_spacing
+R-Q- | wildcard reference, see each R-Q-n
+R-Q-1 | r_q_1_b_q_1_ids_and_reply_before_signals
+R-Q-3 | r_q_3_immediate_calls
+R-Q-4 | r_q_4_b_q_4_stop_zero
+R-Q-5 | b_q_2_r_q_5_unicast_and_events
+R-Q-6 | r_q_6_loop_blocks_until_stop
+R-Q-7 | b_speak_1_r_q_7_bookmark_range
+R-SHOW-1 | r_show_1_and_r_show_2
+R-SHOW-2 | r_show_1_and_r_show_2
+R-SHOW-3 | replaced by B-SHOW-3: b_show_3_fast_show_picture
+R-SPEAK- | wildcard reference, see R-SPEAK-1..4
+R-SPEAK-1 | r_speak_1_speakable_then_output_and_bookmarks
+R-SPEAK-2 | r_speak_2_empty_and_hidden
+R-SPEAK-3 | r_speak_3_alternative_draw, r_speak_3_alternatives
+R-SPEAK-4 | b_speak_2: r_bal_8_r_bal_7_b_speak_2_r_speak_4_pacing_vector (Speak completes with status 0)
+R-STATE-1 | r_state_1_uniform_member_and_r_state_2
+R-STATE-2 | r_state_1_uniform_member_and_r_state_2, r_state_2_names_ignore_case
+R-UI-1 | r_ui_1_b_ui_1_click_and_double_click
+R-UI-2 | r_ui_2_r_win_4_drag
+R-UI-3 | b_menu_1_r_ui_3_b_menu_2_b_menu_3
+R-UI-4 | b_tray_1_r_ui_4_activate
+R-UI-5 | r_bal_8_r_ui_5_interval (speaking_speed factor in the pacing formula)
+R-WIN-1 | not testable in core: layer-shell surface; tested in bentwired
+R-WIN-2 | not testable in core: alpha shape from pixels; tested in bentwire-render
+R-WIN-4 | r_ui_2_r_win_4_drag
+R-WIN-5 | not testable in core: focus is a compositor request; scene keyboard_on_demand in b_ask_4_b_wl_8_phases_and_answer; rest in bentwired
