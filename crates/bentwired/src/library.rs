@@ -260,4 +260,82 @@ mod tests {
         assert!(n > 0, "no characters found");
         assert!(failures.is_empty(), "{failures:#?}");
     }
+
+    fn copy_dir(from: &Path, to: &Path) {
+        std::fs::create_dir_all(to).unwrap();
+        for e in std::fs::read_dir(from).unwrap() {
+            let p = e.unwrap().path();
+            let dst = to.join(p.file_name().unwrap());
+            if p.is_dir() {
+                copy_dir(&p, &dst);
+            } else {
+                std::fs::copy(&p, &dst).unwrap();
+            }
+        }
+    }
+
+    /// A character whose `source.missing_animations` names animations (converter output for
+    /// damaged or absent sources) behaves exactly like the same character that never had
+    /// them: the loader reports them, B-FB-1 resolves every name to the same result, and the
+    /// daemon loads and plays it without failing. Also for a manifest that still carries
+    /// the listed animations.
+    #[test]
+    fn missing_animations_behave_like_animations_never_had() {
+        use bentwire_core::fallback::resolve;
+        const MISSING: [&str; 3] = ["IdleSpin", "Wave", "GestureLeft"];
+        let src = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../characters/builtin/bentwire-placeholder");
+        let tmp = std::env::temp_dir().join(format!("bentwire-missing-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(&tmp).unwrap();
+        std::fs::write(tmp.join("pack.toml"), "name = \"missing-test\"\n").unwrap();
+        // listed: name them in source.missing_animations; keep: leave them in animations.
+        let make = |id: &str, listed: bool, keep: bool| -> PathBuf {
+            let dir = tmp.join(id);
+            copy_dir(&src, &dir);
+            let path = dir.join("character.toml");
+            let mut doc: toml::Table = std::fs::read_to_string(&path).unwrap().parse().unwrap();
+            if !keep {
+                let anims = doc["animations"].as_array_mut().unwrap();
+                anims.retain(|a| !MISSING.contains(&a["name"].as_str().unwrap()));
+            }
+            if listed {
+                let list: Vec<toml::Value> = MISSING.iter().map(|m| (*m).into()).collect();
+                doc["source"]
+                    .as_table_mut()
+                    .unwrap()
+                    .insert("missing_animations".into(), list.into());
+            } else {
+                let states = doc["states"].as_table_mut().unwrap();
+                for (_, v) in states.iter_mut() {
+                    let v = v.as_array_mut().unwrap();
+                    v.retain(|m| !MISSING.contains(&m.as_str().unwrap()));
+                }
+                states.retain(|_, v| !v.as_array().unwrap().is_empty());
+            }
+            std::fs::write(&path, toml::to_string(&doc).unwrap()).unwrap();
+            dir
+        };
+        let never = Character::load(make("never-had", false, false)).unwrap();
+        let b = crate::model::model_from("x", &never);
+        for (id, keep) in [("missing", false), ("missing-kept", true)] {
+            let with = Character::load(make(id, true, keep)).unwrap();
+            assert!(with.warnings.is_empty(), "{id}: {:?}", with.warnings);
+            assert_eq!(with.manifest.missing_animations(), MISSING, "{id}");
+            for m in MISSING {
+                assert!(!with.is_available(m), "{id}: {m} available");
+            }
+            // The daemon's model is what the core sees: identical means every B-FB-1
+            // resolution, state draw and idle choice is the same.
+            let a = crate::model::model_from("x", &with);
+            assert_eq!(a, b, "{id}");
+            for m in MISSING {
+                assert_eq!(resolve(&a, m), resolve(&b, m), "{id}: Play {m}");
+            }
+        }
+        let (n, failures) = load_and_play_all(&tmp);
+        assert_eq!(n, 3);
+        assert!(failures.is_empty(), "{failures:#?}");
+        std::fs::remove_dir_all(&tmp).ok();
+    }
 }

@@ -156,7 +156,16 @@ pub fn model_from(id: &str, c: &Character) -> CharacterModel {
             })
             .collect(),
         balloon: balloon(m.balloon.as_ref()),
-        states: m.states.clone(),
+        // A missing animation is dropped from its states like from `animations`, and a state
+        // it leaves empty is dropped: the core sees the character as if it never had them.
+        states: m
+            .states
+            .iter()
+            .filter_map(|(s, v)| {
+                let kept: Vec<String> = v.iter().filter(|a| !m.is_missing(a)).cloned().collect();
+                (kept.len() == v.len() || !kept.is_empty()).then(|| (s.clone(), kept))
+            })
+            .collect(),
         animations,
         sounds: m
             .sounds
