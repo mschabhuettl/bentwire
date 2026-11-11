@@ -12,15 +12,17 @@
 #   --classics DIR: the classics pack in DIR; writes to DIR/screenshots/.
 #   default PNGs only, --gifs GIFs only (also scripts/gifs.sh), --all both.
 # Build first: cargo build -p bentwired -p bentwire && cargo build -p bentwired --examples
-# Needs: sway, grim, wf-recorder, ffmpeg, kwin-wayland, plasma-desktop (Plasma 6),
-# breeze-icon-theme, fonts-noto-core, kded6, faketime, dbus-run-session, busctl, python3
-# with PIL.
+# Needs: sway, grim, wf-recorder, ffmpeg, kwin-wayland, plasma-desktop, plasma-workspace,
+# breeze, breeze-icon-theme, fonts-noto-core, kded6, faketime, dbus-run-session, busctl,
+# python3 with PIL; and the apps behind the default panel launchers (systemsettings,
+# plasma-discover, dolphin, falkon as the web browser), else they show other icons.
 # The config pins balloon_font = "Tahoma" (bundled), so the Agent balloon does not depend
 # on the host's fontconfig (B-BAL-2).
 # GIFs are recorded in real time (wf-recorder at the 60 Hz output; the fake clock exists
-# only in --headless), then identical frames are merged, states shorter than 35 ms dropped
-# and frame times rounded to 50 ms. Two runs give the same frames; a frame time whose real
-# value lies near a rounding edge (125 ms, say) can come out 50 ms longer or shorter.
+# only in --headless), then identical frames are merged, states shorter than 35 ms dropped,
+# frame times rounded to 50 ms and capped at 1 s. Two runs give the same frames as a rule;
+# frame times can differ (a real value near a rounding edge, the click in ask.gif: up to
+# 150 ms in practice), and a state that lasts about 35 ms can be kept in one run only.
 set -euo pipefail
 
 REPO=$(cd "$(dirname "$0")/.." && pwd)
@@ -129,8 +131,10 @@ idle = false
 sound_effects = false
 balloon_font = "Tahoma"
 EOF
-    printf 'character = "%s"\nleft = %d\ntop = %d\nvisible = %s\n' "$1" "${4:-$X}" "${5:-$Y}" \
-        "${3:-true}" >"$XDG_STATE_HOME/bentwire/state.toml"
+    # Always start hidden: with visible = true the daemon starts the Show itself and
+    # `show --wait` would return before it ends.
+    printf 'character = "%s"\nleft = %d\ntop = %d\nvisible = false\n' "$1" "${4:-$X}" "${5:-$Y}" \
+        >"$XDG_STATE_HOME/bentwire/state.toml"
     XDG_CONFIG_HOME=$T/home/bwcfg frozen "$BIN/bentwired" --seed 1 --test-interface --no-audio \
         "${ROOTS[@]}" >>"$T/bentwired.log" 2>&1 &
     BW=$!
@@ -153,7 +157,7 @@ stop_daemon() {
 
 capture() { # capture <out.png> <x y w h> <surface kind...>: three agreeing grabs of the
     # rect, with an unchanged Snapshot around each, that differ from the bare desktop
-    local out=$1 rect=$2 x y w h prev="" same=0
+    local out=$1 rect=$2 x y w h prev="" same=0 i
     shift 2
     read -r x y w h <<<"$rect"
     # shellcheck disable=SC2086
@@ -301,6 +305,7 @@ gif_ask() { # Office balloon, a button clicked with the virtual pointer
     wait_for 10 has office_balloon
     wait_for 10 desktop_settled
     snapshot "$T/a.json"
+    local bx by i
     read -r bx by < <($PY button "$T/a.json" "Show log")
     # few, slow pointer steps: each state lasts long enough to be recorded every time
     for i in 0 1 2 3; do vp "move $((bx - 60 + i * 20)) $((by + 60 - i * 20))"; sleep 0.3; done

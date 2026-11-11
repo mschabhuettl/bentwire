@@ -18,7 +18,8 @@ usage: shot.py has SNAPSHOT.json KIND...           exit 0 if every surface kind 
                                                    times in PTS, seconds) into OUTDIR, with
                                                    OUTDIR/durations: ms rounded to GRID, the
                                                    first and last frame held FIRST and LAST;
-                                                   states under 35 ms are dropped
+                                                   states under 35 ms are dropped, other
+                                                   frames capped at 1000 ms
        shot.py gif DIR OUT.gif DURATIONS           paletted frames into a looping GIF
 """
 import json
@@ -26,6 +27,9 @@ import os
 import sys
 
 from PIL import Image, ImageChops
+
+
+HOLD = 1000  # ms, longest frame inside a GIF
 
 
 def surfaces(path, kinds):
@@ -122,7 +126,9 @@ def main():
             elif i == 0:
                 ms.append(first)
             else:
-                ms.append(max(grid, round((keep[i + 1][1] - t) / grid) * grid))
+                # Holds longer than HOLD come from the script waiting in real time
+                # (daemon start, settling): capped, so they do not vary between runs.
+                ms.append(min(HOLD, max(grid, round((keep[i + 1][1] - t) / grid) * grid)))
         open(os.path.join(out, "durations"), "w").write(" ".join(map(str, ms)) + "\n")
         print(len(keep))
         return True
