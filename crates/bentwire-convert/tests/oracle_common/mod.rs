@@ -309,13 +309,9 @@ pub fn round_trip_with(
             q
         })
         .collect();
-    let results = par_map(&list, |path| {
-        let stem = path
-            .file_stem()
-            .unwrap()
-            .to_string_lossy()
-            .to_lowercase()
-            .replace(['(', ')', ' '], "_");
+    let list: Vec<(PathBuf, String)> = list.iter().cloned().zip(output_stems(&list)).collect();
+    let results = par_map(&list, |(path, stem)| {
+        let stem = stem.clone();
         let oracle = oracle_json(
             &["oracle", kind, path.to_str().unwrap()],
             &tmp.join(format!("{stem}.oracle.json")),
@@ -361,6 +357,30 @@ pub fn round_trip_with(
     println!("{kind}: {n} characters, {anims} animations, {traces} traces");
     assert!(bad.is_empty(), "{bad:#?}");
     (n, anims, traces)
+}
+
+/// Output names under the round trip's temp dir, one per sample and unique: sources with
+/// the same base name (two ACF folders named `data`) would otherwise share and overwrite
+/// their outputs while the samples run in parallel.
+pub fn output_stems(paths: &[PathBuf]) -> Vec<String> {
+    let mut seen = std::collections::HashSet::new();
+    paths
+        .iter()
+        .enumerate()
+        .map(|(i, p)| {
+            let stem = p
+                .file_stem()
+                .unwrap()
+                .to_string_lossy()
+                .to_lowercase()
+                .replace(['(', ')', ' '], "_");
+            if seen.insert(stem.clone()) {
+                stem
+            } else {
+                format!("{stem}-{i}")
+            }
+        })
+        .collect()
 }
 
 fn c_missing(p: &bentwire_convert::PackageData) -> Vec<String> {
