@@ -52,7 +52,12 @@ fn classics_pack_loads_and_is_reproducible() {
             .args(args)
             .output()
             .expect("bash");
-        assert!(out.status.success(), "sources.sh failed");
+        // sources.sh exits 77 with "NOT RUN: ..." when a source is missing.
+        assert!(
+            out.status.success(),
+            "sources.sh failed: {}",
+            String::from_utf8_lossy(&out.stderr).trim()
+        );
         String::from_utf8(out.stdout)
             .unwrap()
             .lines()
