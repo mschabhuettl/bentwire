@@ -14,15 +14,16 @@
 # Build first: cargo build -p bentwired -p bentwire && cargo build -p bentwired --examples
 # Needs: sway, grim, wf-recorder, ffmpeg, kwin-wayland, plasma-desktop, plasma-workspace,
 # breeze, breeze-icon-theme, fonts-noto-core, kded6, faketime, dbus-run-session, busctl,
-# python3 with PIL; and the apps behind the default panel launchers (systemsettings,
+# python3 with PIL and numpy; and the apps behind the default panel launchers (systemsettings,
 # plasma-discover, dolphin, falkon as the web browser), else they show other icons.
 # The config pins balloon_font = "Tahoma" (bundled), so the Agent balloon does not depend
 # on the host's fontconfig (B-BAL-2).
-# GIFs are recorded in real time (wf-recorder at the 60 Hz output; the fake clock exists
-# only in --headless), then identical frames are merged, states shorter than 35 ms dropped,
-# frame times rounded to 50 ms and capped at 1 s. Two runs give the same frames as a rule;
-# frame times can differ (a real value near a rounding edge, the click in ask.gif: up to
-# 150 ms in practice), and a state that lasts about 35 ms can be kept in one run only.
+# GIFs are recorded at output scale 2 around the character (GFRAME) in real time
+# (wf-recorder at the 120 Hz headless output; the fake clock exists only in --headless),
+# then identical frames are merged, states shorter than 35 ms dropped, frame times rounded
+# to 50 ms and capped at 1 s. Two runs mostly give byte-identical GIFs; otherwise the
+# frames are the same and single frame times differ by 50 ms, or one run keeps an extra
+# short frame (around the right click in menu.gif, between characters in tour.gif).
 set -euo pipefail
 
 REPO=$(cd "$(dirname "$0")/.." && pwd)
@@ -72,6 +73,10 @@ W=1280 H=720
 # the panel's system tray and clock) and where the pointer rests.
 X=1010 Y=470
 FRAME="480 270 800 450"
+# GIFs: a tighter frame around the character, its balloon or menu and the tray, recorded
+# at output scale 2 (1280x720 pixels, nothing upscaled), so the character fills about a
+# third of the height.
+GFRAME="640 360 640 360"
 PARK="300 200"
 if [ -n "$CLASSICS" ]; then
     OUT=$CLASSICS/screenshots
@@ -211,8 +216,10 @@ right_click_character() { # a real right click on a drawn pixel of the character
     snapshot "$T/a.json"
     sgrim -t ppm "$T/g.ppm"
     # shellcheck disable=SC2046
-    read -r px py < <($PY opaque "$T/g.ppm" "$T/desktop.ppm" $($PY rect "$T/a.json" 0 character))
-    vp "move $px $py" "press 2" "release 2"
+    read -r px py < <($PY opaque "$T/g.ppm" "$T/desktop.ppm" "$SCALE" $($PY rect "$T/a.json" 0 character))
+    vp "move $px $py"
+    sleep 0.3
+    vp "press 2" "release 2"
     wait_for 10 has menu
 }
 
@@ -250,14 +257,7 @@ record_stop() { # record_stop <out.gif> [first-hold-ms] [last-hold-ms]
     ffprobe -v error -select_streams v -show_entries frame=pts_time -of csv=p=0 "$d/rec.mkv" >"$d/pts"
     local n
     n=$($PY frames "$d" "$d/pts" "$d/keep" "${2:-500}" "${3:-1500}" 50)
-    # ffmpeg makes one palette for all frames and dithers each frame on its own (ordered,
-    # so unchanged pixels stay unchanged); PIL writes the GIF with the exact durations.
-    ffmpeg -v error -i "$d/keep/%05d.png" -vf palettegen=max_colors=256:stats_mode=diff \
-        -update 1 "$d/palette.png"
-    mkdir "$d/pal"
-    ffmpeg -v error -i "$d/keep/%05d.png" -i "$d/palette.png" \
-        -lavfi "paletteuse=dither=bayer:bayer_scale=4" "$d/pal/%05d.png"
-    $PY gif "$d/pal" "$1" "$d/keep/durations"
+    $PY gif "$d/keep" "$1" "$d/keep/durations"
     echo "  $(basename "$1") ($n frames, $(($(stat -c %s "$1") / 1024)) KiB)"
 }
 
@@ -271,7 +271,7 @@ anim() { # anim <name...>: the first of these animations the character has
 
 gif_appear() { # character appears and waves
     start_daemon "$1" en false
-    record_start appear "$FRAME"
+    record_start appear "$GFRAME"
     "$BIN/bentwire" show --wait >/dev/null
     "$BIN/bentwire" play "$(anim Wave Greet Greeting)" --wait >/dev/null
     record_stop "$OUT/appear.gif" 800 1500
@@ -280,7 +280,7 @@ gif_appear() { # character appears and waves
 
 gif_hero() { # gif_hero <character> <out.gif>: appears, waves and says hello
     start_daemon "$1" en false
-    record_start hero "$FRAME"
+    record_start hero "$GFRAME"
     "$BIN/bentwire" show --wait >/dev/null
     "$BIN/bentwire" play "$(anim Wave Greet Greeting)" --wait >/dev/null
     "$BIN/bentwire" say "Hi! I live on your Plasma desktop." --wait >/dev/null
@@ -290,7 +290,7 @@ gif_hero() { # gif_hero <character> <out.gif>: appears, waves and says hello
 
 gif_say() {
     start_daemon "$1" en
-    record_start say "$FRAME"
+    record_start say "$GFRAME"
     "$BIN/bentwire" say "It looks like your build failed. Want me to show the log?" --wait >/dev/null
     record_stop "$OUT/say.gif" 500 2500
     stop_daemon
@@ -298,7 +298,7 @@ gif_say() {
 
 gif_ask() { # Office balloon, a button clicked with the virtual pointer
     start_daemon "$1" en
-    record_start ask "$FRAME"
+    record_start ask "$GFRAME"
     "$BIN/bentwire" ask "The build failed in 3 crates." --heading "Build failed" \
         --button "Show log" --button "Ignore" >"$T/ask.out" &
     local ask=$!
@@ -322,7 +322,7 @@ gif_ask() { # Office balloon, a button clicked with the virtual pointer
 
 gif_menu() {
     start_daemon "$1" en
-    record_start menu "$FRAME"
+    record_start menu "$GFRAME"
     right_click_character
     snapshot "$T/a.json"
     # hover down the first few items, then dismiss
@@ -340,34 +340,34 @@ for e in [e for e in m if "label" in e][:4]:
     stop_daemon
 }
 
-gif_drag() { # press on the character and drag it across the desktop with the pointer
-    start_daemon "$1" en true 900 380
+gif_drag() { # press on the character and drag it across the frame with the pointer
+    start_daemon "$1" en
     snapshot "$T/a.json"
     sgrim -t ppm "$T/g.ppm"
     # shellcheck disable=SC2046
-    read -r px py < <($PY opaque "$T/g.ppm" "$T/desktop.ppm" $($PY rect "$T/a.json" 0 character))
-    record_start drag "0 0 $W $H"
+    read -r px py < <($PY opaque "$T/g.ppm" "$T/desktop.ppm" "$SCALE" $($PY rect "$T/a.json" 0 character))
+    record_start drag "$GFRAME"
     vp "move $px $py"
     sleep 0.3
     vp "press 1"
     local i nx ny
     # each step stays on screen for several recorder frames (see "frames" in shot.py)
     for i in $(seq 1 30); do
-        nx=$((px - i * 20)) ny=$((py - (i * (30 - i)) / 3))
+        nx=$((px - i * 10)) ny=$((py - (i * (30 - i)) / 3))
         vp "move $nx $ny"
         sleep 0.08
     done
     vp "release 1"
     sleep 0.5
     snapshot "$T/a.json"
-    python3 -I -c 'import json, sys; s = json.load(open(sys.argv[1])); sys.exit(s["left"] > 700)' "$T/a.json" \
+    python3 -I -c 'import json, sys; s = json.load(open(sys.argv[1])); sys.exit(s["left"] > int(sys.argv[2]) - 250)' "$T/a.json" "$X" \
         || { echo "the drag did not move the character"; exit 1; }
     record_stop "$OUT/drag.gif" 500 1500
     stop_daemon
 }
 
 gif_tour() { # gif_tour <character...>: each appears, greets and leaves
-    record_start tour "$FRAME"
+    record_start tour "$GFRAME"
     for c in "$@"; do
         start_daemon "$c" en false
         "$BIN/bentwire" show --wait >/dev/null
@@ -416,8 +416,8 @@ if [ "$MODE" != gifs ]; then
 fi
 
 if [ "$MODE" != shots ]; then
-    echo "GIFs"
-    start_session 1
+    echo "GIFs (output scale 2)"
+    start_session 2
     gif_hero "$MAIN" "$OUT/hero.gif"
     gif_appear "$MAIN"
     gif_say "$MAIN"
@@ -430,10 +430,6 @@ if [ "$MODE" != shots ]; then
         mapfile -t ALL < <(find "$REPO/characters/builtin" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)
         [ "${#ALL[@]}" -gt 1 ] && gif_tour "${ALL[@]}"
     fi
-    stop_session
-    echo "HiDPI GIF (output scale 2)"
-    start_session 2
-    gif_hero "$MAIN" "$OUT/hero-2x.gif"
     stop_session
 fi
 

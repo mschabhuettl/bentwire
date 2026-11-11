@@ -48,7 +48,7 @@ start_session() { # start_session <scale>: outer sway, vptr, KWin, Plasma
     printf '[Module-donationmessage]\nautoload=false\n' >"$XDG_CONFIG_HOME/kded6rc"
 
     cat >"$T/sway.conf" <<EOF
-output HEADLESS-1 resolution $((W * SCALE))x$((H * SCALE)) position 0 0 scale $SCALE
+output HEADLESS-1 mode --custom $((W * SCALE))x$((H * SCALE))@120Hz position 0 0 scale $SCALE
 default_border none
 for_window [title=".*"] fullscreen enable
 seat * hide_cursor 0

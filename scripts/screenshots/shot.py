@@ -9,8 +9,9 @@ usage: shot.py has SNAPSHOT.json KIND...           exit 0 if every surface kind 
        shot.py inside SNAPSHOT.json x y w h KIND...  exit 0 if those surfaces lie in the rect
        shot.py crop IN.ppm OUT.png SCALE x y w h   crop a logical rect (times SCALE)
        shot.py pixel IN.ppm RRGGBB                 exit 0 if pixel (0, 0) has the colour
-       shot.py opaque IN.ppm REF.ppm x y w h       the pixel nearest the rect centre that
-                                                   differs from REF (the bare desktop): x y
+       shot.py opaque IN.ppm REF.ppm SCALE x y w h the pixel nearest the logical rect's
+                                                   centre that differs from REF (the bare
+                                                   desktop), in logical coordinates: x y
        shot.py button SNAPSHOT.json CAPTION        centre of that Office balloon button: x y
        shot.py strip OUT.png x y w h IN.ppm...     the rect, column band i taken from IN i
        shot.py frames DIR PTS OUTDIR FIRST LAST GRID
@@ -20,7 +21,8 @@ usage: shot.py has SNAPSHOT.json KIND...           exit 0 if every surface kind 
                                                    first and last frame held FIRST and LAST;
                                                    states under 35 ms are dropped, other
                                                    frames capped at 1000 ms
-       shot.py gif DIR OUT.gif DURATIONS           paletted frames into a looping GIF
+       shot.py gif DIR OUT.gif DURATIONS           the frames (00001.png...) into a looping
+                                                   GIF, see gif()
 """
 import json
 import os
@@ -30,6 +32,79 @@ from PIL import Image, ImageChops
 
 
 HOLD = 1000  # ms, longest frame inside a GIF
+
+
+BAYER = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]
+
+
+def gif(d, out, ms):
+    """One palette for all frames: every colour that changes during the GIF (character,
+    balloon, menu, pointer) exactly, up to 128 of them by frequency, the other 128
+    from the first frame (the desktop). A pixel whose colour is in the palette maps to
+    it as is, so pixel art stays exact; other pixels (wallpaper gradients) get an ordered
+    dither, which keeps unchanged pixels unchanged from frame to frame."""
+    import numpy as np
+
+    names = sorted(f for f in os.listdir(d) if f.endswith(".png"))
+    assert len(names) == len(ms)
+    load = lambda n: np.asarray(Image.open(os.path.join(d, n)).convert("RGB"), dtype=np.int32)
+    pack = lambda a: (a[..., 0] << 16) | (a[..., 1] << 8) | a[..., 2]
+    first = load(names[0])
+    counts = {}
+    for n in names[1:]:
+        f = load(n)
+        changed = pack(f)[(f != first).any(axis=2)]
+        for c, k in zip(*np.unique(changed, return_counts=True)):
+            counts[int(c)] = counts.get(int(c), 0) + int(k)
+    exact = sorted(counts, key=lambda c: (-counts[c], c))[:128]
+    rest = Image.fromarray(first.astype(np.uint8)).quantize(
+        colors=256 - len(exact), method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
+    pal = rest.getpalette()[: 3 * (256 - len(exact))]
+    colors = [((c >> 16) & 255, (c >> 8) & 255, c & 255) for c in exact]
+    colors += [tuple(pal[i:i + 3]) for i in range(0, len(pal), 3)]
+    while len(colors) < 256:
+        colors.append((0, 0, 0))
+    lut = {}
+    for i, c in enumerate(colors):
+        lut.setdefault((c[0] << 16) | (c[1] << 8) | c[2], i)
+    keys = np.array(sorted(lut), dtype=np.int64)
+    vals = np.array([lut[int(k)] for k in keys], dtype=np.int32)
+    P = np.array(colors, dtype=np.int32)
+    h, w, _ = first.shape
+    bay = (np.array(BAYER, dtype=np.int32) - 8) * 2  # about +-16 levels
+    off = np.tile(bay, (h // 4 + 1, w // 4 + 1))[:h, :w]
+
+    def index(f, mask):
+        px = f[mask]
+        packed = pack(px)
+        pos = np.minimum(np.searchsorted(keys, packed), len(keys) - 1)
+        idx = np.where(keys[pos] == packed, vals[pos], -1).astype(np.int32)
+        miss = idx < 0
+        if miss.any():
+            v = px[miss] + off[mask][miss][:, None]
+            best = np.empty(len(v), dtype=np.int32)
+            for s in range(0, len(v), 20000):
+                dd = ((v[s:s + 20000, None, :] - P[None, :, :]) ** 2).sum(axis=2)
+                best[s:s + 20000] = dd.argmin(axis=1)
+            idx[miss] = best
+        return idx
+
+    flat = [c for col in colors for c in col]
+    ims = []
+    prev = None
+    cur = np.zeros((h, w), dtype=np.uint8)
+    for n in names:
+        f = load(n)
+        mask = np.ones((h, w), bool) if prev is None else (f != prev).any(axis=2)
+        if mask.any():
+            cur = cur.copy()
+            cur[mask] = index(f, mask)
+        prev = f
+        im = Image.fromarray(cur, "P")
+        im.putpalette(flat)
+        ims.append(im)
+    ims[0].save(out, save_all=True, append_images=ims[1:], duration=ms, loop=0, optimize=False)
+    return True
 
 
 def surfaces(path, kinds):
@@ -70,12 +145,14 @@ def main():
     if cmd == "opaque":
         im = Image.open(args[0]).convert("RGB")
         ref = Image.open(args[1]).convert("RGB")
-        x, y, w, h = (int(v) for v in args[2:6])
+        k = int(args[2])
+        x, y, w, h = (int(v) for v in args[3:7])
         cx, cy = x + w // 2, y + h // 2
         pts = sorted(((px - cx) ** 2 + (py - cy) ** 2, py, px)
                      for py in range(y, y + h) for px in range(x, x + w))
         for _, py, px in pts:
-            if im.getpixel((px, py)) != ref.getpixel((px, py)):
+            q = (px * k + k // 2, py * k + k // 2)
+            if im.getpixel(q) != ref.getpixel(q):
                 print(px, py)
                 return True
         return False
@@ -133,14 +210,7 @@ def main():
         print(len(keep))
         return True
     if cmd == "gif":
-        d, out = args[0], args[1]
-        ms = [int(v) for v in open(args[2]).read().split()]
-        names = sorted(f for f in os.listdir(d) if f.endswith(".png"))
-        ims = [Image.open(os.path.join(d, n)) for n in names]
-        assert len(ims) == len(ms) and all(i.mode == "P" for i in ims)
-        ims[0].save(out, save_all=True, append_images=ims[1:], duration=ms, loop=0,
-                    optimize=False)
-        return True
+        return gif(args[0], args[1], [int(v) for v in open(args[2]).read().split()])
     return False
 
 
