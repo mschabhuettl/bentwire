@@ -3,7 +3,8 @@
 # background, one PNG per character, byte-identical on every run.
 #   builtin  -> docs/gallery/<id>.png
 #   classics -> <classics pack>/gallery/<id>.png (BENTWIRE_CLASSICS, default
-#               ../bentwire-classics; skipped with a note if the pack is not there)
+#               ../bentwire-classics; skipped with a note if the pack is not there),
+#               plus the gallery table in <classics pack>/README.md (gallery-table.py)
 set -euo pipefail
 export PATH="$HOME/.cargo/bin:$PATH"
 cd "$(dirname "$0")/.."
@@ -19,6 +20,7 @@ run characters/builtin docs/gallery
 classics=${BENTWIRE_CLASSICS:-../bentwire-classics}
 if [ -f "$classics/pack.toml" ]; then
   run "$classics" "$classics/gallery"
+  python3 -I scripts/gallery-table.py "$classics" "$classics/README.md"
 else
   echo "no classics pack at $classics (set BENTWIRE_CLASSICS); classics gallery not made"
 fi
