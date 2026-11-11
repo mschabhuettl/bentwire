@@ -156,7 +156,7 @@ R-Q-1 | r_q_1_b_q_1_ids_and_reply_before_signals
 R-Q-3 | r_q_3_immediate_calls
 R-Q-4 | r_q_4_b_q_4_stop_zero
 R-Q-5 | b_q_2_r_q_5_unicast_and_events
-R-Q-6 | r_q_6_loop_blocks_until_stop
+R-Q-6 | r_q_6_loop_blocks_until_stop, r_q_6_loop_without_exit_stop_then_next_request || other crates: bentwired: r_q_6_stop_lets_next_request_run_after_loop
 R-Q-7 | b_speak_1_r_q_7_bookmark_range
 R-SHOW-1 | r_show_1_and_r_show_2
 R-SHOW-2 | r_show_1_and_r_show_2

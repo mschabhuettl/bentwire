@@ -1496,6 +1496,11 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   clamped anchor coordinate, and its base (2 x tailHalf) is centred on the tip coordinate.
   The scroll (R-BAL-9) moves one pixel at a time, evenly over `60000 / effectiveSpeed` ms.
   Reason: R-BAL-4/R-BAL-9 give lengths and duration, not these shapes.
+- **A-CORE-6 Exit runs end on a revisit.** In exit mode (B-SW-A case 1) a frame without an
+  `exit` index continues normal sequencing; when that would show a frame the same exit
+  run already showed, the animation ends instead. Reason: a loop without exit branches
+  (allowed by the format) would otherwise block the queue forever after Stop or user
+  Hide (R-Q-6, B-UI-4); real exit paths are forward chains and are not affected.
 - **A-CHAR-2 Loader strictness.** `Character::load` rejects a manifest with type, range or
   cross-reference errors (the validator's rules); unknown non-`x-` keys and tolerated ZIP
   deviations (media entry not stored, manifest not first) are warnings; a sheet, sound or

@@ -168,6 +168,8 @@ pub struct Player {
     sound_is_target: bool,
     /// Completion is waiting for the target's sound (B-ANIM-2).
     waiting_sound: bool,
+    /// Frames shown by the current exit-mode run (A-CORE-6).
+    exit_seen: Vec<usize>,
 }
 
 impl Default for Player {
@@ -187,6 +189,7 @@ impl Player {
             sound: None,
             sound_is_target: false,
             waiting_sound: false,
+            exit_seen: Vec::new(),
         }
     }
 
@@ -311,13 +314,15 @@ impl Player {
         {
             // B-SW-A case 1: exit mode, first step at once.
             self.pending = Some(Pending::Target(x));
-            match agent_next(&a.frames, p.frame, true, env.draws) {
+            self.exit_seen = vec![p.frame];
+            match agent_next(&a.frames, p.frame, true, env.draws).filter(|t| *t != p.frame) {
                 None => {
                     self.pending = None;
                     self.prev = Some(Prev { ended: true, ..p });
                     self.start(now, env, x, Role::Target)
                 }
                 Some(t) => {
+                    self.exit_seen.push(t);
                     self.run = Some(Run {
                         anim: p.anim,
                         frame: t,
@@ -509,7 +514,19 @@ impl Player {
     fn step(&mut self, now: Ms, env: &mut Env) -> bool {
         let r = self.run.expect("run");
         let frames = &env.model.animations[r.anim].frames;
-        match agent_next(frames, r.frame, r.exiting, env.draws) {
+        let mut next = agent_next(frames, r.frame, r.exiting, env.draws);
+        if r.exiting
+            && let Some(t) = next
+        {
+            // A-CORE-6: an exit run that would revisit a frame ends (a loop without
+            // exit branches must not block the queue forever).
+            if self.exit_seen.contains(&t) {
+                next = None;
+            } else {
+                self.exit_seen.push(t);
+            }
+        }
+        match next {
             None => {
                 self.run = None;
                 self.prev = Some(Prev {

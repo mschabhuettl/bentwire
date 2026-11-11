@@ -2312,3 +2312,36 @@ fn b_gal_1_hide_closes_as_cancel() {
     t.advance(t.now + 10_000);
     assert!(!t.core.properties().visible);
 }
+
+fn noexit_loop(m: &mut CharacterModel) {
+    let mut f = fr(100);
+    f.branches = vec![Branch::Prob { target: 0, p: 100 }];
+    m.animations.push(anim("Spin", vec![f]));
+}
+
+#[test]
+fn r_q_6_loop_without_exit_stop_then_next_request() {
+    let mut m = character("c", 100);
+    noexit_loop(&mut m);
+    let mut t = T::visible(m.clone());
+    let a = t.req(Call::Play("Spin".into()));
+    t.advance(t.now + 300);
+    t.call(Call::Stop(0)).unwrap();
+    assert_eq!(t.complete_of(a).unwrap().1, 3);
+    let h = t.req(Call::Hide { fast: true });
+    t.advance(t.now + 3000);
+    assert_eq!(t.complete_of(h).unwrap().1, 0);
+    // B-UI-4 with the same loop.
+    let mut t = T::visible(m);
+    t.req(Call::Play("Spin".into()));
+    t.advance(t.now + 300);
+    t.press(PointerKind::Press, Surface::Character, 2, 510, 510);
+    t.press(PointerKind::Release, Surface::Character, 2, 510, 510);
+    t.ev(Event::Menu(MenuInput::Activate(0)));
+    t.advance(t.now + 3000);
+    assert!(
+        t.signals()
+            .iter()
+            .any(|(_, s)| *s == Signal::Hidden { cause: 7 })
+    );
+}
