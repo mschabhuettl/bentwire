@@ -45,7 +45,7 @@ ships no Microsoft characters: they live in the separate
 <table>
 <tr>
 <td align="center"><img src="https://raw.githubusercontent.com/mschabhuettl/bentwire-classics/main/screenshots/say.gif" width="400" alt="Clippit says a sentence, typed out in the Agent word balloon"><br><code>bentwire say</code></td>
-<td align="center"><img src="https://raw.githubusercontent.com/mschabhuettl/bentwire-classics/main/screenshots/ask.gif" width="400" alt="Clippit asks a question in the Office balloon and the pointer clicks Show log"><br><code>bentwire ask</code></td>
+<td align="center"><img src="https://raw.githubusercontent.com/mschabhuettl/bentwire-classics/main/screenshots/ask.gif" width="400" alt="Clippit shows a Build failed message with Show log and Ignore buttons in the Office balloon, and the pointer clicks Show log"><br><code>bentwire ask</code></td>
 </tr>
 <tr>
 <td align="center"><img src="https://raw.githubusercontent.com/mschabhuettl/bentwire-classics/main/screenshots/menu.gif" width="400" alt="Clippit's right-click menu with Hide, Options..., Choose Assistant... and Animate!, the pointer moving over its items"><br>The right-click menu</td>
