@@ -51,8 +51,8 @@ The test runs `bentwired --headless` with `characters/builtin` under
 `dbus-run-session`, with an isolated `HOME`. It runs each hook command from the snippet
 through `sh -c`, with the JSON input Claude Code sends, and checks:
 
-- the CLI calls, and that the daemon accepted and started them (request ids,
-  `RequestStart` in `--trace` after `Test1.Advance`);
+- the CLI calls, and that the daemon accepted and started them (request ids; the `--trace` call line for each id names the same method
+  and arguments; `RequestStart` after `Test1.Advance`);
 - that the hooks print nothing;
 - that four hooks with a 5 s CLI return in milliseconds;
 - the python3 fallback for reading the hook input (on a `PATH` without `jq`);

@@ -117,6 +117,33 @@ bw_started() {
     done
 }
 
+# bw_received <regex>: for every accepted play/say call matching the regex, the daemon
+# trace has a call line with the request id the CLI printed, the method (Play, Speak) and
+# the same argument. Calls without a request id (stop --all) must appear as StopAll.
+bw_received() {
+    local line verb rest id method n=0
+    while IFS=$'\t' read -r line _ id; do
+        verb=${line%% *}
+        rest=${line#* }
+        id=${id// /}
+        case $verb in
+            play) method=Play ;;
+            say) method=Speak ;;
+            stop)
+                jq -e 'select(.type == "call" and .method == "StopAll")' "$BW_TRACE" >/dev/null || return 1
+                n=$((n + 1))
+                continue
+                ;;
+            *) return 1 ;;
+        esac
+        jq -e --argjson id "$id" --arg m "$method" --arg a "$rest" \
+            'select(.type == "call" and .id == $id and .method == $m and .args == [$a])' \
+            "$BW_TRACE" >/dev/null || return 1
+        n=$((n + 1))
+    done < <(bw_calls "$1")
+    [ "$n" -gt 0 ]
+}
+
 bw_finish() {
     bw_stop_daemon
     if [ "$BW_FAILS" -eq 0 ]; then echo "all checks passed"; else echo "$BW_FAILS check(s) failed"; exit 1; fi

@@ -4,7 +4,7 @@
 # Starts `bentwired --headless` with characters/builtin under dbus-run-session, feeds
 # command lines to an interactive bash and zsh that source clients/shell/bentwire.sh, and
 # checks which CLI calls the integration made, that the daemon accepted them (request
-# ids, RequestStart in the trace after Test1.Advance), that the prompt never waits for the
+# ids, a matching trace call line with method and args, RequestStart after Test1.Advance), that the prompt never waits for the
 # CLI, and that nothing is sent when the daemon is not running.
 #
 # usage: clients/shell/test.sh        (needs: cargo build -p bentwired -p bentwire)
@@ -42,6 +42,7 @@ for sh in bash zsh; do
     bw_check "build failure text" bw_has '^say It looks like your build failed\.$'
     bw_check "nothing for Ctrl-C, opt-out or success" test "$(wc -l <"$BW_LOG")" -eq 4
     bw_check "no Processing for short commands" test "$(bw_count '^play Processing')" -eq 0
+    bw_check "daemon received each call (method, args, id)" bw_received '.'
 
     echo "$sh: long-running command"
     : >"$BW_LOG"
@@ -55,6 +56,7 @@ for sh in bash zsh; do
     bw_check "ignored command not watched" test "$(bw_count '^play Processing')" -eq 1
     bw_check "call order" test "$(cut -f1 "$BW_LOG" | cut -d' ' -f1-2 | tr '\n' '|')" = \
         "play Processing|stop --all|play Congratulate|say Done|"
+    bw_check "daemon received each call (method, args, id)" bw_received '.'
     bw_advance 5000
     bw_check "daemon started Congratulate and the done text" bw_started '^(play Congratulate|say Done)'
 
@@ -65,6 +67,7 @@ for sh in bash zsh; do
     sleep 1.5
     bw_check "Processing, then only stop (no success)" test "$(cut -f1 "$BW_LOG" | tr '\n' '|')" = \
         "play Processing|stop --all|"
+    bw_check "daemon received each call (method, args, id)" bw_received '.'
 done
 
 echo "bash: the user's PROMPT_COMMAND still sees the exit status"

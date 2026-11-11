@@ -56,8 +56,8 @@ The test runs `bentwired --headless` with `characters/builtin` under `dbus-run-s
 with an isolated `HOME`. It drives an interactive bash and an interactive zsh and checks:
 
 - the CLI calls and their order;
-- that the daemon accepted them (request ids) and started them (`RequestStart` in
-  `--trace` after `Test1.Advance`);
+- that the daemon accepted them (request ids) and started them: the `--trace` call line for each request id names the same method and
+  arguments, and `RequestStart` follows after `Test1.Advance`;
 - that four prompts take well under the 5 s a slow CLI would need;
 - that nothing is sent without a daemon.
 

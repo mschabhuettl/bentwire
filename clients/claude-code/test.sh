@@ -4,7 +4,7 @@
 # Starts `bentwired --headless` with characters/builtin under dbus-run-session and runs
 # the hook commands from settings.snippet.json with the JSON input Claude Code sends for
 # each event. Checks the CLI calls, that the daemon accepted and started them (request
-# ids, RequestStart in the trace after Test1.Advance), that a hook prints nothing and
+# ids, a matching trace call line with method and args, RequestStart after Test1.Advance), that a hook prints nothing and
 # returns at once even with a slow CLI, the opt-out, and silence without a daemon.
 #
 # usage: clients/claude-code/test.sh   (needs: cargo build -p bentwired -p bentwire; jq)
@@ -55,6 +55,7 @@ bw_check "each event stops what was playing first" test "$(bw_count '^stop --all
 bw_check "matcher covers Edit and Write" sh -c \
     "jq -r '.hooks.PreToolUse[0].matcher' '$HERE/settings.snippet.json' | grep -Eq '(^|\\|)Edit(\\||$)' &&
      jq -r '.hooks.PreToolUse[0].matcher' '$HERE/settings.snippet.json' | grep -Eq '(^|\\|)Write(\\||$)'"
+bw_check "daemon received each call (method, args, id)" bw_received '.'
 bw_advance 3000
 bw_check "daemon started Congratulate" bw_started '^play Congratulate$'
 bw_check "hooks print nothing" test ! -s "$BW_DIR/hook.out"
@@ -73,6 +74,7 @@ sleep 1
 bw_check "jq is really missing on that PATH" sh -c "PATH='$BW_DIR/nojq'; ! command -v jq"
 bw_check "python3 fallback: message with quotes and umlaut said" bw_has '^say Claude needs your permission to use Würfel "x"$'
 bw_check "python3 fallback: notification type filtered" test "$(bw_count '^say ')" -eq 1
+bw_check "daemon received the exact text" bw_received '^say '
 
 echo "events stay in order"
 cat >"$BW_DIR/delay" <<EOF
