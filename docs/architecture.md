@@ -57,7 +57,7 @@ are unique across the pack:
 **A-PACK-2 Which characters go into classics.** Generated, not listed: a source goes in
 when conversion succeeds and `source.missing_animations` is empty (character-format D8
 "only complete characters"). `regenerate.sh` in `bentwire-classics` prints every excluded
-source with the reason; its generated `CONTENTS.md` lists them.
+source with the reason; its generated `CONTENTS.md` lists them, if any.
 
 **A-CHAR-1 Fallback default.** B-CHAR-4 step 3 is `clippit`; when it is absent the
 daemon falls through to step 4 (first id in sorted order), which with only `builtin`

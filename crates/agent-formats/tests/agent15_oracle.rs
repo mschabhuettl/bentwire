@@ -46,7 +46,8 @@ fn agent15_fixtures_match_python() {
 }
 
 /// Every Agent 1.5 OLE file of docs/sources.md section 1.3 parses and agrees with the
-/// research parsers; exactly the two damaged Ozzar streams fail, each on its own.
+/// research parsers; exactly the two damaged streams of the first Ozzar copy fail, each on
+/// its own.
 #[test]
 #[ignore]
 fn agent15_ole_real_data_matches_python() {
