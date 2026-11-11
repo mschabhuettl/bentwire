@@ -1,6 +1,16 @@
+<div align="center">
+
 # bentwire
 
-![Clippit asks "Build failed" in the Office balloon, with the buttons Show log and Ignore](https://raw.githubusercontent.com/mschabhuettl/bentwire-classics/main/screenshots/ask.png)
+**The animated desktop characters of Microsoft Agent and the Office Assistant, on Linux Wayland.**
+
+[![CI](https://github.com/mschabhuettl/bentwire/actions/workflows/ci.yml/badge.svg)](https://github.com/mschabhuettl/bentwire/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/mschabhuettl/bentwire)](https://github.com/mschabhuettl/bentwire/releases/latest)
+[![Licence: MIT OR Apache-2.0](https://img.shields.io/badge/licence-MIT%20OR%20Apache--2.0-blue)](#licences)
+
+<img src="https://raw.githubusercontent.com/mschabhuettl/bentwire-classics/main/screenshots/ask.png" alt="Clippit asks &quot;Build failed&quot; in the Office balloon, with the buttons Show log and Ignore">
+
+</div>
 
 bentwire brings the animated desktop characters of Microsoft Agent and the Office Assistant
 to the Linux Wayland desktop. A small daemon shows one character above your windows that
@@ -12,6 +22,48 @@ bentwire reads the original character files (Agent 2.0 ACS, ACF/ACA web characte
 1.5, Office 97 and Microsoft Bob ACT actors) and converts them into its own open format. It
 ships no Microsoft characters: they live in the separate
 [bentwire-classics](https://github.com/mschabhuettl/bentwire-classics) repository.
+
+## Features
+
+- **The original characters.** Reads Agent 2.0 ACS, ACF/ACA web characters, Agent 1.5,
+  Office 97 and Microsoft Bob ACT actors and converts them into an open format (a folder
+  or a single `.bwc` file).
+- **Faithful playback.** Branching animations, idle behaviour, sounds, the Agent word
+  balloon, and the Office balloon with buttons, labels, check boxes and the Office XP
+  theme.
+- **At home on the desktop.** Wayland layer shell (Plasma 6, sway, Hyprland), click-through
+  on transparent pixels, dragging, the right-click menu with Choose Assistant..., a tray
+  icon, HiDPI and fractional scaling, English and German.
+- **Scriptable.** A D-Bus API (`org.bentwire.Agent1`) with D-Bus activation, and the
+  `bentwire` command line client.
+- **Integrations.** Reacts to your bash or zsh commands and to Claude Code sessions.
+- **Clean room.** Written from documented formats and observed runtime behaviour; no
+  Microsoft code or data in this repository.
+
+## Quick start
+
+```sh
+git clone https://github.com/mschabhuettl/bentwire && cd bentwire
+cargo build --release -p bentwired -p bentwire
+git clone https://github.com/mschabhuettl/bentwire-classics ~/.local/share/bentwire/characters/classics
+target/release/bentwired &
+target/release/bentwire show
+target/release/bentwire say "It looks like you're writing a letter."
+```
+
+For a permanent install with D-Bus activation, see [Install](#install).
+
+## Contents
+
+- [Install](#install)
+- [Usage](#usage)
+- [Integration](#integration)
+- [Configuration](#configuration)
+- [Own character files](#own-character-files)
+- [The characters, and a note to Microsoft](#the-characters-and-a-note-to-microsoft)
+- [Known gaps](#known-gaps)
+- [Documentation](#documentation)
+- [Licences](#licences)
 
 ## Install
 
@@ -60,7 +112,7 @@ Release binaries for x86_64 Linux are attached to each
 ### The classics pack
 
 The classic characters (Clippit, Merlin, Rocky, the Office 97 and Microsoft Bob actors and
-more, 57 in all, most of them Microsoft's) and the Office balloon theme come as a separate
+more, 61 in all, most of them Microsoft's) and the Office balloon theme come as a separate
 pack:
 
 ```sh
@@ -71,13 +123,18 @@ bentwire grants no licence for these files; see the pack's README. With only `bu
 installed, the daemon shows `bentwire-placeholder`. With `classics` installed, the default
 is `clippit`.
 
+<details>
+<summary>Where the daemon looks for characters</summary>
+
 Characters are searched in these roots, in order: each entry of the config key
 `character_paths`, `$XDG_DATA_HOME/bentwire` (normally `~/.local/share/bentwire`), then
 each `$XDG_DATA_DIRS` entry plus `/bentwire`. Inside a root, `characters/` holds
 characters (a folder with `character.toml`, or a `.bwc` file) and packs (a folder with
 `pack.toml`). The first character with a given id wins.
 
-## First commands
+</details>
+
+## Usage
 
 ```sh
 bentwire show
@@ -144,7 +201,7 @@ for a moment. While the Office balloon is open the queue goes on, but a later `s
 `ask` waits until the balloon is answered (with `--mode autodown` the open balloon is
 dismissed instead). `bentwire stop --all` drops everything still queued.
 
-## Importing your own character files
+## Own character files
 
 ```sh
 bentwire convert MERLIN.ACS ~/.local/share/bentwire/characters/merlin.bwc
@@ -171,12 +228,29 @@ instead of guessing. The converted character keeps its source file name and SHA-
 To rebuild the whole `classics` pack from the original files, see the
 [bentwire-classics README](https://github.com/mschabhuettl/bentwire-classics#regenerate).
 
+## The characters, and a note to Microsoft
+
+bentwire's code is its own; the classic characters are not, and they live in the separate
+[bentwire-classics](https://github.com/mschabhuettl/bentwire-classics) repository.
+
+> **Microsoft, please don't sue me ❤️**
+>
+> bentwire is a private, non-commercial fun project made out of affection for Clippy and
+> his friends. I make no money from it and have no commercial interest in it. bentwire is
+> not affiliated with or endorsed by Microsoft. The full note, with the trademarks and how
+> to ask for a removal, is at the top of the
+> [bentwire-classics README](https://github.com/mschabhuettl/bentwire-classics#readme).
+
 ## Known gaps
 
 Not verified on a real Plasma desktop yet. Under headless sway a virtual pointer checked: a click on an opaque pixel, click-through
 on a transparent one, a drag staying 1:1, and the right-click menu with a real popup
 grab and its dismissal by an outside click. Under KWin these ran only through `Test1`.
 Please check on Plasma:
+
+<details>
+<summary>The open points</summary>
+
 
 - Negative margins and positions partly off the output (requested and recorded, not
   seen on screen under KWin).
@@ -200,6 +274,8 @@ Please check on Plasma:
 - The tray icon image as Plasma draws it (registration and properties were tested, not
   the picture).
 
+</details>
+
 ## Documentation
 
 - [docs/usage.md](docs/usage.md): daemon options and the full CLI reference.
@@ -216,6 +292,7 @@ Please check on Plasma:
 - [docs/sources.md](docs/sources.md): every source file and analysed binary.
 - [docs/credits.md](docs/credits.md): prior work, the bundled font, crate licences.
 - [docs/roadmap.md](docs/roadmap.md): what is planned next.
+- [CONTRIBUTING.md](CONTRIBUTING.md): build, tests, real-data test setup, conventions.
 - [CHANGELOG.md](CHANGELOG.md).
 
 ## Licences
