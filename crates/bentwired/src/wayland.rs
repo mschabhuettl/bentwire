@@ -433,13 +433,13 @@ impl WlState {
             return;
         }
         let wl = c.layer.wl_surface().clone();
-        if c.attached.as_ref() != Some(&want.buf) {
-            let fractional = self.desired_fractional();
-            let c = self.ch.as_mut().expect("present");
+        let fractional = want.viewport && viewporter.is_some();
+        let c = self.ch.as_mut().expect("present");
+        if c.attached.as_ref() != Some(&want.buf) || c.viewport.is_some() != fractional {
             match attach(&mut self.pool, &wl, &want.buf) {
                 Some(b) => {
                     set_input(&self.compositor, &wl, &want.buf.input);
-                    if fractional && let Some(vp) = &viewporter {
+                    if let (true, Some(vp)) = (fractional, &viewporter) {
                         let v = c
                             .viewport
                             .get_or_insert_with(|| vp.get_viewport(&wl, &qh, ViewportData));
@@ -470,15 +470,6 @@ impl WlState {
         }
     }
 
-    fn desired_fractional(&self) -> bool {
-        let id = self.desired.character.as_ref().and_then(|c| c.output);
-        self.outputs()
-            .iter()
-            .find(|o| Some(o.id) == id)
-            .is_some_and(|o| o.scale.fract() != 0.0)
-    }
-
-    /// Balloon `i` (0 Agent, 1 Office above it), B-WL-8.
     fn apply_balloon(
         &mut self,
         i: usize,

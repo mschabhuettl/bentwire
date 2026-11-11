@@ -29,6 +29,8 @@ pub struct Buf {
 pub struct CharSurface {
     pub x: i32,
     pub y: i32,
+    /// Fractional output scale: shown through a viewport (B-WL-6).
+    pub viewport: bool,
     pub output: Option<u32>,
     pub dragging: bool,
     pub buf: Buf,
@@ -84,7 +86,7 @@ pub fn render(scene: &Scene, lib: &Library, fonts: &Fonts, theme: Option<&Theme>
     let Some(ch) = scene.character.as_ref().filter(|c| c.mapped) else {
         return r;
     };
-    let (k, _) = scale_of(&scene.outputs, ch.output);
+    let (k, viewport) = scale_of(&scene.outputs, ch.output);
     let pic = character_picture(scene, lib, k)
         .unwrap_or_else(|| RgbaImage::new(ch.width * k, ch.height * k));
     let sb = picture_buffer(&pic, ch.width, ch.height, k);
@@ -92,6 +94,7 @@ pub fn render(scene: &Scene, lib: &Library, fonts: &Fonts, theme: Option<&Theme>
     r.character = Some(CharSurface {
         x: ch.x,
         y: ch.y,
+        viewport,
         output: ch.output,
         dragging: ch.dragging,
         buf: Buf {
@@ -254,9 +257,8 @@ pub fn requests(
                 let kb = if next.keyboard { "on_demand" } else { "none" };
                 out.push(json!({"req": "keyboard_interactivity", "value": kb}));
             }
-            if recreate || p.as_ref().map(|p| &p.buf) != Some(&c.buf) {
-                let (_, vp) = scale_of(outputs, c.output);
-                out.push(buffer_req("character", &c.buf, vp));
+            if recreate || p.as_ref().map(|p| (&p.buf, p.viewport)) != Some((&c.buf, c.viewport)) {
+                out.push(buffer_req("character", &c.buf, c.viewport));
             }
         }
         (None, None) => {}

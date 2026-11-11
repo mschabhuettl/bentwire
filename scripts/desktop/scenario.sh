@@ -40,6 +40,7 @@ cleanup() {
     wait 2>/dev/null || true
 }
 trap cleanup EXIT
+trap 'echo "scenario aborted at line $LINENO: $BASH_COMMAND"' ERR
 
 FAILS=0
 check() { # check <description> <command...>
@@ -235,6 +236,27 @@ if [ "$TRAY" = 1 ]; then
     check "Activate emits Click(1, 0, 7, 9, true)" wait_for 5 grep -q 'member=Click' "$T/signals.log"
 else
     echo "  NOT RUN tray checks (python3-gi missing)"
+fi
+
+echo "5c. scale and output hot-plug (sway only: swaymsg changes outputs headless)"
+if [ "$COMP" = sway ]; then
+    export SWAYSOCK
+    SWAYSOCK=$(ls "$XDG_RUNTIME_DIR"/sway-ipc.*.sock | head -1)
+    swaymsg -q output HEADLESS-1 scale 2
+    check "buffer scale 2 on a scale-2 output (B-WL-6)" wait_for 5 snap 's["backend"]["character"]["buffer_scale"] == 2 and not s["backend"]["character"]["viewport"]'
+    swaymsg -q output HEADLESS-1 scale 1.5
+    check "viewporter on a scale-1.5 output (B-WL-6)" wait_for 5 snap 's["backend"]["character"]["viewport"] and s["backend"]["character"]["buffer_scale"] == 2'
+    swaymsg -q output HEADLESS-1 scale 1
+    check "back to buffer scale 1" wait_for 5 snap 's["backend"]["character"]["buffer_scale"] == 1'
+    swaymsg -q create_output
+    swaymsg -q output HEADLESS-2 resolution 640x480 position $W 0
+    check "second output seen" wait_for 5 snap 'len(s["outputs"]) == 2'
+    check "moveto onto the second output" "$BIN/bentwire" moveto $((W + 300)) 200 --speed 0 --wait
+    check "surface recreated on the second output (B-WL-4)" wait_for 5 snap 's["backend"]["character"]["output"] != s["outputs"][0]["id"] and s["backend"]["character"]["buffer_attached"]'
+    swaymsg -q output HEADLESS-2 unplug
+    check "pulled back onto the first output (B-WL-4)" wait_for 5 snap 'len(s["outputs"]) == 1 and s["left"] + 32 <= s["outputs"][0]["w"] and s["backend"]["character"]["buffer_attached"]'
+    check "Move cause 4 emitted" wait_for 5 grep -q 'int32 4' "$T/signals.log"
+    "$BIN/bentwire" moveto 200 150 --speed 0 --wait >/dev/null
 fi
 
 echo "6. hide"
