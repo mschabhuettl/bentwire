@@ -14,6 +14,8 @@ for v in BENTWIRE_REFERENCE BENTWIRE_SOURCES; do
 done
 export PATH="$HOME/.cargo/bin:$PATH" PYTHONDONTWRITEBYTECODE=1
 cd "$(dirname "$0")/.."
+# Packs for the daemon's ignored pack test (desktop): the repo's own packs by default.
+export BENTWIRE_PACKS="${BENTWIRE_PACKS:-$PWD/characters}"
 export BENTWIRE_PACKS="${BENTWIRE_PACKS:-$PWD/characters}"
 if [ -z "${BENTWIRE_PROTO_COPY:-}" ]; then
   tmp=$(mktemp -d)
