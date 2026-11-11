@@ -156,3 +156,87 @@ pub fn normalize(kind: &str, oracle: &Value, got: Value) -> Value {
     let _ = (kind, oracle);
     got
 }
+
+/// The file the Rust converter takes for a sample: the `.acf` inside a web character folder,
+/// the sample itself otherwise.
+pub fn converter_input(path: &Path) -> PathBuf {
+    if path.is_dir() {
+        let mut acf: Vec<PathBuf> = std::fs::read_dir(path)
+            .unwrap()
+            .map(|e| e.unwrap().path())
+            .filter(|p| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("acf")))
+            .collect();
+        acf.sort();
+        return acf.into_iter().next().expect("no .acf in folder");
+    }
+    path.to_owned()
+}
+
+/// Round trip of every sample of `kind` against the oracle, folder and `.bwc`. Returns
+/// (characters, animations, traces) and panics with every difference.
+pub fn round_trip_kind(kind: &str) -> (usize, usize, usize) {
+    let _ = sources();
+    let list: Vec<PathBuf> = samples()
+        .into_iter()
+        .filter(|(k, _)| k == kind)
+        .map(|(_, p)| p)
+        .collect();
+    assert!(!list.is_empty(), "no samples of kind {kind}");
+    let tmp = temp_dir(&format!("{kind}-rt"));
+    let results = par_map(&list, |path| {
+        let stem = path
+            .file_stem()
+            .unwrap()
+            .to_string_lossy()
+            .to_lowercase()
+            .replace(['(', ')', ' '], "_");
+        let oracle = oracle_json(
+            &["oracle", kind, path.to_str().unwrap()],
+            &tmp.join(format!("{stem}.oracle.json")),
+        );
+        let pkg = bentwire_convert::convert_to_package(&converter_input(path))
+            .map_err(|e| format!("{stem}: {e}"))?;
+        let folder = tmp.join(&stem);
+        let bwc = tmp.join(format!("{stem}.bwc"));
+        pkg.write_folder(&folder).unwrap();
+        pkg.write_bwc(&bwc).unwrap();
+        let mut counts = (0, 0);
+        for p in [&folder, &bwc] {
+            let c = Character::load(p).map_err(|e| format!("{stem}: {e}"))?;
+            if !c.warnings.is_empty() {
+                return Err(format!("{stem}: warnings {:?}", c.warnings));
+            }
+            let got = normalize(kind, &oracle, rust_json(&c));
+            counts = compare(&oracle, &got).map_err(|d| format!("{} : {d}", p.display()))?;
+        }
+        let missing = c_missing(&pkg);
+        Ok::<_, String>((stem, counts, missing))
+    });
+    let mut bad = Vec::new();
+    let (mut n, mut anims, mut traces) = (0, 0, 0);
+    for r in results {
+        match r {
+            Ok((s, (a, t), missing)) => {
+                println!(
+                    "{kind} {s}: {a} animations, {t} traces equal (folder and .bwc){}",
+                    if missing.is_empty() {
+                        String::new()
+                    } else {
+                        format!("; {} listed in source.missing_animations", missing.len())
+                    }
+                );
+                n += 1;
+                anims += a;
+                traces += t;
+            }
+            Err(e) => bad.push(e),
+        }
+    }
+    println!("{kind}: {n} characters, {anims} animations, {traces} traces");
+    assert!(bad.is_empty(), "{bad:#?}");
+    (n, anims, traces)
+}
+
+fn c_missing(p: &bentwire_convert::PackageData) -> Vec<String> {
+    p.manifest.missing_animations()
+}
