@@ -1534,6 +1534,39 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   normal, hot, pressed, disabled; icon group 100 (32 x 32, deepest depth) becomes `tip`.
   Bullet 102 and arrows 103/104 are extracted but not referenced by `theme.toml`. Reason:
   office-assistant R-OB-8/11 give ids and frame counts; the state order is [inf] there.
+- **W-RAST-1 WMF geometry (D2, act-format 4.6).** Logical points go through
+  MM_ANISOTROPIC (viewport = destination rectangle, window = placeable bbox until the
+  metafile's own SetWindowOrg/SetWindowExt) in floating point and are rounded to whole
+  device pixels. A pixel is covered iff its centre lies inside the shape: polygons with
+  ALTERNATE (even-odd) or WINDING (nonzero), ellipses and round rectangles analytically.
+  Pens whose width scales (by the x factor) to at most 1 px are cosmetic one-pixel lines
+  (last point of a polyline excluded); wider pens cover every pixel within half the width
+  of a segment (round caps and joins). Drawing is clipped to the canvas, not to the
+  viewport. Composite children are placed by character-format 5.3's truncating map at the
+  output size, also for the 2x sheet (computed from logical units, not by doubling 1x).
+  Unknown record types fail the conversion; SetMapMode is taken as MM_ANISOTROPIC (the only
+  value in the samples) and Escape is ignored. Reason: GDI's exact rasterisation rules are
+  not documented in the research; pixel-centre sampling is simple and reproducible.
+- **W-RAST-2 Ellipse and RoundRect pens.** The brush fills the box shape; the pen paints
+  a ring of its width centred on the outline, or inside the box for PS_INSIDEFRAME and for
+  cosmetic pens. GDI's one-pixel shrink of shapes drawn with a null pen is not modelled.
+  Reason: as W-RAST-1.
+- **W-COL-1 WMF colours.** The rasteriser paints into a caller-given palette: every
+  colour goes to the nearest entry (squared RGB distance, lowest index on ties) other
+  than the transparent one; COLORREF 0xF5FAF5 paints transparent (act-format 4.6). With
+  the A-CONV-1 palette every stored colour matches exactly. Reason: indexed output (D2).
+- **W-ROP-1 R2_NOTXORPEN and other ROP2 codes.** Evaluated per RGB channel on the
+  destination pixel's palette colour, then snapped by W-COL-1; operations that read the
+  destination leave transparent pixels transparent. Only 4 Hoverbot records use a code
+  other than R2_COPYPEN. Reason: Office 97 applied it to palette indices of its own back
+  buffer, which bentwire does not have.
+- **W-TEXT-1 TextOut.** Every face name (Albertus Medium, Courier New in the samples) is
+  drawn with the bundled Wine Tahoma (the bold file for weight >= 600), bytes as cp1252,
+  glyph outlines filled aliased with the nonzero rule. A negative lfHeight is the em
+  height, a positive one the cell height (ascender minus descender), 0 means 12 px;
+  heights scale by the y factor. SetTextAlign left/right/centre and top/baseline/bottom are honoured; an opaque
+  background fills advance width x (ascender to descender). Reason: the original fonts
+  are not shipped; act-format 4.6 asks for a fallback for these few frames.
 
 ## 4. Reconciliation
 
