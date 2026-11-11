@@ -1386,6 +1386,10 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   `bentwire-placeholder`.
 - **A-THEME-1** The Office balloon theme is pack data with a generic loader; the
   look-alike of B-OB-1 is the fallback.
+- **A-TEST-1** Real-data tests use `BENTWIRE_REFERENCE` and `BENTWIRE_SOURCES` (plus
+  `BENTWIRE_PACKS` for the packs) instead of T-0's `BENTWIRE_SAMPLES`; unset variables make
+  an ignored test fail with "NOT RUN". Reason: the inputs live in two separate read-only
+  trees.
 - **A-TEST-3** `bentwired --test-interface` exports a reduced `org.bentwire.Test1` on the
   Wayland backend. Reason: the desktop scenario must answer `ask` without a human.
 - **B-REN-1 Text.** Glyphs are drawn advance-only (no kerning or shaping), each advance

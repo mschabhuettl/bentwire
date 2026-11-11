@@ -14,7 +14,7 @@ and keep `bentwired` a thin shell around backends).
 |---|---|---|
 | `crates/agent-formats` | Parsers: ACS 2.0, ACF/ACA 2.0, Agent 1.5 (OLE ACS, ACF/AAF), ACT. Publishable, no daemon deps. Parse to faithful source structures; no conversion policy. | - |
 | `crates/agent-fixtures` | `publish = false`. Writers that emit valid ACS, ACF/ACA, ACF/AAF, ACT files from synthetic pictures (tests only). | - |
-| `crates/bentwire-character` | Manifest model (serde), reader for folder and `.bwc`, writer, compositor (character-format 5.3), canonical dump (character-format 11.1), interpreter B (traces), validation, FLAC/WAVE decode. | - |
+| `crates/bentwire-character` | Manifest model (plain structs, hand-written TOML mapping), reader for folder and `.bwc`, writer, compositor (character-format 5.3), canonical dump (character-format 11.1), interpreter B (traces), validation, FLAC/WAVE decode. | - |
 | `crates/bentwire-convert` | Source structures to bentwire characters; MS ADPCM rule; WMF rasteriser (`src/wmf/`); round-trip check. | agent-formats, bentwire-character |
 | `crates/bentwire-core` | Deterministic behaviour core (spec section 2, B-CORE-1): clock, draws and input events in; scene, sound commands, replies and signals out. No I/O. Own playback model; the manifest adapter is in `bentwired/src/model.rs`. | - |
 | `crates/bentwire-render` | Software rendering: character picture to buffers, Agent balloon, Office balloon (own look-alike, or a balloon theme from a pack), XP-style menu, text with the bundled Tahoma. Implements the core's text-metrics trait. | bentwire-character, bentwire-core |
@@ -48,7 +48,9 @@ and keep `bentwired` a thin shell around backends).
   the default character, B-CHAR-4).
 - ACF/ACA web characters: `<stem>-web`; Agent 1.5: `<stem>-15`; ACT: `<stem>-97` for
   Office 97 actors, `<stem>-bob` for Microsoft Bob actors, other ACT `<stem>-act`.
-  When two sources would still collide, the converter fails; it never guesses.
+  A parenthesised qualifier in the file name is dropped while the id stays unique and
+  kept on a collision; byte-identical sources are converted once (spec 3.14 A-CONV-5,
+  which refines this rule).
 - The placeholder in `builtin` has id `bentwire-placeholder` (A-CHAR-1 below).
 
 **A-PACK-2 Which characters go into classics.** Generated, not listed: a source goes in
@@ -70,6 +72,12 @@ only the look-alike.
 - `BENTWIRE_REFERENCE` = `$BENTWIRE_REFERENCE` (parsers, prototype, samples under
   `*/`).
 - `BENTWIRE_SOURCES` = `~/Sources/bentwire` (the 12 ACS files, zips, DLLs).
+- `BENTWIRE_PACKS` = a `characters/` directory with packs, for the daemon's load-every-
+  character test (`scripts/oracle-check.sh` defaults it to the repo's `characters/`).
+- Optional: `BENTWIRE_PROTO_COPY` = an existing scratch copy of `prototype`;
+  `TMPDIR` on disk when `/tmp` is a small tmpfs.
+- These names replace spec T-0's `BENTWIRE_SAMPLES` (the user's files are split into
+  research and sources); see spec 3.14 A-TEST-1.
 - Real-data tests are `#[ignore]` and are run with `cargo test --workspace -- --ignored`
   or `scripts/oracle-check.sh`. When a needed variable is unset, an ignored test
   **panics** with "NOT RUN: set BENTWIRE_…" (so it can never count as passed) and
@@ -94,9 +102,9 @@ into `$BENTWIRE_REFERENCE` or `~/Sources`.
 
 **A-TEST-3 Test interface on real backends.** `org.bentwire.Test1` is exported in
 headless mode, and on the Wayland backend only with `bentwired --test-interface`
-(there only `Pointer`, `Key` (synthetic events fed into the core) and an extra
-`Snapshot() -> s` returning the JSON scene: surfaces, positions, sizes, mapped
-state). This lets the desktop scenario answer `ask` through D-Bus under KWin and sway.
+(there only `Pointer`, `Key` (synthetic events fed into the core) and `Snapshot() -> s`
+returning the JSON scene: surfaces, positions, sizes, mapped state; `Snapshot` also
+exists in headless mode, spec 3.14 A-DESK-3). This lets the desktop scenario answer `ask` through D-Bus under KWin and sway.
 
 **A-FONT-1** The renderer loads `assets/fonts/tahoma.ttf` / `tahomabd.ttf` by path
 (compiled in with `include_bytes!`) and tests assert their SHA-256 (see
