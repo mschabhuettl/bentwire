@@ -36,6 +36,13 @@ A cleanup release: no new daemon features. The matching classics pack is
 - The README follows a new layout (header with badges, features, quick start, contents),
   with a short note to Microsoft.
 
+### Fixed
+
+- Animations listed in a character's `source.missing_animations` were removed from its
+  animations but stayed members of its states, so the daemon treated such a character
+  differently from one that never had them. They are now dropped from the states too, and
+  a state left empty is dropped.
+
 ## [0.1.0] - 2026-11-11
 
 First release.
