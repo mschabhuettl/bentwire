@@ -255,3 +255,19 @@ fn rejects_bad_input() {
     s4.animations[0].frames[2].overlays[0].mouth = 9;
     assert!(Aca::parse(&s4.write_aca(0), &c).is_err());
 }
+
+/// Review regression: an ACF path without a directory part reads its animations from ".".
+#[test]
+fn web_loader_relative_path() {
+    let s = fx::sample(0x2_0001);
+    let dir = std::env::temp_dir().join(format!("bentwire-acf-rel-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("rel.acf"), s.write_acf()).unwrap();
+    std::fs::write(dir.join("Show.aca"), s.write_aca(0)).unwrap();
+    // a bare file name has an empty parent; every other test here uses absolute paths, so
+    // changing this process's working directory is safe
+    std::env::set_current_dir(&dir).unwrap();
+    let w = read_web_character(std::path::Path::new("rel.acf")).unwrap();
+    std::fs::remove_dir_all(&dir).ok();
+    assert!(matches!(w.animations[0], AnimationFile::Loaded(_)));
+}

@@ -414,7 +414,7 @@ fn parse_animation(data: &[u8], name: String, l: Locator) -> Result<Animation> {
     if n == 0 {
         return Err(Error::invalid("animation has no frames", at));
     }
-    let n = r.count(n, 11)?;
+    let n = r.count(n, 10)?; // 4 x u16 + branch and overlay counts
     let frames = (0..n)
         .map(|i| parse_frame(&mut r).context(|| format!("frame {i}")))
         .collect::<Result<_>>()?;

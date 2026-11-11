@@ -240,3 +240,11 @@ fn rejects_bad_header_and_versions() {
     s.animations[1].frames[3].overlays[0].mouth = 7;
     assert!(Acs::parse(&s.write()).is_err());
 }
+
+/// Review regression: a single frame without images is the smallest record (10 bytes).
+#[test]
+fn single_empty_frame_animation() {
+    let mut s = fx::sample();
+    s.animations[0].frames[0].images.clear();
+    check(&s);
+}

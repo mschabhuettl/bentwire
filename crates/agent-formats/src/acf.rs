@@ -76,7 +76,8 @@ pub enum AcaHeader {
         checksum: u32,
     },
     /// A header was expected but its version is not recognized; the runtime then reads the
-    /// file from the start as headerless (and re-downloads it).
+    /// file from the start as headerless (and re-downloads it). Web files only: in OLE
+    /// streams any value is taken as the header version.
     Unrecognized {
         version: u32,
     },
@@ -323,14 +324,25 @@ impl AcfCharacter {
 }
 
 impl Aca {
-    /// Parses an ACA/AAF file or OLE animation stream of `character`. The checksum is not
-    /// compared here (the OLE path never compares it); see [`Aca::check_checksum`].
+    /// Parses an ACA/AAF file of `character` with the web rule: a header with an
+    /// unrecognized version is read again from the start as headerless. The checksum is not
+    /// compared here; see [`Aca::check_checksum`].
     pub fn parse(data: &[u8], character: &AcfCharacter) -> Result<Aca> {
+        Self::parse_with(data, character, false)
+    }
+
+    /// Parses an animation stream of an Agent 1.5 OLE file: the header version is consumed
+    /// without being checked (agent15-format 4.5).
+    pub fn parse_ole_stream(data: &[u8], character: &AcfCharacter) -> Result<Aca> {
+        Self::parse_with(data, character, true)
+    }
+
+    fn parse_with(data: &[u8], character: &AcfCharacter, ole: bool) -> Result<Aca> {
         let v = character.version;
         let mut r = Reader::new(data);
         let header = if v >= 0x1_001D {
             let version = r.u32()?;
-            if VERSIONS.contains(&version) {
+            if ole || VERSIONS.contains(&version) {
                 AcaHeader::Present {
                     version,
                     checksum: r.u32()?,
@@ -442,7 +454,7 @@ impl AcaAnimation {
         if n == 0 {
             return Err(Error::invalid("animation has no frames", at));
         }
-        let n = r.count(n, 12)?;
+        let n = r.count(n, 12)?; // 5 x u16 + branch and overlay counts
         let frames = (0..n)
             .map(|i| parse_frame(&mut r, v, w, h).context(|| format!("frame {i}")))
             .collect::<Result<_>>()?;
@@ -563,7 +575,10 @@ pub fn read_web_character(acf_path: &Path) -> Result<WebCharacter> {
     };
     let data = std::fs::read(acf_path).map_err(|e| io(acf_path, e))?;
     let acf = Acf::parse(&data)?;
-    let dir = acf_path.parent().unwrap_or(Path::new("."));
+    let dir = match acf_path.parent() {
+        Some(p) if !p.as_os_str().is_empty() => p,
+        _ => Path::new("."),
+    };
     let mut files = Vec::new();
     for e in std::fs::read_dir(dir).map_err(|e| io(dir, e))? {
         let e = e.map_err(|e| io(dir, e))?;

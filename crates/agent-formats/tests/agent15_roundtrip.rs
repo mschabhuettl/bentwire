@@ -67,3 +67,27 @@ fn compound_file_streams() {
     // no char.acf stream
     assert!(OleAcs::parse(&f).is_err());
 }
+
+/// Review regression: OLE streams take any header version (agent15-format 4.5); the web
+/// rule (seek back, read headerless) applies to flat files only.
+#[test]
+fn ole_header_version_is_not_checked() {
+    let spec = fx::sample(0x1_001F);
+    let mut aaf = spec.write_aca(0);
+    aaf[..4].copy_from_slice(&0xDEAD_BEEFu32.to_le_bytes());
+    let streams = vec![
+        ("char.acf".to_string(), fx::char_acf(&spec)),
+        ("anim1.aaf".to_string(), aaf.clone()),
+    ];
+    let ole = OleAcs::parse(&fx::compound_file(&streams, [0; 16])).unwrap();
+    let a = ole.animations[0].as_ref().unwrap();
+    assert!(matches!(
+        a.header,
+        agent_formats::acf::AcaHeader::Present {
+            version: 0xDEAD_BEEF,
+            ..
+        }
+    ));
+    let flat = Acf::parse(&spec.write_acf()).unwrap().character;
+    assert!(Aca::parse(&aaf, &flat).is_err());
+}

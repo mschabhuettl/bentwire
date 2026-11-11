@@ -54,7 +54,7 @@ impl OleAcs {
                 let e = find(&entry.file_name)
                     .ok_or_else(|| Error::invalid(format!("no stream {:?}", entry.file_name), 0))?;
                 let d = cf.stream(e)?;
-                Aca::parse(&d, &character)
+                Aca::parse_ole_stream(&d, &character)
             })
             .zip(&character.animations)
             .map(|(r, entry)| {
