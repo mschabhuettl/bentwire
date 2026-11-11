@@ -179,3 +179,24 @@ fn lz_malformed_never_panics() {
         let _ = lz::decompress(d, 0);
     });
 }
+
+/// A-FMT-1: list entries that all point at the same large block cannot multiply memory.
+/// 40,000 audio entries each covering the whole file would copy more than 1 GiB.
+#[test]
+fn aliased_entries_hit_the_total_budget() {
+    let mut d = agent_fixtures::acs::sample().write();
+    let len = d.len() as u32;
+    let n = (agent_formats::common::MAX_TOTAL / len as usize + 1) as u32;
+    let list = d.len() as u32;
+    d.extend_from_slice(&n.to_le_bytes());
+    for _ in 0..n {
+        for v in [0, len, 0] {
+            d.extend_from_slice(&v.to_le_bytes());
+        }
+    }
+    let size = d.len() as u32 - list;
+    d[0x1C..0x20].copy_from_slice(&list.to_le_bytes());
+    d[0x20..0x24].copy_from_slice(&size.to_le_bytes());
+    let e = Acs::parse(&d).unwrap_err();
+    assert!(e.to_string().contains("in total"), "{e}");
+}

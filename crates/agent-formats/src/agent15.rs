@@ -6,7 +6,7 @@
 //! (flat ACF magic 0xABCDABC2 + `.aaf`) are plain [`crate::acf`] input.
 
 use crate::acf::{Aca, AcfCharacter, compressed_block};
-use crate::common::{Context, Error, Guid, Reader, Result};
+use crate::common::{Budget, Context, Error, Guid, Reader, Result};
 use crate::ole::{CompoundFile, SIGNATURE};
 
 /// Magic of the `char.acf` stream.
@@ -45,7 +45,8 @@ impl OleAcs {
         if magic != MAGIC_OLE {
             return Err(Error::BadMagic(magic));
         }
-        let body = compressed_block(&mut r).context(|| "char.acf".into())?;
+        let mut budget = Budget::new();
+        let body = compressed_block(&mut r, &mut budget).context(|| "char.acf".into())?;
         let character = AcfCharacter::parse_body(&body).context(|| "char.acf".into())?;
         let animations = character
             .animations
@@ -53,8 +54,9 @@ impl OleAcs {
             .map(|entry| {
                 let e = find(&entry.file_name)
                     .ok_or_else(|| Error::invalid(format!("no stream {:?}", entry.file_name), 0))?;
+                budget.take(e.size.try_into().unwrap_or(usize::MAX))?;
                 let d = cf.stream(e)?;
-                Aca::parse_ole_stream(&d, &character)
+                Aca::parse_with(&d, &character, true, &mut budget)
             })
             .zip(&character.animations)
             .map(|(r, entry)| {

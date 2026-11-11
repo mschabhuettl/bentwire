@@ -1428,8 +1428,11 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
 - **A-FMT-1 Reader limits** (agent-formats). Decompressed ACF and ACA/AAF bodies above
   256 MiB, images and regions above 10,000,000 bytes (the runtime's image cap), and
   strings above 0x1000000 units (the 2.0 limit, also applied to 1.5 data) are errors.
-  Counts are checked against the remaining bytes before allocating. Reason: hostile input
-  must not exhaust memory; real files are far below these limits.
+  Counts are checked against the remaining bytes before allocating, and all bytes decoded
+  or copied out of one file (images, sounds, bodies, streams) are capped at 1 GiB in total,
+  so table entries that all point at one large record cannot multiply memory. Reason:
+  hostile input must not exhaust memory; real files are far below these limits (largest
+  sample about 20 MB decoded).
 - **A-FMT-2 Strict records.** Every ACS block and record and every ACF and ACA/AAF body
   must be consumed exactly; decoded pixels must be exactly `stride * height` and regions
   exactly their declared size (the runtime ignores the decoder's result and can show stale

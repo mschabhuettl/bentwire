@@ -14,6 +14,35 @@ pub const MAX_IMAGE: usize = 10_000_000;
 /// Longest string accepted, in UTF-16 code units (acs-format 2, acf-aaf-format 4).
 pub const MAX_STRING: u32 = 0x100_0000;
 
+/// Most bytes decoded or copied out of one file in total (all images, sounds and bodies).
+/// The largest sample needs about 20 MB; the cap stops tables whose entries all point at
+/// the same large record (A-FMT-1).
+pub const MAX_TOTAL: usize = 1 << 30;
+
+/// Running total of decoded bytes for one file, checked against [`MAX_TOTAL`].
+pub(crate) struct Budget {
+    left: usize,
+}
+
+impl Budget {
+    pub fn new() -> Self {
+        Budget { left: MAX_TOTAL }
+    }
+
+    pub fn take(&mut self, n: usize) -> Result<()> {
+        match self.left.checked_sub(n) {
+            Some(l) => {
+                self.left = l;
+                Ok(())
+            }
+            None => Err(Error::invalid(
+                format!("file decodes to more than {MAX_TOTAL} bytes in total"),
+                0,
+            )),
+        }
+    }
+}
+
 /// Error for every reader in this crate. Readers never panic on malformed input.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum Error {

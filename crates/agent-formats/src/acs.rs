@@ -9,7 +9,7 @@ use crate::common::{
     Balloon, Bitmap, Context, Error, Guid, LocalizedInfo, MAX_IMAGE, Region, Result, Rgbquad,
     State, TrayIcon, Voice, VoiceExtra, palette, states, stride, tray_icon,
 };
-use crate::common::{Reader, names_equal};
+use crate::common::{Budget, Reader, names_equal};
 use crate::lz;
 
 pub const MAGIC: u32 = 0xABCD_ABC3;
@@ -156,11 +156,12 @@ impl Acs {
         let (ci, al, il, sl) = (ci?, al?, il?, sl?);
 
         let character = parse_character(data, ci).context(|| "character info".into())?;
+        let mut budget = Budget::new();
         let images = parse_list(data, il, "image list")?
             .into_iter()
             .enumerate()
             .map(|(i, (l, checksum))| {
-                let image = parse_image(data, l).context(|| format!("image {i}"))?;
+                let image = parse_image(data, l, &mut budget).context(|| format!("image {i}"))?;
                 Ok(ImageEntry { checksum, image })
             })
             .collect::<Result<_>>()?;
@@ -168,6 +169,9 @@ impl Acs {
             .into_iter()
             .enumerate()
             .map(|(i, (l, checksum))| {
+                budget
+                    .take(l.size as usize)
+                    .context(|| format!("sound {i}"))?;
                 let mut r =
                     Reader::block(data, l.offset, l.size).context(|| format!("sound {i}"))?;
                 Ok(SoundEntry {
@@ -310,7 +314,7 @@ fn parse_list(data: &[u8], l: Locator, what: &str) -> Result<Vec<(Locator, u32)>
     go().context(|| what.into())
 }
 
-fn parse_image(data: &[u8], l: Locator) -> Result<Option<Image>> {
+fn parse_image(data: &[u8], l: Locator, budget: &mut Budget) -> Result<Option<Image>> {
     let mut r = Reader::block(data, l.offset, l.size)?;
     let kind = r.u8()?;
     match kind {
@@ -327,6 +331,7 @@ fn parse_image(data: &[u8], l: Locator) -> Result<Option<Image>> {
             l.offset as usize,
         ));
     }
+    budget.take(need)?;
     let comp = r.u8()?;
     let size = r.u32()? as usize;
     let at = r.pos;
@@ -344,6 +349,7 @@ fn parse_image(data: &[u8], l: Locator) -> Result<Option<Image>> {
     };
     let csize = r.u32()? as usize;
     let usize_ = r.u32()? as usize;
+    budget.take(usize_.min(MAX_IMAGE + 1))?;
     let at = r.pos;
     let raw;
     let region_bytes = if csize == 0 {

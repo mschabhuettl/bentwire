@@ -10,9 +10,9 @@ use std::path::Path;
 
 pub use crate::acs::Branch;
 use crate::common::{
-    Balloon, Bitmap, Context, Error, Guid, LocalizedInfo, MAX_BODY, MAX_IMAGE, Reader, Region,
-    Result, Rgbquad, State, TrayIcon, Voice, VoiceExtra, names_equal, palette, states, stride,
-    tray_icon,
+    Balloon, Bitmap, Budget, Context, Error, Guid, LocalizedInfo, MAX_BODY, MAX_IMAGE, Reader,
+    Region, Result, Rgbquad, State, TrayIcon, Voice, VoiceExtra, names_equal, palette, states,
+    stride, tray_icon,
 };
 use crate::lz;
 
@@ -165,7 +165,7 @@ pub struct OverlayData {
 }
 
 /// Reads "u32 uncompressed size, u32 compressed size, compressed bytes" at `r`.
-pub(crate) fn compressed_block(r: &mut Reader) -> Result<Vec<u8>> {
+pub(crate) fn compressed_block(r: &mut Reader, budget: &mut Budget) -> Result<Vec<u8>> {
     let usize_ = r.u32()? as usize;
     let csize = r.u32()? as usize;
     if usize_ > MAX_BODY {
@@ -174,6 +174,7 @@ pub(crate) fn compressed_block(r: &mut Reader) -> Result<Vec<u8>> {
             r.pos - 8,
         ));
     }
+    budget.take(usize_)?;
     Ok(lz::decompress_exact(r.bytes(csize)?, usize_)?)
 }
 
@@ -185,7 +186,7 @@ impl Acf {
         if magic != MAGIC_20 && magic != MAGIC_15 {
             return Err(Error::BadMagic(magic));
         }
-        let body = compressed_block(&mut r).context(|| "ACF body".into())?;
+        let body = compressed_block(&mut r, &mut Budget::new()).context(|| "ACF body".into())?;
         let character = AcfCharacter::parse_body(&body).context(|| "ACF body".into())?;
         Ok(Acf { magic, character })
     }
@@ -328,16 +329,21 @@ impl Aca {
     /// unrecognized version is read again from the start as headerless. The checksum is not
     /// compared here; see [`Aca::check_checksum`].
     pub fn parse(data: &[u8], character: &AcfCharacter) -> Result<Aca> {
-        Self::parse_with(data, character, false)
+        Self::parse_with(data, character, false, &mut Budget::new())
     }
 
     /// Parses an animation stream of an Agent 1.5 OLE file: the header version is consumed
     /// without being checked (agent15-format 4.5).
     pub fn parse_ole_stream(data: &[u8], character: &AcfCharacter) -> Result<Aca> {
-        Self::parse_with(data, character, true)
+        Self::parse_with(data, character, true, &mut Budget::new())
     }
 
-    fn parse_with(data: &[u8], character: &AcfCharacter, ole: bool) -> Result<Aca> {
+    pub(crate) fn parse_with(
+        data: &[u8],
+        character: &AcfCharacter,
+        ole: bool,
+        budget: &mut Budget,
+    ) -> Result<Aca> {
         let v = character.version;
         let mut r = Reader::new(data);
         let header = if v >= 0x1_001D {
@@ -358,7 +364,7 @@ impl Aca {
         let (compressed, body) = match r.u8()? {
             1 => (
                 true,
-                compressed_block(&mut r).context(|| "animation body".into())?,
+                compressed_block(&mut r, budget).context(|| "animation body".into())?,
             ),
             0 => (false, r.bytes(r.remaining())?.to_vec()),
             f => return Err(Error::invalid(format!("compression flag {f}"), at)),
@@ -579,6 +585,7 @@ pub fn read_web_character(acf_path: &Path) -> Result<WebCharacter> {
         Some(p) if !p.as_os_str().is_empty() => p,
         _ => Path::new("."),
     };
+    let mut budget = Budget::new();
     let mut files = Vec::new();
     for e in std::fs::read_dir(dir).map_err(|e| io(dir, e))? {
         let e = e.map_err(|e| io(dir, e))?;
@@ -596,9 +603,11 @@ pub fn read_web_character(acf_path: &Path) -> Result<WebCharacter> {
             }) else {
                 return AnimationFile::Missing;
             };
-            let res = std::fs::read(p)
+            let res = std::fs::metadata(p)
                 .map_err(|e| io(p, e))
-                .and_then(|d| Aca::parse(&d, &acf.character))
+                .and_then(|m| budget.take(m.len().try_into().unwrap_or(usize::MAX)))
+                .and_then(|_| std::fs::read(p).map_err(|e| io(p, e)))
+                .and_then(|d| Aca::parse_with(&d, &acf.character, false, &mut budget))
                 .and_then(|a| a.check_checksum(entry).map(|_| a))
                 .context(|| format!("animation {:?}", entry.name));
             match res {
