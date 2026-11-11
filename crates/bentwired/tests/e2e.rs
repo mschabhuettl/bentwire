@@ -519,7 +519,6 @@ fn a_char_1_only_builtin_installed() {
 }
 
 #[test]
-#[ignore = "core bug reported 2026-11-11: after interrupting a no-exit loop the queue stalls"]
 fn r_q_6_stop_lets_next_request_run_after_loop() {
     let e = ready("q6");
     let mut c = e.client();
