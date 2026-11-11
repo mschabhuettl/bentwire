@@ -147,6 +147,9 @@ scripts/screenshots.sh --classics ../bentwire-classics   # classics, into that c
 
 It needs `sway`, `swaybg`, `grim`, `dbus-run-session`, `busctl` and `python3` with PIL.
 
+Images that show Microsoft characters are committed only to bentwire-classics; this
+repository's README embeds them by URL.
+
 The gallery images (every character in its rest pose, 1x, transparent background) are
 made by `scripts/gallery.sh`, byte-identical on every run. It writes `docs/gallery/` for
 the `builtin` pack and `gallery/` of the classics checkout in `BENTWIRE_CLASSICS` (default
@@ -155,8 +158,6 @@ the `builtin` pack and `gallery/` of the classics checkout in `BENTWIRE_CLASSICS
 ```sh
 scripts/gallery.sh
 ```
-Images that show Microsoft characters are committed only to bentwire-classics; this
-repository's README embeds them by URL.
 
 ## Generated files
 
