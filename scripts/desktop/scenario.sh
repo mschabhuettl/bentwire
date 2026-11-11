@@ -83,9 +83,18 @@ kwin)
 esac
 export WAYLAND_DISPLAY
 
+# Tray (B-TRAY-1): a minimal StatusNotifierWatcher stands in for the panel.
+TRAY=0
+if python3 -I -c 'import gi' 2>/dev/null; then
+    python3 -I -W ignore "$REPO/scripts/desktop/sni-watcher.py" >"$T/sni.log" 2>"$T/sni.err" &
+    PIDS+=($!)
+    wait_for 5 busctl --user status org.kde.StatusNotifierWatcher && TRAY=1
+fi
+TRAYARG=--no-tray
+[ "$TRAY" = 1 ] && TRAYARG=
 dbus-monitor --session "type='signal',interface='org.bentwire.Character1'" >"$T/signals.log" 2>&1 &
 PIDS+=($!)
-"$BIN/bentwired" --test-interface --no-tray --no-audio --characters "$FIXTURES" >"$T/bentwired.log" 2>&1 &
+"$BIN/bentwired" --test-interface $TRAYARG --no-audio --characters "$FIXTURES" >"$T/bentwired.log" 2>&1 &
 BW=$!
 PIDS+=($BW)
 wait_for 10 busctl --user status org.bentwire.Agent || { echo "bentwired did not start"; cat "$T/bentwired.log"; exit 1; }
@@ -211,6 +220,22 @@ check "margins requested 200,150" wait_for 5 snap 's["backend"]["character"]["ma
 sleep 0.5
 shot moveto
 check "character on screen at (200,150)" shown_at 200 150
+
+echo "5b. tray (StatusNotifierItem + dbusmenu)"
+if [ "$TRAY" = 1 ]; then
+    check "item registered with the watcher" wait_for 5 test -s "$T/sni.log"
+    read -r SNI SNIPATH <"$T/sni.log" || true
+    prop() { busctl --user --json=short get-property "$SNI" "$SNIPATH" org.kde.StatusNotifierItem "$1" | python3 -I -c 'import sys, json; print(json.load(sys.stdin)["data"])'; }
+    check "Id is bentwire" test "$(prop Id)" = bentwire
+    check "Title is the character name" test "$(prop Title)" = Pebble
+    MENU=$(prop Menu || true)
+    check "dbusmenu has _Hide, _Options..., _Choose Assistant..." sh -c "busctl --user call '$SNI' '$MENU' com.canonical.dbusmenu GetLayout iias 0 10 0 \
+        | grep -q '\"_Hide\"' && busctl --user call '$SNI' '$MENU' com.canonical.dbusmenu GetLayout iias 0 10 0 | grep -q '_Choose Assistant'"
+    busctl --user call "$SNI" "$SNIPATH" org.kde.StatusNotifierItem Activate ii 7 9 >/dev/null
+    check "Activate emits Click(1, 0, 7, 9, true)" wait_for 5 grep -q 'member=Click' "$T/signals.log"
+else
+    echo "  NOT RUN tray checks (python3-gi missing)"
+fi
 
 echo "6. hide"
 check "hide --wait" "$BIN/bentwire" hide --wait
