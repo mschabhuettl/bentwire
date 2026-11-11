@@ -7,3 +7,8 @@ license.workspace = true
 
 [dependencies]
 thiserror.workspace = true
+
+[dev-dependencies]
+agent-fixtures.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
