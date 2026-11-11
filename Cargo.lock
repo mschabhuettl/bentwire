@@ -304,9 +304,6 @@ dependencies = [
 [[package]]
 name = "bentwire-core"
 version = "0.1.0"
-dependencies = [
- "bentwire-character",
-]
 
 [[package]]
 name = "bentwire-render"
