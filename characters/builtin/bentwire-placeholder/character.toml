@@ -155,13 +155,13 @@ frames = [
 
 [[animations]]
 name = "Speak"
-transition = "exit"
+transition = "none"
 frames = [
-  { ms = 120, layers = ["a:0"], exit = 4, mouths = [{ type = 0, layer = ["m:0", 41, 46], anchor = [48, 51] }, { type = 1, layer = ["m:1", 41, 46], anchor = [48, 51] }, { type = 2, layer = ["m:2", 41, 46], anchor = [48, 51] }, { type = 3, layer = ["m:3", 41, 46], anchor = [48, 51] }, { type = 4, layer = ["m:4", 41, 46], anchor = [48, 51] }, { type = 5, layer = ["m:5", 41, 46], anchor = [48, 51] }, { type = 6, layer = ["m:6", 41, 46], anchor = [48, 51] }] },
-  { ms = 120, layers = ["a:18"], exit = 4, mouths = [{ type = 0, layer = ["m:0", 41, 46], anchor = [48, 51] }, { type = 1, layer = ["m:1", 41, 46], anchor = [48, 51] }, { type = 2, layer = ["m:2", 41, 46], anchor = [48, 51] }, { type = 3, layer = ["m:3", 41, 46], anchor = [48, 51] }, { type = 4, layer = ["m:4", 41, 46], anchor = [48, 51] }, { type = 5, layer = ["m:5", 41, 46], anchor = [48, 51] }, { type = 6, layer = ["m:6", 41, 46], anchor = [48, 51] }] },
-  { ms = 120, layers = ["a:0"], exit = 4, mouths = [{ type = 0, layer = ["m:0", 41, 46], anchor = [48, 51] }, { type = 1, layer = ["m:1", 41, 46], anchor = [48, 51] }, { type = 2, layer = ["m:2", 41, 46], anchor = [48, 51] }, { type = 3, layer = ["m:3", 41, 46], anchor = [48, 51] }, { type = 4, layer = ["m:4", 41, 46], anchor = [48, 51] }, { type = 5, layer = ["m:5", 41, 46], anchor = [48, 51] }, { type = 6, layer = ["m:6", 41, 46], anchor = [48, 51] }] },
-  { ms = 120, layers = ["a:19"], exit = 4, branch = [[0, 100]], mouths = [{ type = 0, layer = ["m:0", 41, 46], anchor = [48, 51] }, { type = 1, layer = ["m:1", 41, 46], anchor = [48, 51] }, { type = 2, layer = ["m:2", 41, 46], anchor = [48, 51] }, { type = 3, layer = ["m:3", 41, 46], anchor = [48, 51] }, { type = 4, layer = ["m:4", 41, 46], anchor = [48, 51] }, { type = 5, layer = ["m:5", 41, 46], anchor = [48, 51] }, { type = 6, layer = ["m:6", 41, 46], anchor = [48, 51] }] },
-  { ms = 100, layers = ["a:0"], exit = "end" },
+  { ms = 120, layers = ["a:0"], mouths = [{ type = 0, layer = ["m:0", 41, 46], anchor = [48, 51] }, { type = 1, layer = ["m:1", 41, 46], anchor = [48, 51] }, { type = 2, layer = ["m:2", 41, 46], anchor = [48, 51] }, { type = 3, layer = ["m:3", 41, 46], anchor = [48, 51] }, { type = 4, layer = ["m:4", 41, 46], anchor = [48, 51] }, { type = 5, layer = ["m:5", 41, 46], anchor = [48, 51] }, { type = 6, layer = ["m:6", 41, 46], anchor = [48, 51] }] },
+  { ms = 120, layers = ["a:18"], mouths = [{ type = 0, layer = ["m:0", 41, 46], anchor = [48, 51] }, { type = 1, layer = ["m:1", 41, 46], anchor = [48, 51] }, { type = 2, layer = ["m:2", 41, 46], anchor = [48, 51] }, { type = 3, layer = ["m:3", 41, 46], anchor = [48, 51] }, { type = 4, layer = ["m:4", 41, 46], anchor = [48, 51] }, { type = 5, layer = ["m:5", 41, 46], anchor = [48, 51] }, { type = 6, layer = ["m:6", 41, 46], anchor = [48, 51] }] },
+  { ms = 120, layers = ["a:0"], mouths = [{ type = 0, layer = ["m:0", 41, 46], anchor = [48, 51] }, { type = 1, layer = ["m:1", 41, 46], anchor = [48, 51] }, { type = 2, layer = ["m:2", 41, 46], anchor = [48, 51] }, { type = 3, layer = ["m:3", 41, 46], anchor = [48, 51] }, { type = 4, layer = ["m:4", 41, 46], anchor = [48, 51] }, { type = 5, layer = ["m:5", 41, 46], anchor = [48, 51] }, { type = 6, layer = ["m:6", 41, 46], anchor = [48, 51] }] },
+  { ms = 120, layers = ["a:19"], mouths = [{ type = 0, layer = ["m:0", 41, 46], anchor = [48, 51] }, { type = 1, layer = ["m:1", 41, 46], anchor = [48, 51] }, { type = 2, layer = ["m:2", 41, 46], anchor = [48, 51] }, { type = 3, layer = ["m:3", 41, 46], anchor = [48, 51] }, { type = 4, layer = ["m:4", 41, 46], anchor = [48, 51] }, { type = 5, layer = ["m:5", 41, 46], anchor = [48, 51] }, { type = 6, layer = ["m:6", 41, 46], anchor = [48, 51] }] },
+  { ms = 100, layers = ["a:0"] },
 ]
 
 [[animations]]
@@ -177,38 +177,34 @@ frames = [
 
 [[animations]]
 name = "MoveLeft"
-transition = "exit"
+transition = "none"
 frames = [
-  { ms = 120, layers = ["a:20"], exit = 2 },
-  { ms = 120, layers = ["a:21"], exit = 2, branch = [[0, 100]] },
-  { ms = 100, layers = ["a:0"], exit = "end" },
+  { ms = 120, layers = ["a:20"] },
+  { ms = 120, layers = ["a:21"] },
 ]
 
 [[animations]]
 name = "MoveRight"
-transition = "exit"
+transition = "none"
 frames = [
-  { ms = 120, layers = ["a:22"], exit = 2 },
-  { ms = 120, layers = ["a:23"], exit = 2, branch = [[0, 100]] },
-  { ms = 100, layers = ["a:0"], exit = "end" },
+  { ms = 120, layers = ["a:22"] },
+  { ms = 120, layers = ["a:23"] },
 ]
 
 [[animations]]
 name = "MoveUp"
-transition = "exit"
+transition = "none"
 frames = [
-  { ms = 120, layers = ["a:24"], exit = 2 },
-  { ms = 120, layers = ["a:25"], exit = 2, branch = [[0, 100]] },
-  { ms = 100, layers = ["a:0"], exit = "end" },
+  { ms = 120, layers = ["a:24"] },
+  { ms = 120, layers = ["a:25"] },
 ]
 
 [[animations]]
 name = "MoveDown"
-transition = "exit"
+transition = "none"
 frames = [
-  { ms = 120, layers = ["a:26"], exit = 2 },
-  { ms = 120, layers = ["a:27"], exit = 2, branch = [[0, 100]] },
-  { ms = 100, layers = ["a:0"], exit = "end" },
+  { ms = 120, layers = ["a:26"] },
+  { ms = 120, layers = ["a:27"] },
 ]
 
 [[animations]]
@@ -249,11 +245,11 @@ frames = [
 
 [[animations]]
 name = "Hearing_1"
-transition = "exit"
+transition = "none"
 frames = [
-  { ms = 400, layers = ["a:34"], exit = 2 },
-  { ms = 300, layers = ["a:35"], exit = 2, branch = [[0, 100]] },
-  { ms = 100, layers = ["a:0"], exit = "end" },
+  { ms = 400, layers = ["a:34"] },
+  { ms = 300, layers = ["a:35"] },
+  { ms = 100, layers = ["a:0"] },
 ]
 
 [[animations]]
