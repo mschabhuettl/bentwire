@@ -48,6 +48,11 @@ pub struct Canvas {
     pub height: u32,
     /// Premultiplied R, G, B, A per pixel.
     pub px: Vec<[u8; 4]>,
+    /// Drawing is limited to this rectangle when set (drawing coordinates).
+    pub clip: Option<Rect>,
+    /// Drawing coordinates of pixel (0, 0), in buffer px. Lets callers draw in
+    /// global coordinates times the buffer scale.
+    pub origin: (i32, i32),
 }
 
 fn mul255(a: u32, b: u32) -> u32 {
@@ -60,10 +65,16 @@ impl Canvas {
             width,
             height,
             px: vec![[0; 4]; width as usize * height as usize],
+            clip: None,
+            origin: (0, 0),
         }
     }
 
     fn idx(&self, x: i32, y: i32) -> Option<usize> {
+        if self.clip.is_some_and(|c| !c.contains(x, y)) {
+            return None;
+        }
+        let (x, y) = (x - self.origin.0, y - self.origin.1);
         if x < 0 || y < 0 || x >= self.width as i32 || y >= self.height as i32 {
             None
         } else {
