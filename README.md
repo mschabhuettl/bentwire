@@ -63,7 +63,8 @@ On a real KDE Plasma 6 desktop. More screenshots and GIFs are in
 git clone https://github.com/mschabhuettl/bentwire && cd bentwire
 cargo build --release -p bentwired -p bentwire
 git clone https://github.com/mschabhuettl/bentwire-classics ~/.local/share/bentwire/characters/classics
-target/release/bentwired &
+target/release/bentwired &    # the daemon; give it a second to claim its bus name
+sleep 1
 target/release/bentwire show
 target/release/bentwire say "It looks like you're writing a letter."
 ```
