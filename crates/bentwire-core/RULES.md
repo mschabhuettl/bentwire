@@ -16,7 +16,7 @@ B-ASK-3 | b_ask_3_r_ob_16_markup
 B-ASK-4 | b_ask_4_b_wl_8_phases_and_answer, b_ask_4_hidden_and_too_big
 B-ASK-5 | b_ask_5_validation
 B-ASK-6 | b_ask_6_autodown
-B-ASK-7 | b_ask_7_matrix_modal, b_ask_7_matrix_autodown_and_switch, b_ask_7_autodown_hide_closes_with_status_3, b_ask_7_ask_shown_during_drag_is_placed_at_drag_end
+B-ASK-7 | b_ask_7_matrix_modal, b_ask_7_matrix_autodown_and_switch, b_ask_7_autodown_hide_closes_with_status_3, b_ask_7_ask_shown_during_drag_is_placed_at_drag_end || other crates: bentwired: b_ask_7_b_char_5_character_switch_closes_ask, b_ask_7_drag_hides_and_replaces_modal_balloon, b_ask_7_hide_stop_and_stopall_close_the_ask, b_ask_7_play_modal_stays_autodown_dismissed ...
 B-BAL-1 | b_bal_1_no_balloon
 B-BAL-2 | b_bal_2_font_choice (family, config override, px = |font_height|); TM metrics from the font in bentwire-render || other crates: bentwire-render: b_bal_2_draw_text_marks_pixels_inside_cell, b_bal_2_metrics_from_font, b_bal_2_text_width_is_sum_of_advances
 B-BAL-3 | b_bal_3_anchor_is_lowest_mouth_point, b_bal_3_r_bal_4_r_bal_5_vectors
@@ -28,14 +28,14 @@ B-CHAR-1 | not testable in core: discovery is file I/O; owner: bentwired (discov
 B-CHAR-2 | b_fb_1_b_char_2_play_errors_and_unavailable (unavailable animation fails AnimationUnavailable), r_state_1_uniform_member_and_r_state_2 (unavailable members skipped); decoding failures detected by the loader in bentwire-character/bentwired
 B-CHAR-3 | b_char_3_display_names
 B-CHAR-4 | b_cfg_3_first_run_and_b_char_4, b_char_4_state_then_config_then_sorted, b_char_4_startup_order
-B-CHAR-5 | b_char_5_switch, b_char_5_invalid_character
+B-CHAR-5 | b_char_5_switch, b_char_5_invalid_character || other crates: bentwired: b_ask_7_b_char_5_character_switch_closes_ask
 B-CORE-1 | structural: the crate has no I/O; every engine test runs it with fake clock and draws
 B-CORE-2 | b_core_2_draw_sources
 B-CORE-3 | structural: all timers come from Core::next_deadline/tick on the caller's clock; every engine test uses the fake clock (core_tests::T::advance)
 B-FAM-1 | structural: family dispatch in player.rs; per-row tests: b_seq_a_*, b_o97_*, b_sw_a_*, b_sw_o_*, b_idle_t_*, b_idle_o_office97, b_fb_1_b_o97_5_*
 B-FB-1 | b_fb_1_b_char_2_play_errors_and_unavailable, b_fb_1_b_o97_5_alias_and_office97_groups, b_fb_1_error_lists_chain
 B-FB-2 | b_fb_2_rover_like, b_fb_2_courtney_earl_merlin_qmark_like, b_fb_2_office_names_resolve_to_themselves
-B-GAL-1 | b_gal_1_gallery, b_gal_1_hide_closes_as_cancel, b_gal_1_running_ask_is_interrupted_when_gallery_opens
+B-GAL-1 | b_gal_1_gallery, b_gal_1_hide_closes_as_cancel, b_gal_1_running_ask_is_interrupted_when_gallery_opens || other crates: bentwired: b_gal_1_gallery_next_cancel_and_ok
 B-IDLE-O | b_idle_o_office97
 B-IDLE-T | b_idle_t_r_idle_1_r_idle_2_r_idle_3_vector, b_idle_t_r_idle_4_play_interrupts_idle
 B-L10N-1 | b_l10n_1_language
@@ -99,6 +99,7 @@ R- | prefix token (from "R-..." in spec 0), not a rule
 R-1 | grep artefact (suffix of B-CHAR-1/A-CHAR-1/R-DIR-1), not a rule
 R-2 | grep artefact (suffix of A-CHAR-2), not a rule
 R-3 | grep artefact (suffix of A-CHAR-3), not a rule
+R-4 | grep artefact (suffix of A-CHAR-4), not a rule
 R-ANIM-1 | covered by r_anim_2_frame_clock (frame ms used unchanged); the x10 conversion is the converter's (owner: bentwire-convert)
 R-ANIM-10 | structural: one Player per loaded character (core::Char.player); every player test exercises it
 R-ANIM-2 | r_anim_2_frame_clock, r_anim_2_late_frame_no_catch_up
