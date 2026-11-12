@@ -6,6 +6,7 @@
 //!   press B         B = 1 left, 2 right
 //!   release B
 //!   sleep MS
+//!   mark TEXT       print TEXT once the commands before it are done
 //! usage: kwptr < commands
 
 use std::io::BufRead;
@@ -64,6 +65,10 @@ fn main() {
             }
             ["sleep", ms] => {
                 std::thread::sleep(std::time::Duration::from_millis(ms.parse().unwrap()));
+                continue;
+            }
+            ["mark", m] => {
+                println!("{m}");
                 continue;
             }
             [] => continue,
