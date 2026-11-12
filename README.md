@@ -62,7 +62,7 @@ On a real KDE Plasma 6 desktop. More screenshots and GIFs are in
 ```sh
 git clone https://github.com/mschabhuettl/bentwire && cd bentwire
 cargo build --release -p bentwired -p bentwire
-git clone https://github.com/mschabhuettl/bentwire-classics ~/.local/share/bentwire/characters/classics
+target/release/bentwire characters install classics
 target/release/bentwired &    # the daemon; give it a second to claim its bus name
 sleep 1
 target/release/bentwire show
@@ -151,15 +151,23 @@ more, 61 in all, most of them Microsoft's) and the Office balloon theme come as 
 pack:
 
 ```sh
-git clone https://github.com/mschabhuettl/bentwire-classics ~/.local/share/bentwire/characters/classics
+bentwire characters install classics
 ```
+
+This downloads the latest [bentwire-classics release](https://github.com/mschabhuettl/bentwire-classics/releases),
+checks it against the release's `sha256sums.txt` and installs it into
+`~/.local/share/bentwire/characters/classics`. Run it again to update. A running daemon
+picks the characters up at once. To follow the repository instead, clone it to the same
+place (`git clone https://github.com/mschabhuettl/bentwire-classics
+~/.local/share/bentwire/characters/classics`); `install` leaves a git checkout alone.
 
 See the [gallery](https://github.com/mschabhuettl/bentwire-classics#gallery) of all of them.
 bentwire grants no licence for these files; see the pack's README. With only `builtin`
 installed, the daemon shows `bentwire-placeholder`
 (<img src="docs/gallery/bentwire-placeholder.png" height="24" alt="the placeholder character">,
-[docs/gallery/](docs/gallery/)). With `classics` installed, the default
-is `clippit`.
+[docs/gallery/](docs/gallery/)) and, once on its first start, tells you the install command.
+Until you choose a character yourself (`bentwire select` or Choose Assistant), the default
+follows what is installed: `clippit` when the classics are there, else the placeholder.
 
 <details>
 <summary>Where the daemon looks for characters</summary>

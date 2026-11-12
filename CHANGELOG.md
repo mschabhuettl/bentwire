@@ -13,6 +13,50 @@ D-Bus API (`org.bentwire.Agent1`) and the character format (`format = 1`) are fr
   source), `bentwire-bin` (the release binaries) and `bentwire-git` (`main`). They install
   the binaries, the placeholder character under `/usr/share/bentwire/characters/`, the D-Bus
   activation file and the systemd user unit (not enabled).
+- `bentwire characters install classics` downloads the latest bentwire-classics release,
+  checks it against its `sha256sums.txt` and installs it into
+  `~/.local/share/bentwire/characters/classics`. Run again, it updates; a git checkout there
+  is left alone.
+- On its first start with only the placeholder installed, the placeholder says once how to
+  get the classic characters.
+- `bentwire select` with an unknown id suggests close ids, and the install command when the
+  classics are missing.
+- Character names come with their product, for example "Clippit (Office 97)" and
+  "Merlin (Microsoft Agent 1.5)", the same in `bentwire characters`, Choose Assistant, the
+  tray menu and the classics gallery. A name is never empty (A-LABEL-1).
+- The converter can take a palette from a sibling character with the same pictures
+  (`palette-from` in the classics `options.txt`, A-CONV-7).
+
+### Changed
+
+- Characters installed while the daemon runs are found without a restart (`bentwire
+  characters`, `select`, Choose Assistant).
+- Until you choose a character (`select` or Choose Assistant's OK), the default follows what
+  is installed: `clippit` when the classics are there, else the placeholder. A choice is
+  kept. State files from 0.1.1 keep their character unless it is the placeholder.
+- Without a remembered position, the character first appears on the primary output (KDE
+  Plasma), else on the output the compositor picks for new surfaces, else on the leftmost
+  output.
+- Sound: the audio device is opened only while a sound plays, so PipeWire can suspend the
+  sink, and PipeWire's ALSA device is used when PipeWire runs.
+- CI uses `actions/checkout` v7 (v4 ran on the deprecated Node 20).
+
+### Fixed
+
+- Switching characters (`select`, Choose Assistant's Back and Next) keeps the character
+  standing on the same spot instead of keeping its top-left corner, so it no longer jumps.
+  The gallery balloon stays in place while it still fits next to the new character.
+- Dragging the character from one monitor to another on KDE Plasma no longer stalls and then
+  jumps ahead of the cursor: relative pointer motion held back by KWin's edge barrier is
+  ignored.
+- When the session bus goes away (logout), bentwired saves its state and exits instead of
+  running on; the tray no longer panics on exit ("all futures in select! were completed").
+- Sound recovers after PipeWire restarts or the audio device fails.
+- Without pipewire-alsa, bentwired no longer holds the sound card and so no longer silences
+  other programs.
+- A broken ALSA stream (after an underrun, suspend or device removal) no longer spins a CPU
+  core and floods the journal with "audio stream error" lines.
+- A stuck audio device can no longer delay bentwired's exit on SIGTERM.
 
 ## [0.1.1] - 2026-11-11
 
