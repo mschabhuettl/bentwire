@@ -91,7 +91,23 @@ icon needs a StatusNotifierItem host (Plasma's system tray).
 
 ### Arch Linux
 
-There is no package yet. Install the build dependencies and build from source as below:
+The PKGBUILDs for the AUR are in [`packaging/aur/`](packaging/aur/): `bentwire` (built from
+source), `bentwire-bin` (the release binaries) and `bentwire-git` (`main`). Until they are on
+the AUR, build and install one with makepkg:
+
+```sh
+git clone https://github.com/mschabhuettl/bentwire
+cd bentwire/packaging/aur/bentwire
+makepkg -si
+```
+
+The package installs the daemon, the CLI, the placeholder character and the D-Bus activation
+file, so `bentwire say hello` starts the daemon on demand. The optional systemd user unit is
+installed but not enabled. The classics pack is not packaged, because its repository grants
+no licence for Microsoft's files; install it as described [below](#the-classics-pack).
+
+To build from source without a package, install the build dependencies and follow the next
+section:
 
 ```sh
 sudo pacman -S --needed rust base-devel pkgconf wayland libxkbcommon alsa-lib git

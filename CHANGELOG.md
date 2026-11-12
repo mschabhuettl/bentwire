@@ -7,6 +7,13 @@ D-Bus API (`org.bentwire.Agent1`) and the character format (`format = 1`) are fr
 
 ## [Unreleased]
 
+### Added
+
+- Arch Linux packages in `packaging/aur/`: `bentwire` (from source), `bentwire-bin` (the
+  release binaries) and `bentwire-git` (`main`), each with its `.SRCINFO`. They install
+  the binaries, the placeholder character under `/usr/share/bentwire/characters/`, the D-Bus
+  activation file and the systemd user unit (not enabled).
+
 ## [0.1.1] - 2026-11-11
 
 A cleanup release: no new daemon features. The matching classics pack is
