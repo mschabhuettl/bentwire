@@ -7,6 +7,8 @@ D-Bus API (`org.bentwire.Agent1`) and the character format (`format = 1`) are fr
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-12
+
 ### Added
 
 - Arch Linux packages on the AUR, with the PKGBUILDs in `packaging/aur/`: `bentwire` (from
@@ -139,6 +141,7 @@ First release.
 - Configuration file `~/.config/bentwire/config.toml`, reloaded on `SIGHUP`.
 - Documentation: behaviour spec, format research, sources, credits, decisions, roadmap.
 
-[Unreleased]: https://github.com/mschabhuettl/bentwire/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/mschabhuettl/bentwire/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/mschabhuettl/bentwire/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/mschabhuettl/bentwire/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/mschabhuettl/bentwire/releases/tag/v0.1.0
