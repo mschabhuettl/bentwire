@@ -52,6 +52,11 @@ pub trait TextMetrics {
 /// Loads characters by id (the daemon reads files; tests return synthetic models).
 pub trait CharacterLoader {
     fn load(&mut self, id: &str) -> Result<Arc<CharacterModel>, String>;
+    /// B-CHAR-1 on use: discover the installed characters again. `None`: the catalog is
+    /// fixed (tests).
+    fn rescan(&mut self) -> Option<Vec<CatalogEntry>> {
+        None
+    }
 }
 
 /// An installed character as found by discovery (B-CHAR-1).
@@ -114,6 +119,8 @@ pub struct StateFile {
     pub left: i32,
     pub top: i32,
     pub visible: bool,
+    /// The user chose `character` (Select, gallery OK). If not, B-CHAR-4 skips step 1.
+    pub chosen: bool,
 }
 
 /// Locale environment for `language = "auto"` (B-L10N-1).
@@ -307,8 +314,11 @@ pub enum Event {
     Outputs(Vec<OutputInfo>),
     /// SIGHUP reload (B-CFG-1).
     Config(Config),
-    /// Rescanned characters.
+    /// Rescanned characters (SIGHUP). Without a chosen character the B-CHAR-4 default
+    /// applies at once.
     Catalog(Vec<CatalogEntry>),
+    /// B-CHAR-6: say the install hint in the balloon (an internal request).
+    InstallHint,
     /// The local hour changed (office97 daypart).
     LocalHour(u8),
     /// The audio device failed to play the current sound: completion does not wait for

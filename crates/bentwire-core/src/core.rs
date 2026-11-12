@@ -182,6 +182,8 @@ pub struct Core {
     locale: LocaleEnv,
     lang: Lang,
     state_file: Option<StateFile>,
+    /// The user chose the character (B-CHAR-4).
+    chosen: bool,
     catalog: Vec<CatalogEntry>,
     loader: Box<dyn CharacterLoader>,
     metrics: Box<dyn TextMetrics>,
@@ -245,6 +247,7 @@ impl Core {
             config: init.config,
             locale: init.locale,
             lang,
+            chosen: init.state.as_ref().is_some_and(|s| s.chosen),
             state_file: init.state,
             catalog,
             loader: init.loader,
@@ -284,7 +287,9 @@ impl Core {
         let ids: Vec<String> = self.catalog.iter().map(|c| c.id.clone()).collect();
         let st = self.state_file.clone();
         let cands = l10n::startup_candidates(
-            st.as_ref().map(|s| s.character.as_str()),
+            st.as_ref()
+                .filter(|s| s.chosen)
+                .map(|s| s.character.as_str()),
             self.config.character.as_deref(),
             &ids,
         );
@@ -342,10 +347,8 @@ impl Core {
                 self.lang = l10n::resolve_language(c.language, &self.locale);
                 self.config = c;
             }
-            Event::Catalog(mut c) => {
-                c.sort_by(|a, b| a.id.cmp(&b.id));
-                self.catalog = c;
-            }
+            Event::Catalog(c) => self.set_catalog(c, true),
+            Event::InstallHint => self.install_hint(),
             Event::LocalHour(h) => self.hour = h,
             Event::SoundFailed => {
                 if let Some(c) = &mut self.ch
@@ -523,6 +526,7 @@ impl Core {
             left: c.x,
             top: c.y,
             visible: c.visible,
+            chosen: self.chosen,
         })
     }
 
@@ -544,6 +548,7 @@ impl Core {
         let sender = Some(sender);
         match call {
             Call::ListCharacters => {
+                self.rescan(true);
                 let v = self
                     .catalog
                     .iter()
@@ -555,6 +560,7 @@ impl Core {
                 self.reply(token, Ok(ReplyValue::Characters(v)));
             }
             Call::Select(id) => {
+                self.rescan(false);
                 let id = id.to_ascii_lowercase();
                 if !self.catalog.iter().any(|c| c.id == id) {
                     return self.reply(
@@ -572,6 +578,7 @@ impl Core {
                         if self.gallery.is_some() {
                             self.close_gallery(false, false);
                         }
+                        self.chosen = true;
                         self.switch_to(m, false, false);
                     }
                 }
@@ -1588,6 +1595,7 @@ impl Core {
         {
             self.interrupt_running(errors::INTERRUPTED);
         }
+        self.rescan(false);
         let index = self.catalog.iter().position(|e| e.id == id).unwrap_or(0);
         self.gallery = Some(Gallery {
             original: id,
@@ -1684,6 +1692,7 @@ impl Core {
             }
             -27 => {
                 self.close_gallery(false, false);
+                self.chosen = true;
                 self.mark_dirty();
             }
             _ => self.close_gallery(true, false),
@@ -1704,6 +1713,67 @@ impl Core {
             && let Ok(m) = self.loader.load(&g.original)
         {
             self.switch_to(m, false, for_hide);
+        }
+    }
+
+    // ----- catalog -----
+
+    /// B-CHAR-1 on use (ListCharacters, Select, gallery). `default`: apply the B-CHAR-4
+    /// default afterwards.
+    fn rescan(&mut self, default: bool) {
+        if let Some(c) = self.loader.rescan() {
+            self.set_catalog(c, default);
+        }
+    }
+
+    /// A new catalog. An open gallery keeps its candidate by id. With `default` and no
+    /// chosen character, the B-CHAR-4 default replaces the current character (not while
+    /// the gallery is open).
+    fn set_catalog(&mut self, mut c: Vec<CatalogEntry>, default: bool) {
+        c.sort_by(|a, b| a.id.cmp(&b.id));
+        self.catalog = c;
+        if self.gallery.is_some() {
+            let cur = self.ch.as_ref().map(|c| c.model.id.clone());
+            let i = self
+                .catalog
+                .iter()
+                .position(|e| Some(&e.id) == cur.as_ref());
+            if let Some(g) = &mut self.gallery {
+                g.index = i.unwrap_or(0);
+            }
+            let model = self.gallery_model();
+            if let Some(a) = self.ask.as_mut().filter(|a| a.id == 0) {
+                a.model = model;
+            }
+            self.refresh_ask();
+        } else if default && !self.chosen {
+            self.apply_default();
+        }
+    }
+
+    /// B-CHAR-4 steps 2 to 4 for a running daemon whose user never chose a character.
+    fn apply_default(&mut self) {
+        let Some(cur) = self.ch.as_ref().map(|c| c.model.id.clone()) else {
+            return;
+        };
+        let ids: Vec<String> = self.catalog.iter().map(|c| c.id.clone()).collect();
+        for id in l10n::startup_candidates(None, self.config.character.as_deref(), &ids) {
+            if id == cur {
+                return;
+            }
+            if let Ok(m) = self.loader.load(&id) {
+                return self.switch_to(m, false, false);
+            }
+        }
+    }
+
+    /// B-CHAR-6: an internal Speak of the install hint.
+    fn install_hint(&mut self) {
+        if self.ch.is_none() {
+            return;
+        }
+        if let Ok(t) = speak::parse(l10n::install_hint(self.lang)) {
+            self.enqueue_internal(Kind::Speak(vec![t]));
         }
     }
 

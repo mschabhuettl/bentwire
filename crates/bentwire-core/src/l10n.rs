@@ -116,6 +116,14 @@ pub fn gallery_captions(lang: Lang) -> [&'static str; 4] {
     }
 }
 
+/// B-CHAR-6: the first-start hint when only the builtin pack is installed.
+pub fn install_hint(lang: Lang) -> &'static str {
+    match lang {
+        Lang::En => "Install more characters: bentwire characters install classics",
+        Lang::De => "Weitere Assistenten installieren: bentwire characters install classics",
+    }
+}
+
 fn primary(tag: &str) -> &str {
     tag.split(['-', '_']).next().unwrap_or("")
 }

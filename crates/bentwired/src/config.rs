@@ -89,9 +89,23 @@ pub struct State {
     pub left: Option<i32>,
     pub top: Option<i32>,
     pub visible: Option<bool>,
+    /// The user chose `character` (B-CHAR-4); absent in files of 0.1.1, see [`State::chosen`].
+    pub chosen: Option<bool>,
+    /// B-CHAR-6: the install hint was shown.
+    pub install_hint_shown: bool,
 }
 
+/// The builtin placeholder (A-CHAR-1).
+pub const PLACEHOLDER: &str = "bentwire-placeholder";
+
 impl State {
+    /// B-CFG-2 upgrade rule: a file without `chosen` (0.1.1) counts as chosen unless its
+    /// character is absent or the placeholder.
+    pub fn chosen(&self) -> bool {
+        self.chosen
+            .unwrap_or_else(|| self.character.as_deref().is_some_and(|c| c != PLACEHOLDER))
+    }
+
     pub fn load(path: &Path) -> State {
         std::fs::read_to_string(path)
             .ok()
@@ -183,9 +197,24 @@ pub(crate) mod tests {
             left: Some(-5),
             top: Some(7),
             visible: Some(true),
+            chosen: Some(false),
+            install_hint_shown: true,
         };
         s.save(&p).unwrap();
         assert_eq!(State::load(&p), s);
+        assert!(!s.chosen());
+    }
+
+    #[test]
+    fn b_cfg_2_b_char_4_chosen_upgrade_from_0_1_1() {
+        let st = |t: &str| -> State { toml::from_str(t).unwrap() };
+        // 0.1.1 wrote character, left, top and visible only.
+        assert!(st("character = \"merlin\"\nleft = 1\ntop = 2\nvisible = true").chosen());
+        assert!(!st("character = \"bentwire-placeholder\"\nleft = 1").chosen());
+        assert!(!st("").chosen());
+        assert!(!st("character = \"merlin\"\nchosen = false").chosen());
+        assert!(st("character = \"bentwire-placeholder\"\nchosen = true").chosen());
+        assert!(!st("").install_hint_shown);
     }
 
     pub(crate) fn tempdir() -> PathBuf {

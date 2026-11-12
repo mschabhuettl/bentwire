@@ -66,12 +66,16 @@ pub struct App {
     pub tray: Option<crate::tray::Tray>,
     pub fonts: Fonts,
     pub theme: Option<Theme>,
+    /// Where `theme` came from; a rescan that finds another one reloads it.
+    pub theme_dir: Option<PathBuf>,
     pub trace: Option<std::fs::File>,
     pub dump_frames: Option<PathBuf>,
     pub dump_seq: u64,
     pub roots_cli: Vec<PathBuf>,
     pub config_paths: Vec<PathBuf>,
     pub state_path: PathBuf,
+    /// B-CHAR-6 flag, kept in every state file written.
+    pub install_hint_shown: bool,
     pub next_token: u64,
     /// Calls waiting for the core's reply: the message and its trace record.
     pub pending: HashMap<u64, (Message, serde_json::Value)>,
@@ -418,6 +422,8 @@ impl App {
                         left: Some(s.left),
                         top: Some(s.top),
                         visible: Some(s.visible),
+                        chosen: Some(s.chosen),
+                        install_hint_shown: self.install_hint_shown,
                     };
                     if let Err(e) = st.save(&self.state_path) {
                         log::warn!("writing {}: {e}", self.state_path.display());
@@ -478,6 +484,13 @@ impl App {
             );
         }
         self.last_props = Some(p);
+        let dir = self.lib.borrow().theme.clone();
+        if dir != self.theme_dir {
+            self.theme = load_theme(dir.as_deref());
+            self.theme_dir = dir;
+            // Redraw the balloons with the new theme.
+            self.last_scene = None;
+        }
         let scene = self.core.scene();
         if self.last_scene.as_ref() == Some(&scene) {
             return;
@@ -565,12 +578,19 @@ impl App {
             Err(e) => log::warn!("config not reloaded: {e}"),
         }
         let roots = discovery::roots(&self.roots_cli, &self.config_paths);
-        let entries = discovery::discover(&roots);
-        log::info!("reloaded: {} characters", entries.len());
-        self.lib.borrow_mut().entries = entries;
+        self.lib.borrow_mut().roots = roots;
+        self.lib.borrow_mut().scan();
         let catalog = self.lib.borrow().catalog();
         self.event(Event::Catalog(catalog));
     }
+}
+
+/// A-THEME-1: the balloon theme in `dir`, if any loads.
+pub fn load_theme(dir: Option<&std::path::Path>) -> Option<Theme> {
+    let dir = dir?;
+    Theme::load(dir)
+        .map_err(|e| log::warn!("balloon theme {}: {}", dir.display(), e.0))
+        .ok()
 }
 
 fn call_method(c: &api::Call) -> &'static str {

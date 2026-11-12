@@ -99,8 +99,7 @@ fn run(args: args::Args) -> Result<(), String> {
     let state_path = config::state_path();
     let state = config::State::load(&state_path);
     let roots = discovery::roots(&args.characters, &config.character_paths);
-    let entries = discovery::discover(&roots);
-    log::info!("{} characters found", entries.len());
+    let lib: library::Shared = Rc::new(RefCell::new(library::Library::new(roots)));
 
     let conn = Connection::session().map_err(|e| format!("session bus: {e}"))?;
     let incoming = MessageIterator::from(&conn);
@@ -178,10 +177,6 @@ fn run(args: args::Args) -> Result<(), String> {
             Box::new(bentwire_core::draws::SplitMix64::new(seed))
         }
     };
-    let lib: library::Shared = Rc::new(RefCell::new(library::Library {
-        entries,
-        loaded: HashMap::new(),
-    }));
     let catalog = lib.borrow().catalog();
     let env = |k: &str| std::env::var(k).ok().filter(|v| !v.is_empty());
     let state_file = state.character.clone().map(|c| StateFile {
@@ -189,7 +184,13 @@ fn run(args: args::Args) -> Result<(), String> {
         left: state.left.unwrap_or(0),
         top: state.top.unwrap_or(0),
         visible: state.visible.unwrap_or(true),
+        chosen: state.chosen(),
     });
+    // B-CHAR-6: once, when only the builtin placeholder is installed and it starts visible.
+    let install_hint = !state.install_hint_shown
+        && !catalog.is_empty()
+        && catalog.iter().all(|c| c.id == config::PLACEHOLDER)
+        && state_file.as_ref().is_none_or(|s| s.visible);
     let headless = args.headless;
     // A-FONT-1: headless output must not depend on the machine's fonts.
     let fonts = || {
@@ -221,11 +222,8 @@ fn run(args: args::Args) -> Result<(), String> {
     if let Some(d) = &args.dump_frames {
         std::fs::create_dir_all(d).map_err(|e| format!("{}: {e}", d.display()))?;
     }
-    let theme = discovery::find_theme(&roots).and_then(|dir| {
-        bentwire_render::theme::Theme::load(&dir)
-            .map_err(|e| log::warn!("balloon theme {}: {}", dir.display(), e.0))
-            .ok()
-    });
+    let theme_dir = lib.borrow().theme.clone();
+    let theme = app::load_theme(theme_dir.as_deref());
     let mut app = App {
         core,
         lib,
@@ -265,12 +263,14 @@ fn run(args: args::Args) -> Result<(), String> {
         },
         fonts: fonts(),
         theme,
+        theme_dir,
         trace,
         dump_frames: args.dump_frames.clone(),
         dump_seq: 0,
         roots_cli: args.characters.clone(),
         config_paths: config.character_paths.clone(),
-        state_path,
+        state_path: state_path.clone(),
+        install_hint_shown: state.install_hint_shown || install_hint,
         next_token: 0,
         pending: HashMap::new(),
         last_scene: None,
@@ -284,6 +284,20 @@ fn run(args: args::Args) -> Result<(), String> {
     let now = app.clock.now();
     let out = app.core.start(now);
     app.process(out);
+    if install_hint {
+        log::info!(
+            "{}",
+            bentwire_core::l10n::install_hint(bentwire_core::api::Lang::En)
+        );
+        let st = config::State {
+            install_hint_shown: true,
+            ..state
+        };
+        if let Err(e) = st.save(&state_path) {
+            log::warn!("writing {}: {e}", state_path.display());
+        }
+        app.event(Event::InstallHint);
+    }
     if !headless {
         // B-O97-1 daypart: follow the local hour (the fake clock keeps the start hour).
         let mut hour = local_hour();

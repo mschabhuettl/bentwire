@@ -61,14 +61,36 @@ pub fn character(id: &str, ms: u32) -> CharacterModel {
     m
 }
 
-struct Loader(HashMap<String, Arc<CharacterModel>>);
+/// Synthetic characters. With `installed`, only those ids are installed: they load, and
+/// a rescan reports them (B-CHAR-1 on use).
+struct Loader(HashMap<String, Arc<CharacterModel>>, Option<Installed>);
+
+pub type Installed = std::rc::Rc<std::cell::RefCell<Vec<String>>>;
 
 impl CharacterLoader for Loader {
     fn load(&mut self, id: &str) -> Result<Arc<CharacterModel>, String> {
+        if let Some(i) = &self.1
+            && !i.borrow().iter().any(|x| x == id)
+        {
+            return Err(format!("{id} not installed"));
+        }
         self.0
             .get(id)
             .cloned()
             .ok_or_else(|| format!("cannot load {id}"))
+    }
+
+    fn rescan(&mut self) -> Option<Vec<CatalogEntry>> {
+        let i = self.1.as_ref()?.borrow();
+        Some(
+            i.iter()
+                .filter_map(|id| self.0.get(id))
+                .map(|c| CatalogEntry {
+                    id: c.id.clone(),
+                    info: c.info.clone(),
+                })
+                .collect(),
+        )
     }
 }
 
@@ -98,8 +120,36 @@ impl T {
         draws: Vec<u32>,
         config: Config,
     ) -> T {
+        Self::with_loader(chars, None, state, draws, config)
+    }
+
+    /// `chars` can be installed; `installed` is what is installed now (rescans see changes).
+    pub fn installed(
+        chars: Vec<CharacterModel>,
+        installed: &[&str],
+        state: Option<StateFile>,
+    ) -> (T, Installed) {
+        let i: Installed = std::rc::Rc::new(std::cell::RefCell::new(
+            installed.iter().map(|s| s.to_string()).collect(),
+        ));
+        let t = Self::with_loader(chars, Some(i.clone()), state, vec![], Config::default());
+        (t, i)
+    }
+
+    fn with_loader(
+        chars: Vec<CharacterModel>,
+        installed: Option<Installed>,
+        state: Option<StateFile>,
+        draws: Vec<u32>,
+        config: Config,
+    ) -> T {
         let catalog = chars
             .iter()
+            .filter(|c| {
+                installed
+                    .as_ref()
+                    .is_none_or(|i| i.borrow().contains(&c.id))
+            })
             .map(|c| CatalogEntry {
                 id: c.id.clone(),
                 info: c.info.clone(),
@@ -114,7 +164,7 @@ impl T {
             locale: LocaleEnv::default(),
             state,
             catalog,
-            loader: Box::new(Loader(map)),
+            loader: Box::new(Loader(map, installed)),
             metrics: Box::new(Fixed { cw: 7, lh: 13 }),
             draws: Box::new(ScriptedDraws::new(draws)),
             outputs: vec![output(1920, 1080)],
@@ -138,6 +188,7 @@ impl T {
             left: 500,
             top: 500,
             visible: true,
+            chosen: true,
         };
         let mut t = T::with(vec![m], Some(st), vec![]);
         t.run_until_idle_armed();
@@ -292,6 +343,7 @@ fn b_char_4_state_then_config_then_sorted() {
         left: 1,
         top: 2,
         visible: false,
+        chosen: true,
     };
     let t = T::with(
         vec![character("alpha", 1), character("beta", 1)],
@@ -321,6 +373,200 @@ fn b_char_4_state_then_config_then_sorted() {
     let e = t.call(Call::Play("Wave".into())).unwrap_err();
     assert_eq!(e.name, errors::NO_CHARACTER);
     assert_eq!(t.core.scene().tray.icon_character, None);
+}
+
+#[test]
+fn b_char_4_b_cfg_2_unchosen_state_keeps_position_only() {
+    // Not chosen (B-CFG-2): step 1 is skipped, position and visibility are kept.
+    let st = StateFile {
+        character: "bentwire-placeholder".into(),
+        left: 1,
+        top: 2,
+        visible: false,
+        chosen: false,
+    };
+    let t = T::with(
+        vec![
+            character("bentwire-placeholder", 1),
+            character("clippit", 1),
+        ],
+        Some(st),
+        vec![],
+    );
+    let p = t.core.properties();
+    assert_eq!(
+        (p.character.as_str(), p.left, p.top, p.visible),
+        ("clippit", 1, 2, false)
+    );
+}
+
+fn last_persist(t: &T) -> Option<StateFile> {
+    t.log.iter().rev().find_map(|(_, o)| match o {
+        Output::PersistState(s) => Some(s.clone()),
+        _ => None,
+    })
+}
+
+fn open_gallery(t: &mut T) {
+    let (x, y) = t.pos();
+    t.press(PointerKind::Press, Surface::Character, 2, x + 1, y + 1);
+    t.press(PointerKind::Release, Surface::Character, 2, x + 1, y + 1);
+    t.ev(Event::Menu(MenuInput::Activate(3)));
+    assert!(t.core.scene().office_balloon.is_some(), "gallery open");
+}
+
+fn key(t: &mut T, k: Key) {
+    t.ev(Event::Key {
+        key: k,
+        modifiers: 0,
+    });
+}
+
+#[test]
+fn b_char_4_b_cfg_2_chosen_by_select_and_gallery_ok() {
+    let chars = || {
+        vec![
+            character("a", 100),
+            character("b", 100),
+            character("c", 100),
+        ]
+    };
+    // Gallery Next then Cancel is no choice; Next then OK is.
+    let mut t = T::with(chars(), None, vec![]);
+    t.advance(1000);
+    open_gallery(&mut t);
+    key(&mut t, Key::Char('n'));
+    key(&mut t, Key::Escape);
+    t.advance(t.now + 2000);
+    assert_eq!(last_persist(&t).map(|s| s.chosen), Some(false));
+    open_gallery(&mut t);
+    key(&mut t, Key::Char('n'));
+    let ok = t.core.scene().office_balloon.unwrap().buttons[2].rect;
+    t.press(
+        PointerKind::Press,
+        Surface::OfficeBalloon,
+        1,
+        ok.x + 1,
+        ok.y + 1,
+    );
+    t.press(
+        PointerKind::Release,
+        Surface::OfficeBalloon,
+        1,
+        ok.x + 1,
+        ok.y + 1,
+    );
+    assert!(
+        t.core.scene().office_balloon.is_none(),
+        "OK closed the gallery"
+    );
+    t.advance(t.now + 2000);
+    let s = last_persist(&t).unwrap();
+    assert_eq!((s.character.as_str(), s.chosen), ("b", true));
+    // Select is a choice.
+    let mut t = T::with(chars(), None, vec![]);
+    t.advance(1000);
+    t.call(Call::Select("c".into())).unwrap();
+    t.advance(t.now + 2000);
+    let s = last_persist(&t).unwrap();
+    assert_eq!((s.character.as_str(), s.chosen), ("c", true));
+}
+
+#[test]
+fn b_char_1_rescan_on_use_and_b_char_4_default_when_not_chosen() {
+    let all = || {
+        vec![
+            character("bentwire-placeholder", 100),
+            character("clippit", 100),
+            character("merlin", 100),
+        ]
+    };
+    let ids = |t: &mut T| match t.call(Call::ListCharacters).unwrap() {
+        ReplyValue::Characters(v) => v.into_iter().map(|c| c.0).collect::<Vec<_>>(),
+        r => panic!("{r:?}"),
+    };
+    let (mut t, inst) = T::installed(all(), &["bentwire-placeholder"], None);
+    t.advance(1000);
+    assert_eq!(t.core.properties().character, "bentwire-placeholder");
+    // Installed while running: Select finds it without a restart, and it is a choice.
+    inst.borrow_mut().push("merlin".into());
+    t.call(Call::Select("merlin".into())).unwrap();
+    assert_eq!(t.core.properties().character, "merlin");
+    // Chosen: a rescan that brings clippit keeps the choice.
+    inst.borrow_mut().push("clippit".into());
+    assert_eq!(ids(&mut t), ["bentwire-placeholder", "clippit", "merlin"]);
+    assert_eq!(t.core.properties().character, "merlin");
+
+    // Never chosen: the rescan of ListCharacters switches to the default, clippit.
+    let (mut t, inst) = T::installed(all(), &["bentwire-placeholder"], None);
+    t.advance(1000);
+    let pos = t.pos();
+    inst.borrow_mut().push("clippit".into());
+    assert_eq!(ids(&mut t), ["bentwire-placeholder", "clippit"]);
+    assert_eq!(t.core.properties().character, "clippit");
+    assert_eq!(t.pos(), pos, "same size: same place");
+    t.advance(t.now + 2000);
+    assert_eq!(last_persist(&t).map(|s| s.chosen), Some(false));
+    // Removed again: back to the placeholder.
+    inst.borrow_mut().retain(|i| i != "clippit");
+    assert_eq!(ids(&mut t), ["bentwire-placeholder"]);
+    assert_eq!(t.core.properties().character, "bentwire-placeholder");
+    // The SIGHUP Catalog event applies the default too.
+    inst.borrow_mut().push("clippit".into());
+    t.ev(Event::Catalog(vec![
+        CatalogEntry {
+            id: "bentwire-placeholder".into(),
+            info: vec![],
+        },
+        CatalogEntry {
+            id: "clippit".into(),
+            info: vec![],
+        },
+    ]));
+    assert_eq!(t.core.properties().character, "clippit");
+
+    // The gallery rescans when it opens: the new character is a candidate (Next enabled).
+    let (mut t, inst) = T::installed(all(), &["bentwire-placeholder"], None);
+    t.advance(1000);
+    inst.borrow_mut().push("merlin".into());
+    open_gallery(&mut t);
+    assert_eq!(t.core.properties().character, "bentwire-placeholder");
+    let s = t.core.scene().office_balloon.unwrap();
+    assert_ne!(s.buttons[1].state, ControlState::Disabled);
+    key(&mut t, Key::Char('n'));
+    assert_eq!(t.core.properties().character, "merlin");
+    // A rescan while the gallery is open keeps the candidate and switches nothing.
+    inst.borrow_mut().push("clippit".into());
+    assert_eq!(ids(&mut t), ["bentwire-placeholder", "clippit", "merlin"]);
+    assert_eq!(t.core.properties().character, "merlin");
+    let s = t.core.scene().office_balloon.unwrap();
+    assert_eq!(s.buttons[1].state, ControlState::Disabled, "merlin is last");
+    assert_eq!(s.heading[0].runs[0].text, "Name");
+}
+
+#[test]
+fn b_char_6_install_hint_is_an_internal_speak() {
+    let mut t = T::visible(character("bentwire-placeholder", 0));
+    let now = t.now;
+    t.ev(Event::InstallHint);
+    let mut seen = String::new();
+    for _ in 0..300 {
+        t.advance(t.now + 100);
+        if let Some(b) = t.core.scene().agent_balloon {
+            seen = b.lines.join(" ");
+        }
+    }
+    assert!(
+        t.signals()
+            .iter()
+            .any(|(t, s)| *t >= now && *s == Signal::BalloonShown)
+    );
+    assert!(t.signals().iter().any(|(_, s)| *s == Signal::BalloonHidden));
+    assert_eq!(t.count(|s| matches!(s, Signal::RequestStart { .. })), 0);
+    assert!(
+        seen.ends_with("bentwire characters install classics"),
+        "{seen:?}"
+    );
 }
 
 #[test]
@@ -664,6 +910,7 @@ fn b_idle_t_r_idle_1_r_idle_2_r_idle_3_vector() {
         left: 0,
         top: 0,
         visible: true,
+        chosen: true,
     };
     let mut m = character("c", 1000);
     // Fast Show so the queue is empty at t = 0.
@@ -679,6 +926,7 @@ fn b_idle_t_r_idle_1_r_idle_2_r_idle_3_vector() {
             left: 0,
             top: 0,
             visible: true,
+            chosen: true,
         }),
         vec![],
     );
@@ -734,6 +982,7 @@ fn b_idle_t_r_idle_4_play_interrupts_idle() {
         left: 0,
         top: 0,
         visible: true,
+        chosen: true,
     };
     let mut t = T::with(vec![character_idle()], Some(st), vec![]);
     t.advance(9500);
@@ -767,6 +1016,7 @@ fn r_idle_4_idle_on_false_and_r_idle_1_conditions() {
         left: 0,
         top: 0,
         visible: true,
+        chosen: true,
     };
     let mut t = T::with(vec![character_idle()], Some(st), vec![]);
     t.advance(4500);
@@ -794,6 +1044,7 @@ fn r_idle_5_missing_level() {
         left: 0,
         top: 0,
         visible: true,
+        chosen: true,
     };
     let mut t = T::with(vec![m], Some(st), vec![]);
     // Level 1 missing at 4000: n becomes 1, re-armed (retry at 8000); n stays 1.
@@ -835,6 +1086,7 @@ fn b_idle_o_office97() {
         left: 0,
         top: 0,
         visible: true,
+        chosen: true,
     };
     // Draws: variant 0 (300 ms), then 1 (0 ms) repeatedly.
     let mut t = T::with(vec![m], Some(st), vec![0, 1, 1, 1, 1]);
@@ -861,6 +1113,7 @@ fn b_idle_o_office97() {
         left: 0,
         top: 0,
         visible: true,
+        chosen: true,
     };
     let mut t = T::with(vec![m], Some(st), vec![]);
     t.advance(0);
@@ -963,6 +1216,7 @@ fn r_speak_3_alternative_draw() {
         left: 500,
         top: 500,
         visible: true,
+        chosen: true,
     };
     let mut t = T::with(vec![m], Some(st), vec![0; 64]);
     t.run_until_idle_armed();
@@ -1351,6 +1605,7 @@ fn b_ask_7_matrix_autodown_and_switch() {
             left: 500,
             top: 500,
             visible: true,
+            chosen: true,
         }),
         vec![],
     );
@@ -1395,6 +1650,7 @@ fn b_char_5_switch() {
             left: 77,
             top: 88,
             visible: true,
+            chosen: true,
         }),
         vec![],
     );
@@ -1685,6 +1941,7 @@ fn b_menu_4_animate_shuffle() {
         left: 500,
         top: 500,
         visible: true,
+        chosen: true,
     };
     // Shuffle draws at load: list = [Greeting, Explain, Wave, Print] (resolution order
     // of ANIMATE_NAMES), Fisher-Yates with draws 0, 0, 0.
@@ -1721,6 +1978,7 @@ fn b_gal_1_gallery() {
             left: 500,
             top: 500,
             visible: true,
+            chosen: true,
         }),
         vec![],
     );
@@ -2032,6 +2290,7 @@ fn b_bal_2_font_choice() {
         left: 500,
         top: 500,
         visible: true,
+        chosen: true,
     };
     let mut t = T::with_config(vec![m], Some(st), vec![], cfg);
     t.advance(1000);
@@ -2134,6 +2393,7 @@ fn b_o97_4_play_group_picks_variant() {
         left: 0,
         top: 0,
         visible: true,
+        chosen: true,
     };
     let mut t = T::with(vec![m], Some(st), vec![]);
     t.core.set_draws(Box::new(ScriptedDraws::new([2])));
@@ -2244,6 +2504,7 @@ fn r_move_2_drag_cancel_keeps_output_and_emits_no_target_move() {
             left: 500,
             top: 500,
             visible: true,
+            chosen: true,
         }),
         vec![],
     );
@@ -2303,6 +2564,7 @@ fn b_gal_1_hide_closes_as_cancel() {
         left: 500,
         top: 500,
         visible: true,
+        chosen: true,
     };
     // User hide after Next: back to the original, which hides with cause 7.
     let mut t = T::with(
@@ -2401,6 +2663,7 @@ fn b_gal_1_running_ask_is_interrupted_when_gallery_opens() {
         left: 500,
         top: 500,
         visible: true,
+        chosen: true,
     };
     let mut t = T::with(
         vec![character("a", 100), character("b", 100)],
@@ -2490,6 +2753,7 @@ fn b_ui_4_user_hide_in_gallery_reports_hidden_by_user() {
         left: 500,
         top: 500,
         visible: true,
+        chosen: true,
     };
     let mut t = T::with(
         vec![character("a", 100), character("b", 100)],

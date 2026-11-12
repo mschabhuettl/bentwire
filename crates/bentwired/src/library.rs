@@ -8,6 +8,7 @@ use bentwire_core::model::{CharacterModel, InfoEntry};
 use bentwire_render::canvas::RgbaImage;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -15,11 +16,36 @@ use std::sync::Arc;
 pub struct Library {
     pub entries: Vec<Entry>,
     pub loaded: HashMap<String, Arc<Character>>,
+    /// Search roots (A-PACK-1), scanned again on use (B-CHAR-1).
+    pub roots: Vec<PathBuf>,
+    /// The A-THEME-1 balloon theme under the roots at the last scan.
+    pub theme: Option<PathBuf>,
 }
 
 pub type Shared = Rc<RefCell<Library>>;
 
 impl Library {
+    pub fn new(roots: Vec<PathBuf>) -> Library {
+        let mut lib = Library {
+            roots,
+            ..Default::default()
+        };
+        lib.scan();
+        lib
+    }
+
+    /// Discover the characters and the theme under the roots again.
+    pub fn scan(&mut self) {
+        let t = std::time::Instant::now();
+        let entries = crate::discovery::discover(&self.roots);
+        if entries.len() != self.entries.len() {
+            log::info!("{} characters found", entries.len());
+        }
+        log::debug!("scan: {} characters in {:?}", entries.len(), t.elapsed());
+        self.entries = entries;
+        self.theme = crate::discovery::find_theme(&self.roots);
+    }
+
     pub fn catalog(&self) -> Vec<CatalogEntry> {
         self.entries
             .iter()
@@ -61,6 +87,12 @@ impl CharacterLoader for Loader {
         let model = Arc::new(crate::model::model_from(id, &c));
         lib.loaded.insert(id.to_string(), Arc::new(c));
         Ok(model)
+    }
+
+    fn rescan(&mut self) -> Option<Vec<CatalogEntry>> {
+        let mut lib = self.0.borrow_mut();
+        lib.scan();
+        Some(lib.catalog())
     }
 }
 
@@ -107,12 +139,8 @@ mod tests {
     /// headless core, plays Showing (or the first animation) for a while and returns the
     /// number of characters and the failures.
     fn load_and_play_all(root: &Path) -> (usize, Vec<String>) {
-        let entries = crate::discovery::discover(&[root.to_path_buf()]);
-        let n = entries.len();
-        let lib: Shared = Rc::new(RefCell::new(Library {
-            entries,
-            loaded: HashMap::new(),
-        }));
+        let lib: Shared = Rc::new(RefCell::new(Library::new(vec![root.to_path_buf()])));
+        let n = lib.borrow().entries.len();
         let catalog = lib.borrow().catalog();
         let ids: Vec<String> = catalog.iter().map(|c| c.id.clone()).collect();
         let mut core = Core::new(CoreInit {
