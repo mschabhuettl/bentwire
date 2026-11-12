@@ -510,6 +510,8 @@ fn b_cfg_1_sighup_reloads_language() {
 #[test]
 fn a_char_1_only_builtin_installed() {
     let mut e = Env::new("builtin");
+    // The hint has its own test (b_char_6_install_hint_once_with_only_builtin).
+    e.seed_state("install_hint_shown = true\n");
     let builtin = repo().join("characters/builtin");
     assert!(
         builtin.join("pack.toml").is_file(),
@@ -768,6 +770,8 @@ fn b_ask_7_b_char_5_character_switch_closes_ask() {
 fn r_speak_1_builtin_placeholder_say_wait_completes() {
     // Only the builtin pack: its Speaking animation must end, or phase 1 never does.
     let mut e = Env::new("bisay");
+    // The balloon checked here is the say's, not the B-CHAR-6 hint's.
+    e.seed_state("install_hint_shown = true\n");
     let builtin = repo().join("characters/builtin");
     e.start_raw(&["--characters", builtin.to_str().unwrap()]);
     e.advance(3000);
@@ -1107,4 +1111,201 @@ fn spec_5_2_list_characters_with_nul_in_character_data() {
     assert_eq!(code, 0, "{se}");
     assert_eq!(so, "nully\tNully\t*\n");
     assert!(e.name_owned(), "daemon still on the bus");
+}
+
+/// B-CHAR-1 on use: characters installed while the daemon runs are listed and selectable
+/// without a restart; an unknown id gets close ids and the install command as hints.
+#[test]
+fn b_char_1_new_characters_without_restart_and_select_hints() {
+    let e = ready("rescan");
+    let user = e.dir.join("data/bentwire/characters");
+    copy_dir(&fixtures().join("pebble"), &user.join("quartz"));
+    let (code, so, se) = out(&e.cli(&["characters"]));
+    assert_eq!(code, 0, "{se}");
+    assert_eq!(so, "pebble\tPebble\t*\nquartz\tPebble\n");
+    let (code, _, se) = out(&e.cli(&["select", "quarz"]));
+    assert_eq!(code, 1);
+    assert_eq!(
+        se,
+        "org.bentwire.Error.NoSuchCharacter: no character \"quarz\"\n\
+         bentwire: did you mean quartz?\n\
+         bentwire: more characters: bentwire characters install classics\n"
+    );
+    // Select sees a character installed after the last listing.
+    copy_dir(&fixtures().join("pebble"), &user.join("slate"));
+    let (code, _, se) = out(&e.cli(&["select", "slate"]));
+    assert_eq!(code, 0, "{se}");
+    assert_eq!(e.character(), "slate");
+}
+
+/// A fake bentwire-classics release (no Microsoft data): `classics/` holds a pack.toml, the
+/// builtin placeholder under the id `clippit` and `marker` = `version`. Returns the
+/// `file://` base URL for BENTWIRE_CLASSICS_URL.
+fn fake_release(dir: &std::path::Path, version: &str) -> String {
+    let stage = dir.join(format!("stage-{version}"));
+    let pack = stage.join("classics");
+    copy_dir(
+        &repo().join("characters/builtin/bentwire-placeholder"),
+        &pack.join("clippit"),
+    );
+    std::fs::write(
+        pack.join("pack.toml"),
+        "name = \"classics\"\nlicence = \"CC0\"\n",
+    )
+    .unwrap();
+    std::fs::write(pack.join("marker"), version).unwrap();
+    let rel = dir.join(format!("release-{version}"));
+    std::fs::create_dir_all(&rel).unwrap();
+    let name = format!("bentwire-classics-{version}.tar.gz");
+    let st = std::process::Command::new("tar")
+        .arg("-czf")
+        .arg(rel.join(&name))
+        .arg("-C")
+        .arg(&stage)
+        .arg("classics")
+        .status()
+        .unwrap();
+    assert!(st.success());
+    let sum = std::process::Command::new("sha256sum")
+        .arg(&name)
+        .current_dir(&rel)
+        .output()
+        .unwrap();
+    std::fs::write(rel.join("sha256sums.txt"), sum.stdout).unwrap();
+    format!("file://{}", rel.display())
+}
+
+/// spec 5.5 `characters install classics`, B-CHAR-4 default: the running daemon picks the
+/// pack up and switches to clippit while the user never chose; a newer release replaces the
+/// copy; a bad checksum or a git checkout leaves the installed copy alone.
+#[test]
+fn spec_5_5_characters_install_classics() {
+    let mut e = Env::new("install");
+    e.seed_state("install_hint_shown = true\n");
+    let builtin = repo().join("characters/builtin");
+    e.start_raw(&["--characters", builtin.to_str().unwrap()]);
+    e.advance(3000);
+    assert_eq!(e.character(), "bentwire-placeholder");
+    let dest = e.dir.join("data/bentwire/characters/classics");
+    let url = fake_release(&e.dir, "9.9.1");
+    let install = |url: &str| {
+        out(&e.cli_env(
+            &["characters", "install", "classics"],
+            &[("BENTWIRE_CLASSICS_URL", url.to_string())],
+        ))
+    };
+    let (code, so, se) = install(&url);
+    assert_eq!(code, 0, "{se}");
+    assert_eq!(
+        so,
+        format!(
+            "installed bentwire-classics 9.9.1 in {}\nbentwired now has 2 characters\n",
+            dest.display()
+        )
+    );
+    assert_eq!(
+        std::fs::read_to_string(dest.join("marker")).unwrap(),
+        "9.9.1"
+    );
+    // Never chosen: the rescan made clippit the character, without a restart.
+    assert_eq!(e.character(), "clippit");
+    // A newer release replaces the old copy as a whole.
+    std::fs::write(dest.join("stale"), "x").unwrap();
+    let url2 = fake_release(&e.dir, "9.9.2");
+    let (code, _, se) = install(&url2);
+    assert_eq!(code, 0, "{se}");
+    assert_eq!(
+        std::fs::read_to_string(dest.join("marker")).unwrap(),
+        "9.9.2"
+    );
+    assert!(!dest.join("stale").exists());
+    let left: Vec<_> = std::fs::read_dir(dest.parent().unwrap())
+        .unwrap()
+        .map(|d| d.unwrap().file_name().into_string().unwrap())
+        .collect();
+    assert_eq!(left, ["classics"], "no temp directory left");
+    // A wrong checksum fails and keeps the installed copy.
+    let rel3 = url2.trim_start_matches("file://").to_string();
+    std::fs::write(
+        format!("{rel3}/sha256sums.txt"),
+        format!("{}  bentwire-classics-9.9.2.tar.gz\n", "0".repeat(64)),
+    )
+    .unwrap();
+    let (code, _, se) = install(&url2);
+    assert_eq!(code, 1);
+    assert!(se.contains("SHA-256 does not match"), "{se}");
+    assert_eq!(
+        std::fs::read_to_string(dest.join("marker")).unwrap(),
+        "9.9.2"
+    );
+    // Unreachable source: fails, copy kept.
+    let (code, _, se) = install(&format!("file://{}/missing", e.dir.display()));
+    assert_eq!(code, 1);
+    assert!(se.contains("downloading"), "{se}");
+    assert!(dest.join("pack.toml").is_file());
+    // A git checkout is left alone.
+    std::fs::create_dir(dest.join(".git")).unwrap();
+    let (code, _, se) = install(&url);
+    assert_eq!(code, 0, "{se}");
+    assert!(se.contains("left alone"), "{se}");
+    assert_eq!(
+        std::fs::read_to_string(dest.join("marker")).unwrap(),
+        "9.9.2"
+    );
+}
+
+/// B-CHAR-6: with only the builtin placeholder, the first start says how to get the
+/// classics, once (the flag is in the state file), and an explicit choice is kept.
+#[test]
+fn b_char_6_install_hint_once_with_only_builtin() {
+    let mut e = Env::new("hint");
+    let builtin = repo().join("characters/builtin");
+    e.start_raw(&["--characters", builtin.to_str().unwrap()]);
+    let mut seen = String::new();
+    for _ in 0..100 {
+        e.advance(100);
+        if let Some(l) = e.snapshot()["agent_balloon_lines"].as_array() {
+            seen = l
+                .iter()
+                .map(|x| x.as_str().unwrap())
+                .collect::<Vec<_>>()
+                .join(" ");
+        }
+    }
+    assert!(
+        seen.ends_with("bentwire characters install classics"),
+        "{seen:?}"
+    );
+    assert!(
+        e.state().contains("install_hint_shown = true"),
+        "{}",
+        e.state()
+    );
+    let c = e.client();
+    c.call_unit(AGENT, AGENT_IF, "Quit", &()).unwrap();
+    assert_eq!(e.wait_exit(10), Some(0));
+    let st = e.state();
+    assert!(
+        st.contains("install_hint_shown = true") && st.contains("chosen = false"),
+        "{st}"
+    );
+    // Second start: no hint.
+    e.start_raw(&["--characters", builtin.to_str().unwrap()]);
+    for _ in 0..100 {
+        e.advance(100);
+        assert!(
+            e.snapshot()["agent_balloon_lines"].is_null(),
+            "hint shown twice"
+        );
+    }
+    // Not shown when other characters are installed.
+    let mut e = Env::new("hint2");
+    e.start(&["--characters", builtin.to_str().unwrap()]);
+    for _ in 0..50 {
+        e.advance(100);
+        assert!(
+            e.snapshot()["agent_balloon_lines"].is_null(),
+            "hint with pebble"
+        );
+    }
 }

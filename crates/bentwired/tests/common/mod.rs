@@ -210,6 +210,30 @@ impl Env {
         c.output().expect("bentwire")
     }
 
+    /// The CLI with extra environment variables.
+    pub fn cli_env(&self, args: &[&str], extra: &[(&str, String)]) -> Output {
+        let mut c = Command::new(cli_bin());
+        c.args(args);
+        for (k, v) in self.envs() {
+            c.env(k, v);
+        }
+        for (k, v) in extra {
+            c.env(k, v);
+        }
+        c.output().expect("bentwire")
+    }
+
+    /// Write the state file (B-CFG-2) before the daemon starts.
+    pub fn seed_state(&self, text: &str) {
+        let d = self.dir.join("state/bentwire");
+        std::fs::create_dir_all(&d).unwrap();
+        std::fs::write(d.join("state.toml"), text).unwrap();
+    }
+
+    pub fn state(&self) -> String {
+        std::fs::read_to_string(self.dir.join("state/bentwire/state.toml")).unwrap_or_default()
+    }
+
     /// Run the CLI in the background (for --wait and ask).
     pub fn cli_bg(&self, args: &[&str]) -> Child {
         let mut c = Command::new(cli_bin());
@@ -308,6 +332,19 @@ impl Env {
                 return None;
             }
             std::thread::sleep(Duration::from_millis(20));
+        }
+    }
+}
+
+pub fn copy_dir(from: &Path, to: &Path) {
+    std::fs::create_dir_all(to).unwrap();
+    for e in std::fs::read_dir(from).unwrap() {
+        let p = e.unwrap().path();
+        let dst = to.join(p.file_name().unwrap());
+        if p.is_dir() {
+            copy_dir(&p, &dst);
+        } else {
+            std::fs::copy(&p, &dst).unwrap();
         }
     }
 }

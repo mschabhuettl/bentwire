@@ -1,7 +1,8 @@
 //! `bentwire`: command line client of bentwired (spec 5.5).
 
 use std::collections::HashMap;
-use std::process::ExitCode;
+use std::path::{Path, PathBuf};
+use std::process::{Command, ExitCode};
 use zbus::blocking::{Connection, MessageIterator};
 use zbus::message::Type;
 use zbus::zvariant::{OwnedValue, Value};
@@ -35,6 +36,7 @@ usage: bentwire <command> [args]
   hide [--fast] [--wait]
   stop [<id>] [--all]
   characters
+  characters install classics
   select <id>
   animations
   status
@@ -431,6 +433,16 @@ fn run(args: &[String]) -> Result<(), Fail> {
                 c.call::<_, ()>(CHAR_PATH, CHAR_IFACE, "Stop", &(id,))
             }
         }
+        "characters" if rest.first().is_some_and(|a| a == "install") => {
+            Opts::parse(&rest[1..], &[], &[])?.npos(1, "a pack name (classics)")?;
+            if rest[1] != "classics" {
+                return Err(Fail::Usage(format!(
+                    "unknown pack {:?} (only classics can be installed)",
+                    rest[1]
+                )));
+            }
+            install_classics()
+        }
         "characters" => {
             Opts::parse(rest, &[], &[])?.npos(0, "no arguments")?;
             let c = Client::new(false)?;
@@ -450,12 +462,27 @@ fn run(args: &[String]) -> Result<(), Fail> {
         "select" => {
             let o = Opts::parse(rest, &[], &[])?;
             o.npos(1, "a character id")?;
-            Client::new(false)?.call::<_, ()>(
-                AGENT_PATH,
-                AGENT_IFACE,
-                "Select",
-                &(o.positional[0].as_str(),),
-            )
+            let c = Client::new(false)?;
+            let id = o.positional[0].as_str();
+            match c.call::<_, ()>(AGENT_PATH, AGENT_IFACE, "Select", &(id,)) {
+                Err(Fail::Dbus(name, msg)) if name == "org.bentwire.Error.NoSuchCharacter" => {
+                    let list: Vec<String> = c
+                        .call::<_, (Vec<(String, String, String)>,)>(
+                            AGENT_PATH,
+                            AGENT_IFACE,
+                            "ListCharacters",
+                            &(),
+                        )
+                        .map(|(l,)| l.into_iter().map(|e| e.0).collect())
+                        .unwrap_or_default();
+                    let hints: String = select_hints(id, &list)
+                        .iter()
+                        .map(|h| format!("\nbentwire: {h}"))
+                        .collect();
+                    Err(Fail::Dbus(name, msg + &hints))
+                }
+                r => r,
+            }
         }
         "animations" => {
             Opts::parse(rest, &[], &[])?.npos(0, "no arguments")?;
@@ -513,6 +540,208 @@ fn run(args: &[String]) -> Result<(), Fail> {
     }
 }
 
+/// Edit distance (insert, delete, substitute) between two ids.
+fn distance(a: &str, b: &str) -> usize {
+    let b: Vec<char> = b.chars().collect();
+    let mut row: Vec<usize> = (0..=b.len()).collect();
+    for (i, ca) in a.chars().enumerate() {
+        let mut prev = row[0];
+        row[0] = i + 1;
+        for (j, cb) in b.iter().enumerate() {
+            let cur = row[j + 1];
+            row[j + 1] = (prev + usize::from(ca != *cb)).min(row[j] + 1).min(cur + 1);
+            prev = cur;
+        }
+    }
+    row[b.len()]
+}
+
+/// `select` with an unknown id: up to three close ids (edit distance 2 or less, or the id
+/// with a suffix such as `-15`), and the install command when the classics pack (which
+/// holds `clippit`) is not installed.
+fn select_hints(id: &str, installed: &[String]) -> Vec<String> {
+    let id = id.to_ascii_lowercase();
+    let mut close: Vec<(usize, &String)> = installed
+        .iter()
+        .map(|i| (distance(&id, i), i))
+        .filter(|(d, i)| *d <= 2 || i.starts_with(&format!("{id}-")))
+        .collect();
+    close.sort();
+    let close: Vec<&str> = close.iter().take(3).map(|(_, i)| i.as_str()).collect();
+    let mut v = Vec::new();
+    if !close.is_empty() {
+        v.push(format!("did you mean {}?", close.join(", ")));
+    }
+    if !installed.iter().any(|i| i == "clippit") {
+        v.push("more characters: bentwire characters install classics".into());
+    }
+    v
+}
+
+/// Where `characters install` puts packs: `$XDG_DATA_HOME/bentwire/characters` (A-PACK-1).
+fn characters_dir() -> PathBuf {
+    let data = match std::env::var_os("XDG_DATA_HOME") {
+        Some(v) if Path::new(&v).is_absolute() => PathBuf::from(v),
+        _ => PathBuf::from(std::env::var_os("HOME").unwrap_or_else(|| "/".into()))
+            .join(".local/share"),
+    };
+    data.join("bentwire/characters")
+}
+
+/// Release assets of bentwire-classics; `BENTWIRE_CLASSICS_URL` replaces it (tests).
+const CLASSICS_URL: &str =
+    "https://github.com/mschabhuettl/bentwire-classics/releases/latest/download";
+
+fn fail(m: impl Into<String>) -> Fail {
+    Fail::Exit(1, Some(m.into()))
+}
+
+fn run_tool(cmd: &mut Command) -> Result<(), Fail> {
+    let what = format!("{:?}", cmd.get_program());
+    match cmd.status() {
+        Ok(s) if s.success() => Ok(()),
+        Ok(s) => Err(fail(format!("{what} failed ({s})"))),
+        Err(e) => Err(fail(format!("cannot run {what}: {e}"))),
+    }
+}
+
+fn download(url: &str, to: &Path) -> Result<(), Fail> {
+    use std::io::IsTerminal;
+    let mut c = Command::new("curl");
+    c.args(["-fL", "--proto", "=https,file", "--retry", "2", "-o"])
+        .arg(to);
+    if std::io::stderr().is_terminal() {
+        c.arg("--progress-bar");
+    } else {
+        c.arg("-sS");
+    }
+    run_tool(c.arg(url)).map_err(|_| fail(format!("downloading {url} failed")))
+}
+
+fn sha256_hex(p: &Path) -> Result<String, Fail> {
+    use sha2::{Digest, Sha256};
+    let mut f = std::fs::File::open(p).map_err(|e| fail(format!("{}: {e}", p.display())))?;
+    let mut h = Sha256::new();
+    std::io::copy(&mut f, &mut h).map_err(|e| fail(format!("{}: {e}", p.display())))?;
+    Ok(h.finalize().iter().map(|b| format!("{b:02x}")).collect())
+}
+
+/// `characters install classics`: the latest bentwire-classics release, checked against
+/// its `sha256sums.txt`, unpacked next to the destination and renamed into place. A git
+/// checkout or a symlink at the destination is left alone. A running daemon is told to
+/// rescan (it lists its characters).
+fn install_classics() -> Result<(), Fail> {
+    let dir = characters_dir();
+    let dest = dir.join("classics");
+    if dest.join(".git").exists() || dest.is_symlink() {
+        eprintln!(
+            "bentwire: {} is a git checkout or a link; left alone (update it there)",
+            dest.display()
+        );
+        return Ok(());
+    }
+    std::fs::create_dir_all(&dir).map_err(|e| fail(format!("{}: {e}", dir.display())))?;
+    let tmp = dir.join(format!(".classics-install-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&tmp);
+    std::fs::create_dir(&tmp).map_err(|e| fail(format!("{}: {e}", tmp.display())))?;
+    let r = install_into(&tmp, &dest);
+    let _ = std::fs::remove_dir_all(&tmp);
+    let version = r?;
+    outln!(
+        "installed bentwire-classics {version} in {}",
+        dest.display()
+    );
+    // A running daemon rescans when it lists its characters; none is started for this.
+    let running = |c: &Client| {
+        c.conn
+            .call_method(
+                Some("org.freedesktop.DBus"),
+                "/org/freedesktop/DBus",
+                Some("org.freedesktop.DBus"),
+                "NameHasOwner",
+                &(BUS_NAME,),
+            )
+            .is_ok_and(|m| m.body().deserialize::<bool>().unwrap_or(false))
+    };
+    if let Ok(c) = Client::new(false)
+        && running(&c)
+        && let Ok((list,)) = c.call::<_, (Vec<(String, String, String)>,)>(
+            AGENT_PATH,
+            AGENT_IFACE,
+            "ListCharacters",
+            &(),
+        )
+    {
+        outln!("bentwired now has {} characters", list.len());
+    }
+    Ok(())
+}
+
+/// Download, check and unpack into `tmp`, then swap `tmp/unpack/classics` into `dest`.
+/// Returns the release version.
+fn install_into(tmp: &Path, dest: &Path) -> Result<String, Fail> {
+    let base = std::env::var("BENTWIRE_CLASSICS_URL").unwrap_or_else(|_| CLASSICS_URL.into());
+    let base = base.trim_end_matches('/');
+    let sums = tmp.join("sha256sums.txt");
+    download(&format!("{base}/sha256sums.txt"), &sums)?;
+    let text = std::fs::read_to_string(&sums).map_err(|e| fail(format!("sha256sums.txt: {e}")))?;
+    let (hash, name) = text
+        .lines()
+        .filter_map(|l| l.split_once(char::is_whitespace))
+        .map(|(h, n)| (h.to_ascii_lowercase(), n.trim().trim_start_matches('*')))
+        .find(|(_, n)| {
+            n.starts_with("bentwire-classics-") && n.ends_with(".tar.gz") && !n.contains('/')
+        })
+        .ok_or_else(|| fail("sha256sums.txt names no bentwire-classics-*.tar.gz"))?;
+    let version = name["bentwire-classics-".len()..name.len() - ".tar.gz".len()].to_string();
+    let archive = tmp.join(name);
+    download(&format!("{base}/{name}"), &archive)?;
+    if sha256_hex(&archive)? != hash {
+        return Err(fail(format!(
+            "{name}: SHA-256 does not match sha256sums.txt"
+        )));
+    }
+    let list = Command::new("tar")
+        .arg("-tzf")
+        .arg(&archive)
+        .output()
+        .map_err(|e| fail(format!("cannot run tar: {e}")))?;
+    let names = String::from_utf8_lossy(&list.stdout);
+    if !list.status.success()
+        || names.lines().any(|n| {
+            !(n == "classics/" || n.starts_with("classics/")) || n.split('/').any(|c| c == "..")
+        })
+    {
+        return Err(fail(format!("{name}: not a classics pack archive")));
+    }
+    let unpack = tmp.join("unpack");
+    std::fs::create_dir(&unpack).map_err(|e| fail(format!("{}: {e}", unpack.display())))?;
+    run_tool(
+        Command::new("tar")
+            .arg("-xzf")
+            .arg(&archive)
+            .arg("-C")
+            .arg(&unpack)
+            .arg("--no-same-owner"),
+    )?;
+    let new = unpack.join("classics");
+    if !new.join("pack.toml").is_file() {
+        return Err(fail(format!("{name}: no classics/pack.toml")));
+    }
+    let old = tmp.join("old");
+    let had_old = dest.symlink_metadata().is_ok();
+    if had_old {
+        std::fs::rename(dest, &old).map_err(|e| fail(format!("{}: {e}", dest.display())))?;
+    }
+    if let Err(e) = std::fs::rename(&new, dest) {
+        if had_old {
+            let _ = std::fs::rename(&old, dest);
+        }
+        return Err(fail(format!("{}: {e}", dest.display())));
+    }
+    Ok(version)
+}
+
 /// Local conversion (character-format 10); a `.bwc` destination writes a ZIP.
 fn convert(o: &Opts) -> Result<(), Fail> {
     let opts = bentwire_convert::ConvertOptions {
@@ -552,6 +781,31 @@ fn main() -> ExitCode {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn spec_5_5_select_hints() {
+        let ids: Vec<String> = ["bentwire-placeholder", "merlin", "merlin-15", "genie"]
+            .map(String::from)
+            .to_vec();
+        assert_eq!(distance("merln", "merlin"), 1);
+        assert_eq!(distance("", "abc"), 3);
+        assert_eq!(distance("kitten", "sitting"), 3);
+        assert_eq!(
+            select_hints("Merln", &ids),
+            [
+                "did you mean merlin?",
+                "more characters: bentwire characters install classics"
+            ]
+        );
+        assert_eq!(
+            select_hints("merlin", &ids)[0],
+            "did you mean merlin, merlin-15?"
+        );
+        let mut with = ids.clone();
+        with.push("clippit".into());
+        assert_eq!(select_hints("clippy", &with), ["did you mean clippit?"]);
+        assert!(select_hints("zzzzzz", &with).is_empty());
+    }
 
     #[test]
     fn b_l10n_2_b_ask_2_result_names() {
