@@ -3,8 +3,8 @@
 //! the pose `office97.rest_pose`), else the last frame of the first Showing member, else an
 //! empty picture of the display size. Writes `OUTDIR/<id>.png` per character file (`<id>.bwc`
 //! or a `<id>/` folder with `character.toml`) in PACKDIR. Output is deterministic.
-//! Prints one line per character: id, English name, product and display label (A-LABEL-1),
-//! tab-separated (product empty when there is none), for scripts/gallery-table.py.
+//! Prints one JSON object per line and character: id, English name, product (null when there
+//! is none) and display label (A-LABEL-1), for scripts/gallery-table.py.
 //! usage: gallery PACKDIR OUTDIR
 
 #[allow(dead_code)]
@@ -87,6 +87,7 @@ fn main() {
             .and_then(|f| f.as_str());
         let (name, product) = name_and_product(id, &names, format, &pack);
         let l = label(&name, product.as_deref());
-        println!("{id}\t{name}\t{}\t{l}", product.unwrap_or_default());
+        let line = serde_json::json!({"id": id, "name": name, "product": product, "label": l});
+        println!("{line}");
     }
 }

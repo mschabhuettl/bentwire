@@ -10,10 +10,10 @@ export PATH="$HOME/.cargo/bin:$PATH"
 cd "$(dirname "$0")/.."
 cargo build --release -q -p bentwired --example gallery
 gallery=${CARGO_TARGET_DIR:-target}/release/examples/gallery
-run() { # pack dir, output dir; prints the labels (id, name, product, label per line)
+run() { # pack dir, output dir; prints the labels (JSON lines: id, name, product, label)
   mkdir -p "$2"
   find "$2" -maxdepth 1 -name '*.png' -delete
-  "$gallery" "$1" "$2"
+  "$gallery" "$1" "$2" || exit # also inside $(...), where set -e does not apply
   echo "$2: $(find "$2" -maxdepth 1 -name '*.png' | wc -l) images" >&2
 }
 run characters/builtin docs/gallery > /dev/null

@@ -4,12 +4,13 @@
 
 usage: gallery PACKDIR OUTDIR | gallery-table.py PACKDIR README
 
-Reads the lines of bentwired's gallery example (id, name, product, label; tab-separated),
+Reads the lines of bentwired's gallery example (JSON objects with id, name, product, label),
 so names and labels are the daemon's (A-LABEL-1). One cell per character: rest-pose image
 gallery/<id>.png, name, id, family and product; the alt text is the label. Rows are ordered
 by product as listed in PACKDIR/pack.toml `products` (products not listed come last), then
 id, five cells per row.
 """
+import json
 import sys
 import tomllib
 import zipfile
@@ -37,10 +38,8 @@ def main():
     order = tomllib.loads((pack / "pack.toml").read_text()).get("products", [])
     chars = []
     for line in sys.stdin.read().splitlines():
-        cid, name, product, label = line.split("\t")
-        chars.append(
-            {"id": cid, "name": name, "product": product, "label": label, "family": family(pack, cid)}
-        )
+        c = json.loads(line)
+        chars.append({**c, "product": c["product"] or "", "family": family(pack, c["id"])})
     rank = {p: i for i, p in enumerate(order)}
     chars.sort(key=lambda c: (rank.get(c["product"], len(order)), c["product"], c["id"]))
     assert len({c["label"] for c in chars}) == len(chars), "labels are not unique"
