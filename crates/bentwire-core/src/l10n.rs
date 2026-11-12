@@ -116,6 +116,14 @@ pub fn gallery_captions(lang: Lang) -> [&'static str; 4] {
     }
 }
 
+/// B-CHAR-6: the first-start hint when only the builtin pack is installed.
+pub fn install_hint(lang: Lang) -> &'static str {
+    match lang {
+        Lang::En => "Install more characters: bentwire characters install classics",
+        Lang::De => "Weitere Assistenten installieren: bentwire characters install classics",
+    }
+}
+
 fn primary(tag: &str) -> &str {
     tag.split(['-', '_']).next().unwrap_or("")
 }
@@ -152,15 +160,18 @@ pub fn display_names(info: &[InfoEntry], lang: Lang) -> (String, String) {
     )
 }
 
-/// B-CHAR-4: candidate ids in order (state file, config, `clippit`, sorted first).
-/// The caller tries to load each in turn.
+/// B-CHAR-4: candidate ids in order (state file, config, `clippit`, the builtin
+/// placeholder, sorted first). The caller tries to load each in turn.
 pub fn startup_candidates(
     state: Option<&str>,
     config: Option<&str>,
     sorted_ids: &[String],
 ) -> Vec<String> {
     let mut v: Vec<String> = Vec::new();
-    for c in [state, config, Some("clippit")].into_iter().flatten() {
+    for c in [state, config, Some("clippit"), Some("bentwire-placeholder")]
+        .into_iter()
+        .flatten()
+    {
         let c = c.to_ascii_lowercase();
         if sorted_ids.contains(&c) && !v.contains(&c) {
             v.push(c);
@@ -298,6 +309,21 @@ mod tests {
         assert_eq!(
             startup_candidates(None, None, &ids2),
             vec!["bentwire-placeholder"]
+        );
+        // Step 4 comes before the sorted first: another pack does not replace it.
+        let ids3: Vec<String> = ["al", "bentwire-placeholder", "zed"]
+            .map(String::from)
+            .to_vec();
+        assert_eq!(
+            startup_candidates(None, None, &ids3),
+            vec!["bentwire-placeholder", "al"]
+        );
+        let ids4: Vec<String> = ["al", "bentwire-placeholder", "clippit"]
+            .map(String::from)
+            .to_vec();
+        assert_eq!(
+            startup_candidates(None, None, &ids4),
+            vec!["clippit", "bentwire-placeholder", "al"]
         );
         assert!(startup_candidates(None, None, &[]).is_empty());
     }

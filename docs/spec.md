@@ -151,6 +151,11 @@ clock. Timer resolution is 1 ms.
   have the same id, the first one found wins.
 - Entries that fail the cheap check are skipped with a log line. The cheap check is: the
   manifest parses, `format = 1`, and `family` is known.
+- Discovery runs at start, on SIGHUP, and again before `ListCharacters`, `Select` and the
+  opening of the gallery (B-GAL-1), so characters installed while the daemon runs are found
+  without a restart. An entry whose manifest file (`character.toml` or the `.bwc`) keeps
+  its modification time and size is not read again. **bentwire decision.** Reason: simpler
+  than watching the directories, and these are the only places that use the list.
 
 **B-CHAR-2 Loading.**
 - Loading follows character-format 4 to 7. An unknown `format` major or `family` is
@@ -168,19 +173,42 @@ tags:
 4. otherwise an empty string.
 
 **B-CHAR-4 Startup selection.** The character is the first of these that loads:
-1. the state file's character;
+1. the state file's character, if the user chose it (`chosen`, B-CFG-2);
 2. the config file's `character`;
 3. `clippit`;
-4. the first id in sorted order.
+4. `bentwire-placeholder`;
+5. the first id in sorted order.
 
 If none loads, the daemon still runs and the tray shows no character. Character methods
 then fail with `org.bentwire.Error.NoCharacter`.
+
+The user chooses a character with `Select` or with OK in the gallery (B-GAL-1). While the
+user never chose one, steps 2 to 5 also apply to a running daemon after the rescan of
+`ListCharacters` and after SIGHUP: if they give another character, it replaces the current
+one as in B-CHAR-5 (an open client ask closes with `CharacterChanged`). Not while the
+gallery is open; `Select` and the gallery rescan without it. A daemon that has no
+character yet selects one this way as at start (B-CFG-3). **bentwire decision.**
+Reason: installing the classics pack (5.5 `characters install`) should make `clippit` the
+character without a restart, but never override a choice.
+
+**B-CHAR-6 Install hint.** **bentwire decision.** When `bentwire-placeholder` is the only
+installed character and it starts visible, the daemon logs and the character says once
+(an internal Speak, no request signals) "Install more characters: bentwire characters
+install classics" (German: "Weitere Assistenten installieren: bentwire characters install
+classics", B-L10N-1). The state file records that it was shown (B-CFG-2). Reason: a
+package installs only the placeholder; the classics need the user's own download.
 
 **B-CHAR-5 Switching (`Select`, gallery).**
 1. Every queued, running or in-progress request of the old character ends with status 3
    and the reason `org.bentwire.Error.CharacterChanged`. An open client ask balloon
    closes (AskComplete result 0). The gallery balloon is the exception (B-GAL-1).
-2. The new character takes the old top-left position.
+2. The new character stands where the old one stood: the anchor of a character is the
+   bottom centre of the opaque bounding box of its rest picture (B-SHOW-3), or of its
+   frame if that picture is empty; the new character's anchor is placed on the old one's
+   (centre rounded down), then its frame is pulled inside the old character's output as in
+   B-WL-4 (right and bottom edges first). The switch emits no `Move`. **bentwire
+   decision.** Reason: characters differ in size and in where they stand in their frame;
+   keeping the top-left made them jump.
 3. If the old character was visible, the new one is shown with an animated Show
    (cause 4).
 4. The switch is persisted (B-CFG-2).
@@ -1079,23 +1107,29 @@ belongs to the original menu.
   - custom buttons `<&Back`, `&Next>`, `OK`, `Cancel`. German: `<&Zurück`, `&Weiter>`.
     Both verbatim: Back and Next from the MSOINTL 10.0.2609 (1033/1031) Assistant dialog
     template (type 221, id 12), OK and Cancel from OBALLOON 112, 113.
-- Candidates are the installed characters in id order. Back and Next are disabled at the
-  ends.
+- Candidates are the installed characters in id order, discovered again when the gallery
+  opens (B-CHAR-1). Back and Next are disabled at the ends.
 - Back and Next switch the live character (B-CHAR-5) and queue Play `Wave` (B-FB-1) as
   the preview.
 - Exceptions to the general Ask rules, which apply only to the gallery balloon:
   - Back and Next do not close the balloon (unlike B-ASK-2);
   - disabled buttons are drawn in the disabled state and ignore clicks and mnemonics;
   - the balloon survives the gallery's own character switches (unlike B-CHAR-5 and
-    B-ASK-7) and is re-anchored to the new character;
+    B-ASK-7). It stays where it is (sized for the new text, it keeps its corner next to
+    the tail) while it still fits next to the new character: its window is inside the
+    output, its body does not cover the opaque box of the new character's rest picture,
+    it overlaps the new frame along the other axis, and its tail side is at most 16 px
+    (the tail length) farther from the frame than a new placement would put it.
+    Otherwise it is placed again (B-OB-3, B-OB-4);
   - it is not a client request: no request id and no signals other than `Shown`,
     `Hidden`, `Move` and the balloon signals.
 - Opening the gallery while a client ask is open first closes that ask with result 0,
   status 3, `Interrupted`. While the gallery is open, client Speak and Ask wait as in
   B-ASK-7 (modal).
-- OK keeps and persists the choice. Cancel or Esc switches back to the character that was
-  shown when the gallery opened. If the user hides the character, the gallery closes as
-  Cancel.
+- OK keeps and persists the choice (B-CHAR-4 `chosen`). Cancel or Esc switches back to the
+  character that was shown when the gallery opened, by the same anchor (B-CHAR-5), so it
+  returns to its old place unless a switch was pulled inside the output. If the user hides
+  the character, the gallery closes as Cancel.
 - Reason: Office's gallery previewed Wave and then IdlingLevel1 in a dialog. The live
   character is the closest preview available without a dialog toolkit.
 
@@ -1357,6 +1391,9 @@ The daemon reads the config file at start and when it receives SIGHUP.
 
 **B-CFG-2 State file.** `$XDG_STATE_HOME/bentwire/state.toml`:
 - `character`, `left`, `top`, `visible`;
+- `chosen`: the user chose `character` (B-CHAR-4). A file without it (written by 0.1.1)
+  counts as chosen unless `character` is absent or `bentwire-placeholder`;
+- `install_hint_shown`: B-CHAR-6 was shown (default false);
 - written at most once per second after a change, and at exit.
 
 **B-CFG-3 First run.** **bentwire decision.**
@@ -1390,8 +1427,8 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   `-15`, `-97`, `-bob`, `-act`). Reason: several sources carry the same character name.
 - **A-PACK-2** `classics` holds a source iff it converts and `source.missing_animations`
   is empty. Reason: D8 "only complete characters", decided in code, not by list.
-- **A-CHAR-1** With only `builtin` installed, B-CHAR-4 step 4 selects
-  `bentwire-placeholder`.
+- **A-CHAR-1** With only `builtin` installed, B-CHAR-4 selects `bentwire-placeholder`
+  (step 4, also before characters of other packs that sort first).
 - **A-THEME-1** The Office balloon theme is pack data with a generic loader; the
   look-alike of B-OB-1 is the fallback.
 - **A-TEST-1** Real-data tests use `BENTWIRE_SOURCES` (the original files, found by name
@@ -1669,6 +1706,9 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   `AddOutput(s WxH+X+Y[@scale]) -> u id`, `RemoveOutput(u id)`. `Snapshot() -> s` exists in
   headless mode too; on Wayland it adds `backend`, what the backend actually requested
   (configure acked, margins, buffer attached, keyboard interactivity, balloons, menu).
+  The character surface has `opaque`, the bounding box of the drawn picture's alpha
+  shape, and the snapshot has `rest_opaque`, that box for the rest picture (B-SHOW-3) at
+  the current position (B-CHAR-5), both in global coordinates or null.
   Reason: the spec names the members but not their arguments.
 - **A-DESK-4 Headless trace format (T-4).** One JSON object per line, each with `t` (fake
   ms): compositor requests as `{"req": "layer_surface" | "keyboard_interactivity" |
@@ -1870,7 +1910,8 @@ activation. If that also fails, it prints `bentwired is not running` and exits 1
 | `hide [--fast] [--wait]` | `Hide` | request id |
 | `stop [<id>] [--all]` | `Stop(id or 0)`, `--all` = `StopAll([])` | nothing |
 | `characters` | `ListCharacters` | `id<TAB>name` per line, current marked with `*` |
-| `select <id>` | `Select` | nothing |
+| `characters install classics` | local, then `ListCharacters` if the daemon runs | `installed bentwire-classics <version> in <dir>`, then `bentwired now has <n> characters` |
+| `select <id>` | `Select` | nothing; for `NoSuchCharacter`, hint lines on stderr |
 | `animations` | `AnimationNames` | one per line |
 | `status` | properties | `character`, `visible`, `left`, `top`, `idle` as `key=value` lines |
 | `quit` | `Quit` | nothing |
@@ -1883,6 +1924,27 @@ Exit status:
 - 3 interrupted, or `ask` result `none`.
 
 `--wait` blocks until `RequestComplete` for the printed id.
+
+**B-CLI-1 `characters install classics`.** **bentwire decision.**
+- Downloads `sha256sums.txt` and the `bentwire-classics-<version>.tar.gz` it names from
+  the latest release of the bentwire-classics repository with `curl`
+  (`BENTWIRE_CLASSICS_URL` replaces the base URL
+  `https://github.com/mschabhuettl/bentwire-classics/releases/latest/download`), and
+  checks the SHA-256.
+- Unpacks the archive (top-level `classics/` only) with `tar` into a temporary directory
+  in `$XDG_DATA_HOME/bentwire/characters/`, then renames `classics/` into place,
+  replacing an older copy as a whole. A git checkout or a symbolic link at
+  `characters/classics` is left alone with a message. Any failure leaves the installed
+  copy unchanged and exits 1.
+- If the daemon runs (it is not started for this), the CLI lists its characters, which
+  makes it rescan (B-CHAR-1) and apply B-CHAR-4.
+- Reason: the classics are Microsoft data and cannot be packaged; `curl` and `tar` are in
+  every base system, so no HTTP or TLS library is needed.
+
+**B-CLI-2 `select` hints.** For `NoSuchCharacter` the CLI prints, after the error, up to
+three installed ids within edit distance 2 or that extend the id with `-`
+(`did you mean merlin, merlin-15?`), and, when `clippit` is not installed,
+`more characters: bentwire characters install classics`. **bentwire decision.**
 
 ## 6. Test strategy
 

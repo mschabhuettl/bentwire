@@ -138,8 +138,9 @@ balloon_font = "Tahoma"
 EOF
     # Always start hidden: with visible = true the daemon starts the Show itself and
     # `show --wait` would return before it ends.
-    printf 'character = "%s"\nleft = %d\ntop = %d\nvisible = false\n' "$1" "${4:-$X}" "${5:-$Y}" \
-        >"$XDG_STATE_HOME/bentwire/state.toml"
+    # No first-start install hint (B-CHAR-6) in the pictures.
+    printf 'character = "%s"\nleft = %d\ntop = %d\nvisible = false\ninstall_hint_shown = true\n' \
+        "$1" "${4:-$X}" "${5:-$Y}" >"$XDG_STATE_HOME/bentwire/state.toml"
     XDG_CONFIG_HOME=$T/home/bwcfg frozen "$BIN/bentwired" --seed 1 --test-interface --no-audio \
         "${ROOTS[@]}" >>"$T/bentwired.log" 2>&1 &
     BW=$!

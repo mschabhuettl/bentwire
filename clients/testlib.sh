@@ -49,6 +49,9 @@ EOF
 
 bw_start_daemon() {
     BW_TRACE=$BW_DIR/trace.jsonl
+    # Only builtin is installed: no first-start install hint (B-CHAR-6) in front of the calls.
+    mkdir -p "$XDG_STATE_HOME/bentwire"
+    echo 'install_hint_shown = true' >"$XDG_STATE_HOME/bentwire/state.toml"
     "$BW_BIN/bentwired" --headless --no-audio --characters "$BW_REPO/characters/builtin" \
         --trace "$BW_TRACE" >"$BW_DIR/daemon.log" 2>&1 &
     BW_PID=$!

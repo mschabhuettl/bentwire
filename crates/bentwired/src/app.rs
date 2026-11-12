@@ -5,7 +5,7 @@
 use crate::config::{self, State};
 use crate::dbus::{self, Call, TestCall};
 use crate::discovery;
-use crate::library::Shared;
+use crate::library::{self, Shared};
 use crate::present::{self, Hit, Rendered};
 use bentwire_core::Core;
 use bentwire_core::api::{
@@ -66,12 +66,16 @@ pub struct App {
     pub tray: Option<crate::tray::Tray>,
     pub fonts: Fonts,
     pub theme: Option<Theme>,
+    /// Where `theme` came from; a rescan that finds another one reloads it.
+    pub theme_dir: Option<PathBuf>,
     pub trace: Option<std::fs::File>,
     pub dump_frames: Option<PathBuf>,
     pub dump_seq: u64,
     pub roots_cli: Vec<PathBuf>,
     pub config_paths: Vec<PathBuf>,
     pub state_path: PathBuf,
+    /// B-CHAR-6 flag, kept in every state file written.
+    pub install_hint_shown: bool,
     pub next_token: u64,
     /// Calls waiting for the core's reply: the message and its trace record.
     pub pending: HashMap<u64, (Message, serde_json::Value)>,
@@ -290,9 +294,19 @@ impl App {
         let rect = |q: api::Rect| json!({"x": q.x, "y": q.y, "w": q.w, "h": q.h});
         let mut surfaces = Vec::new();
         if let Some(c) = &r.character {
+            // Bounding box of the input region, the alpha > 0 shape (B-PIX-3), on screen.
+            let i = &c.buf.input;
+            let opaque = (!i.is_empty()).then(|| {
+                let x0 = i.iter().map(|q| q.x).min().unwrap_or(0);
+                let y0 = i.iter().map(|q| q.y).min().unwrap_or(0);
+                let x1 = i.iter().map(|q| q.x + q.w).max().unwrap_or(0);
+                let y1 = i.iter().map(|q| q.y + q.h).max().unwrap_or(0);
+                rect(api::Rect::new(c.x + x0, c.y + y0, x1 - x0, y1 - y0))
+            });
             surfaces.push(
                 json!({"kind": "character", "x": c.x, "y": c.y, "w": c.buf.w,
-                "h": c.buf.h, "mapped": true, "output": c.output, "buffer_scale": c.buf.scale}),
+                "h": c.buf.h, "mapped": true, "output": c.output, "buffer_scale": c.buf.scale,
+                "opaque": opaque}),
             );
         }
         for b in r.balloons.iter().flatten() {
@@ -335,11 +349,28 @@ impl App {
                 .collect::<Vec<_>>()
         });
         let p = self.core.properties();
+        // B-CHAR-5: the opaque box of the rest picture at the current position, through the
+        // renderer's alpha shape (B-PIX-3).
+        let rest_opaque = library::rest_picture(&self.lib.borrow(), &p.character).and_then(|pic| {
+            let b = bentwire_render::picture::picture_buffer(&pic, pic.width, pic.height, 1);
+            let i = &b.input_region;
+            let x0 = i.iter().map(|q| q.x).min()?;
+            let y0 = i.iter().map(|q| q.y).min()?;
+            let x1 = i.iter().map(|q| q.x + q.w).max()?;
+            let y1 = i.iter().map(|q| q.y + q.h).max()?;
+            Some(rect(api::Rect::new(
+                p.left + x0,
+                p.top + y0,
+                x1 - x0,
+                y1 - y0,
+            )))
+        });
         json!({
             "character": p.character,
             "visible": p.visible,
             "left": p.left,
             "top": p.top,
+            "rest_opaque": rest_opaque,
             "keyboard_interactivity": if r.keyboard { "on_demand" } else { "none" },
             "surfaces": surfaces,
             "office_balloon": office,
@@ -418,6 +449,8 @@ impl App {
                         left: Some(s.left),
                         top: Some(s.top),
                         visible: Some(s.visible),
+                        chosen: Some(s.chosen),
+                        install_hint_shown: self.install_hint_shown,
                     };
                     if let Err(e) = st.save(&self.state_path) {
                         log::warn!("writing {}: {e}", self.state_path.display());
@@ -478,6 +511,13 @@ impl App {
             );
         }
         self.last_props = Some(p);
+        let dir = self.lib.borrow().theme.clone();
+        if dir != self.theme_dir {
+            self.theme = load_theme(dir.as_deref());
+            self.theme_dir = dir;
+            // Redraw the balloons with the new theme.
+            self.last_scene = None;
+        }
         let scene = self.core.scene();
         if self.last_scene.as_ref() == Some(&scene) {
             return;
@@ -565,12 +605,19 @@ impl App {
             Err(e) => log::warn!("config not reloaded: {e}"),
         }
         let roots = discovery::roots(&self.roots_cli, &self.config_paths);
-        let entries = discovery::discover(&roots);
-        log::info!("reloaded: {} characters", entries.len());
-        self.lib.borrow_mut().entries = entries;
+        self.lib.borrow_mut().roots = roots;
+        self.lib.borrow_mut().scan();
         let catalog = self.lib.borrow().catalog();
         self.event(Event::Catalog(catalog));
     }
+}
+
+/// A-THEME-1: the balloon theme in `dir`, if any loads.
+pub fn load_theme(dir: Option<&std::path::Path>) -> Option<Theme> {
+    let dir = dir?;
+    Theme::load(dir)
+        .map_err(|e| log::warn!("balloon theme {}: {}", dir.display(), e.0))
+        .ok()
 }
 
 fn call_method(c: &api::Call) -> &'static str {

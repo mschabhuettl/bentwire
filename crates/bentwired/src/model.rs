@@ -72,6 +72,37 @@ fn mouth_anchor(
     p
 }
 
+/// Opaque bounding box `(x0, y0, x1, y1)` of a straight-RGBA image, `None` if empty.
+pub fn opaque_box(w: u32, h: u32, data: &[u8]) -> Option<(i32, i32, i32, i32)> {
+    let (mut x0, mut y0, mut x1, mut y1) = (i32::MAX, i32::MAX, i32::MIN, i32::MIN);
+    for y in 0..h {
+        for x in 0..w {
+            if data[((y * w + x) * 4 + 3) as usize] > 0 {
+                x0 = x0.min(x as i32);
+                y0 = y0.min(y as i32);
+                x1 = x1.max(x as i32 + 1);
+                y1 = y1.max(y as i32 + 1);
+            }
+        }
+    }
+    (x0 < x1).then_some((x0, y0, x1, y1))
+}
+
+/// The opaque box of the rest picture (B-SHOW-3) at display size, for the B-CHAR-5 anchor.
+fn rest_box(c: &Character, m: &CharacterModel) -> Option<(i32, i32, i32, i32)> {
+    use bentwire_core::player::{Pic, rest_picture};
+    let img = match rest_picture(m) {
+        Pic::Empty => None,
+        Pic::Frame(a, f) => c
+            .manifest
+            .animation(&m.animations[a].name)
+            .and_then(|a| a.frames.get(f))
+            .map(|f| c.compose_frame(f, None, 1)),
+        Pic::Pose(p) => c.manifest.poses.get(&p).map(|l| c.compose(l, 1)),
+    }?;
+    opaque_box(img.width, img.height, &img.data)
+}
+
 pub fn model_from(id: &str, c: &Character) -> CharacterModel {
     let m = &c.manifest;
     let family = match m.family {
@@ -140,7 +171,7 @@ pub fn model_from(id: &str, c: &Character) -> CharacterModel {
             available: c.is_available(&a.name),
         })
         .collect();
-    CharacterModel {
+    let mut model = CharacterModel {
         id: id.to_string(),
         family,
         canvas: (canvas[0], canvas[1]),
@@ -180,12 +211,34 @@ pub fn model_from(id: &str, c: &Character) -> CharacterModel {
             idle: o.idle.clone(),
             transitions: o.transitions.clone(),
         }),
-    }
+        rest_box: None,
+    };
+    model.rest_box = rest_box(c, &model);
+    model
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn b_char_5_rest_box_of_the_placeholder() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../characters/builtin/bentwire-placeholder");
+        let c = Character::load(&dir).unwrap();
+        let m = model_from("p", &c);
+        let (x0, y0, x1, y1) = m.rest_box.expect("opaque rest picture");
+        let (w, h) = (m.display.0 as i32, m.display.1 as i32);
+        assert!(0 <= x0 && x0 < x1 && x1 <= w && 0 <= y0 && y0 < y1 && y1 <= h);
+        assert_eq!(
+            opaque_box(2, 2, &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+            None
+        );
+        assert_eq!(
+            opaque_box(2, 2, &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9]),
+            Some((1, 1, 2, 2))
+        );
+    }
 
     #[test]
     fn r_bal_1_balloon_defaults_and_colours() {

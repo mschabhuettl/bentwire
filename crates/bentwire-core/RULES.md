@@ -22,20 +22,23 @@ B-BAL-2 | b_bal_2_font_choice (family, config override, px = |font_height|); TM 
 B-BAL-3 | b_bal_3_anchor_is_lowest_mouth_point, b_bal_3_r_bal_4_r_bal_5_vectors
 B-BAL-4 | b_bal_4_mouth_point_from_bbox
 B-CFG-1 | b_cfg_1_defaults (struct and defaults); file parsing and SIGHUP in bentwired || other crates: bentwired: b_cfg_1_defaults_and_parse, b_cfg_1_sighup_reloads_language
-B-CFG-2 | b_cfg_2_b_run_1_persist_throttle_and_quit || other crates: bentwired: b_cfg_2_state_round_trip
+B-CFG-2 | b_cfg_2_b_run_1_persist_throttle_and_quit, b_char_4_b_cfg_2_unchosen_state_keeps_position_only, b_char_4_b_cfg_2_chosen_by_select_and_gallery_ok || other crates: bentwired: b_cfg_2_state_round_trip, b_cfg_2_b_char_4_chosen_upgrade_from_0_1_1
 B-CFG-3 | b_cfg_3_first_run_and_b_char_4
-B-CHAR-1 | not testable in core: discovery is file I/O; owner: bentwired (discovery) || other crates: bentwired: b_char_1_a_pack_1_discovery
+B-CHAR-1 | b_char_1_rescan_on_use_and_b_char_4_default_when_not_chosen (rescans through the loader); discovery itself is file I/O, owner: bentwired (discovery) || other crates: bentwired: b_char_1_a_pack_1_discovery, b_char_1_new_characters_without_restart_and_select_hints
 B-CHAR-2 | b_fb_1_b_char_2_play_errors_and_unavailable (unavailable animation fails AnimationUnavailable), r_state_1_uniform_member_and_r_state_2 (unavailable members skipped); decoding failures detected by the loader in bentwire-character/bentwired
 B-CHAR-3 | b_char_3_display_names
-B-CHAR-4 | b_cfg_3_first_run_and_b_char_4, b_char_4_state_then_config_then_sorted, b_char_4_startup_order
-B-CHAR-5 | b_char_5_switch, b_char_5_invalid_character || other crates: bentwired: b_ask_7_b_char_5_character_switch_closes_ask
+B-CHAR-4 | b_cfg_3_first_run_and_b_char_4, b_char_4_state_then_config_then_sorted, b_char_4_startup_order, b_char_4_b_cfg_2_unchosen_state_keeps_position_only, b_char_4_b_cfg_2_chosen_by_select_and_gallery_ok, b_char_1_rescan_on_use_and_b_char_4_default_when_not_chosen, b_char_4_rescan_installs_a_character_when_none_loaded || other crates: bentwired: spec_5_5_characters_install_classics
+B-CHAR-5 | b_char_5_switch, b_char_5_invalid_character, b_char_5_new_character_keeps_the_bottom_centre, b_char_5_foot_and_stand_at || other crates: bentwired: b_ask_7_b_char_5_character_switch_closes_ask, b_char_5_rest_box_of_the_placeholder, library_gallery_walk_keeps_the_bottom_centre (real data)
+B-CHAR-6 | b_char_6_install_hint_is_an_internal_speak; the start condition and the flag are the daemon's || other crates: bentwired: b_char_6_install_hint_once_with_only_builtin
+B-CLI-1 | not testable in core: the CLI (crates/bentwire) || other crates: bentwired: spec_5_5_characters_install_classics
+B-CLI-2 | not testable in core: the CLI (crates/bentwire) || other crates: bentwire: spec_5_5_select_hints; bentwired: b_char_1_new_characters_without_restart_and_select_hints
 B-CORE-1 | structural: the crate has no I/O; every engine test runs it with fake clock and draws
 B-CORE-2 | b_core_2_draw_sources
 B-CORE-3 | structural: all timers come from Core::next_deadline/tick on the caller's clock; every engine test uses the fake clock (core_tests::T::advance)
 B-FAM-1 | structural: family dispatch in player.rs; per-row tests: b_seq_a_*, b_o97_*, b_sw_a_*, b_sw_o_*, b_idle_t_*, b_idle_o_office97, b_fb_1_b_o97_5_*
 B-FB-1 | b_fb_1_b_char_2_play_errors_and_unavailable, b_fb_1_b_o97_5_alias_and_office97_groups, b_fb_1_error_lists_chain
 B-FB-2 | b_fb_2_rover_like, b_fb_2_courtney_earl_merlin_qmark_like, b_fb_2_office_names_resolve_to_themselves || other crates: bentwired: b_fb_2_table_on_converted_acs
-B-GAL-1 | b_gal_1_gallery, b_gal_1_hide_closes_as_cancel, b_gal_1_running_ask_is_interrupted_when_gallery_opens || other crates: bentwired: b_gal_1_gallery_next_cancel_and_ok
+B-GAL-1 | b_gal_1_gallery, b_gal_1_hide_closes_as_cancel, b_gal_1_running_ask_is_interrupted_when_gallery_opens, b_gal_1_balloon_stays_while_it_fits_next_to_the_new_character || other crates: bentwired: b_gal_1_gallery_next_cancel_and_ok, library_gallery_walk_keeps_the_bottom_centre (real data)
 B-IDLE-O | b_idle_o_office97
 B-IDLE-T | b_idle_t_r_idle_1_r_idle_2_r_idle_3_vector, b_idle_t_r_idle_4_play_interrupts_idle
 B-L10N-1 | b_l10n_1_language

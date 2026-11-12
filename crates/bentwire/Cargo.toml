@@ -9,4 +9,5 @@ publish = false
 [dependencies]
 bentwire-convert.workspace = true
 serde.workspace = true
+sha2.workspace = true
 zbus = "5"

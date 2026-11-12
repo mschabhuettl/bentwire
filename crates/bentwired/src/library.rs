@@ -9,6 +9,7 @@ use bentwire_core::model::{CharacterModel, InfoEntry};
 use bentwire_render::canvas::RgbaImage;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -16,11 +17,39 @@ use std::sync::Arc;
 pub struct Library {
     pub entries: Vec<Entry>,
     pub loaded: HashMap<String, Arc<Character>>,
+    /// The core's models of the loaded characters (Test1.Snapshot `rest_opaque`).
+    pub models: HashMap<String, Arc<CharacterModel>>,
+    /// Search roots (A-PACK-1), scanned again on use (B-CHAR-1).
+    pub roots: Vec<PathBuf>,
+    /// The A-THEME-1 balloon theme under the roots at the last scan.
+    pub theme: Option<PathBuf>,
+    pub cache: crate::discovery::Cache,
 }
 
 pub type Shared = Rc<RefCell<Library>>;
 
 impl Library {
+    pub fn new(roots: Vec<PathBuf>) -> Library {
+        let mut lib = Library {
+            roots,
+            ..Default::default()
+        };
+        lib.scan();
+        lib
+    }
+
+    /// Discover the characters and the theme under the roots again.
+    pub fn scan(&mut self) {
+        let t = std::time::Instant::now();
+        let entries = crate::discovery::discover_cached(&self.roots, &mut self.cache);
+        if entries.len() != self.entries.len() {
+            log::info!("{} characters found", entries.len());
+        }
+        log::debug!("scan: {} characters in {:?}", entries.len(), t.elapsed());
+        self.entries = entries;
+        self.theme = crate::discovery::find_theme(&self.roots);
+    }
+
     /// Names are display labels (A-LABEL-1).
     pub fn catalog(&self) -> Vec<CatalogEntry> {
         self.entries
@@ -72,8 +101,31 @@ impl CharacterLoader for Loader {
         }
         let model = Arc::new(crate::model::model_from(id, &c));
         lib.loaded.insert(id.to_string(), Arc::new(c));
+        lib.models.insert(id.to_string(), model.clone());
         Ok(model)
     }
+
+    fn rescan(&mut self) -> Option<Vec<CatalogEntry>> {
+        let mut lib = self.0.borrow_mut();
+        lib.scan();
+        Some(lib.catalog())
+    }
+}
+
+/// The rest picture (B-SHOW-3) of a loaded character, as the renderer draws it.
+pub fn rest_picture(lib: &Library, id: &str) -> Option<RgbaImage> {
+    use bentwire_core::player::{Pic, rest_picture};
+    let m = lib.models.get(id)?;
+    let p = match rest_picture(m) {
+        Pic::Empty => Picture::Empty,
+        Pic::Frame(a, f) => Picture::Frame {
+            animation: m.animations[a].name.clone(),
+            frame: f,
+            mouth: None,
+        },
+        Pic::Pose(p) => Picture::Pose(p),
+    };
+    Some(picture(lib.get(id)?, &p, 1))
 }
 
 /// The composed character picture at `density` times the display size, straight RGBA.
@@ -119,12 +171,8 @@ mod tests {
     /// headless core, plays Showing (or the first animation) for a while and returns the
     /// number of characters and the failures.
     fn load_and_play_all(root: &Path) -> (usize, Vec<String>) {
-        let entries = crate::discovery::discover(&[root.to_path_buf()]);
-        let n = entries.len();
-        let lib: Shared = Rc::new(RefCell::new(Library {
-            entries,
-            loaded: HashMap::new(),
-        }));
+        let lib: Shared = Rc::new(RefCell::new(Library::new(vec![root.to_path_buf()])));
+        let n = lib.borrow().entries.len();
         let catalog = lib.borrow().catalog();
         let ids: Vec<String> = catalog.iter().map(|c| c.id.clone()).collect();
         let mut core = Core::new(CoreInit {
@@ -282,10 +330,7 @@ mod tests {
         let Some(dir) = std::env::var_os("BENTWIRE_PACKS") else {
             panic!("NOT RUN: set BENTWIRE_PACKS to a characters/ directory with packs");
         };
-        let lib = Library {
-            entries: crate::discovery::discover(&[PathBuf::from(dir)]),
-            loaded: HashMap::new(),
-        };
+        let lib = Library::new(vec![PathBuf::from(dir)]);
         let catalog = lib.catalog();
         assert!(!catalog.is_empty(), "no characters found");
         for lang in [Lang::En, Lang::De] {

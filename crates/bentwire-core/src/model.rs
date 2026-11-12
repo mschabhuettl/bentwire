@@ -168,6 +168,10 @@ pub struct CharacterModel {
     pub animations: Vec<Animation>,
     pub sounds: Vec<Sound>,
     pub office97: Option<Office97>,
+    /// Opaque bounding box `(x0, y0, x1, y1)` (exclusive right/bottom) of the rest picture
+    /// (B-SHOW-3, [`crate::player::rest_picture`]) in display coordinates, computed by the
+    /// adapter; `None` if it is empty or unknown. See [`crate::geometry::foot`].
+    pub rest_box: Option<(i32, i32, i32, i32)>,
 }
 
 impl CharacterModel {
@@ -188,6 +192,7 @@ impl CharacterModel {
             } else {
                 None
             },
+            rest_box: None,
         }
     }
 
