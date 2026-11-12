@@ -1071,13 +1071,14 @@ impl PointerHandler for WlState {
 
 /// B-WL-7: pointer position during an implicit grab. The press position and the sum of
 /// relative-pointer deltas since the press are kept apart from the last reported position,
-/// so absolute motion never feeds into the relative sum (the protocol does not order
-/// wl_pointer.motion and relative_motion).
+/// so absolute motion never feeds into the relative sum.
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct GrabPos {
     press: (f64, f64),
-    /// Sum of relative deltas; `None` until the first relative event of the grab.
+    /// Sum of relative deltas; `None` until the first counted relative event of the grab.
     delta: Option<(f64, f64)>,
+    /// The last relative delta, counted only when a wl_pointer.motion follows in its frame.
+    pending: Option<(f64, f64)>,
     /// Last reported global position (a release reuses it).
     pos: (f64, f64),
 }
@@ -1087,18 +1088,24 @@ impl GrabPos {
         Self {
             press,
             delta: None,
+            pending: None,
             pos: press,
         }
     }
 
+    /// A relative event. One still pending came in a frame without wl_pointer.motion: the
+    /// compositor held the cursor (KWin's edge barrier between outputs, the layout edge),
+    /// so that delta did not move the pointer and is dropped.
     fn relative(&mut self, d: (f64, f64)) {
-        let s = self.delta.get_or_insert((0.0, 0.0));
-        s.0 += d.0;
-        s.1 += d.1;
-        self.pos = (self.press.0 + s.0, self.press.1 + s.1);
+        self.pending = Some(d);
     }
 
     fn motion(&mut self, local: (f64, f64), applied: (i32, i32)) -> (f64, f64) {
+        if let Some(d) = self.pending.take() {
+            let s = self.delta.get_or_insert((0.0, 0.0));
+            s.0 += d.0;
+            s.1 += d.1;
+        }
         self.pos = grab_motion(self.press, self.delta, local, applied);
         self.pos
     }
@@ -1218,16 +1225,35 @@ mod tests {
     }
 
     #[test]
-    fn b_wl_7_absolute_motion_before_first_relative_event() {
-        // Press at (150, 120); the absolute motion of a +50 px move arrives before its
-        // relative event. The delta must not count twice.
+    fn b_wl_7_relative_delta_counts_with_its_motion() {
+        // Press at (150, 120). SCTK delivers a frame's wl_pointer.motion after the frame's
+        // relative event (whatever order the compositor sends them in): the delta counts
+        // once, and the motion's own coordinates are ignored (sway quirk).
         let mut g = GrabPos::new((150.0, 120.0));
-        assert_eq!(g.motion((100.0, 20.0), (100, 100)), (200.0, 120.0));
         g.relative((50.0, 0.0));
-        assert_eq!(g.pos, (200.0, 120.0));
-        // The next motion follows press plus deltas, whatever it reports (sway quirk).
+        assert_eq!(g.motion((100.0, 20.0), (100, 100)), (200.0, 120.0));
         g.relative((10.0, 0.0));
         assert_eq!(g.motion((110.0, 20.0), (150, 100)), (210.0, 120.0));
         assert_eq!(g.pos, (210.0, 120.0));
+        // Before any relative event, absolute motion maps with the applied origin.
+        let mut g = GrabPos::new((150.0, 120.0));
+        assert_eq!(g.motion((60.0, 20.0), (100, 100)), (160.0, 120.0));
+    }
+
+    #[test]
+    fn b_wl_7_held_cursor_deltas_are_dropped() {
+        // KWin's edge barrier: at the edge between two outputs the cursor stops while
+        // relative events go on, with no wl_pointer.motion in their frames. The character
+        // must not run ahead of the cursor, so those deltas are dropped.
+        let mut g = GrabPos::new((1270.0, 316.0));
+        g.relative((4.0, 0.0));
+        assert_eq!(g.motion((20.0, 16.0), (1254, 300)), (1274.0, 316.0));
+        for _ in 0..25 {
+            g.relative((4.0, 0.0));
+        }
+        // The cursor crosses: one delta with its motion.
+        g.relative((4.0, 0.0));
+        assert_eq!(g.motion((24.0, 16.0), (1254, 300)), (1278.0, 316.0));
+        assert_eq!(g.pos, (1278.0, 316.0));
     }
 }

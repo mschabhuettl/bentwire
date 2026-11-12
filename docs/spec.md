@@ -1657,9 +1657,12 @@ every Agent1/Character1 call the core answered, with `id` (request id) or `error
   delivered, as under a nested KWin, or no manager), wl_pointer motion is used: the
   surface-local position plus the applied position, which compensates margins not yet
   applied. Press position and delta sum are kept apart from the reported position and
-  absolute motion never feeds the sum, because the protocol does not order wl_pointer
-  motion and relative motion: once a relative event has arrived, the position is press
-  plus sum, whatever absolute motion came before. A release keeps the last grab position. A fractional output scale is the current mode width
+  absolute motion never feeds the sum: once a relative event has counted, the position is
+  press plus sum, whatever absolute motion came before. A relative delta counts only when
+  its wl_pointer frame also carries a wl_pointer.motion: deltas in frames without one did
+  not move the cursor (KWin's edge barrier holds it at the edge between two outputs, the
+  layout edge holds it too), and counting them made the character run ahead of the cursor
+  by the barrier width after crossing to another output. A release keeps the last grab position. A fractional output scale is the current mode width
   over the xdg-output logical width (no fractional-scale protocol). The Agent and the
   Office balloon are separate subsurfaces when both are open, the Office one above. A
   menu opened without a real press serial (Test1) is shown without a grab. Reason:
