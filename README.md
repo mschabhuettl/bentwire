@@ -91,15 +91,16 @@ icon needs a StatusNotifierItem host (Plasma's system tray).
 
 ### Arch Linux
 
-The PKGBUILDs for the AUR are in [`packaging/aur/`](packaging/aur/): `bentwire` (built from
-source), `bentwire-bin` (the release binaries) and `bentwire-git` (`main`). Until they are on
-the AUR, build and install one with makepkg:
+bentwire is on the AUR as [`bentwire`](https://aur.archlinux.org/packages/bentwire) (built
+from source), [`bentwire-bin`](https://aur.archlinux.org/packages/bentwire-bin) (the release
+binaries) and [`bentwire-git`](https://aur.archlinux.org/packages/bentwire-git) (`main`).
+Install one with an AUR helper:
 
 ```sh
-git clone https://github.com/mschabhuettl/bentwire
-cd bentwire/packaging/aur/bentwire
-makepkg -si
+yay -S bentwire
 ```
+
+The PKGBUILDs are kept in [`packaging/aur/`](packaging/aur/).
 
 The package installs the daemon, the CLI, the placeholder character and the D-Bus activation
 file, so `bentwire say hello` starts the daemon on demand. The optional systemd user unit is
