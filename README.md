@@ -189,12 +189,13 @@ bentwire say "It looks like your build failed."
 bentwire ask "Build failed." --button "Show log" --button "Ignore"
 bentwire characters            # installed characters
 bentwire select rocky
+bentwire scale 2              # character size 1 to 4; no argument prints it
 bentwire hide
 ```
 
 Right-click the character for its menu: Hide, Options... (creates and opens the config
-file), Choose Assistant... (a gallery balloon to browse and pick a character) and
-Animate!. Drag it with the left or right mouse button. A left click on the tray icon shows
+file), Choose Assistant... (a gallery balloon to browse and pick a character), Animate! and Size
+(1x to 4x, also in the tray menu). Drag it with the left or right mouse button. A left click on the tray icon shows
 a hidden character. Every command and option is in [docs/usage.md](docs/usage.md).
 
 ## Integration
@@ -225,8 +226,9 @@ unknown keys are ignored.
 | `idle` | `true` | Idle animations on at start |
 | `double_click_ms` | `500` | Double-click interval |
 | `character_paths` | `[]` | Extra character search roots, searched first |
+| `scale` | `1` | Character size 1 to 4; once chosen in the Size menu, with `bentwire scale` or over D-Bus, that choice wins over this key |
 
-State (character, position, visibility) is kept in `~/.local/state/bentwire/state.toml`.
+State (character, position, visibility, size) is kept in `~/.local/state/bentwire/state.toml`.
 
 **Balloon font.** The word balloon of `say` uses the character's own font: "MS Sans Serif"
 13 px for the Microsoft Agent characters; Office 97 actors name no font and get the same

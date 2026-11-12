@@ -24,6 +24,13 @@ D-Bus API (`org.bentwire.Agent1`) and the character format (`format = 1`) are fr
 - Character names come with their product, for example "Clippit (Office 97)" and
   "Merlin (Microsoft Agent 1.5)", the same in `bentwire characters`, Choose Assistant, the
   tray menu and the classics gallery. A name is never empty (A-LABEL-1).
+- Character size: 1x, 2x, 3x or 4x, from the new "Size" submenu of the character menu and
+  the tray, `bentwire scale <n>`, the config key `scale`, or the D-Bus property
+  `org.bentwire.Agent1.Scale`. Bitmap characters scale pixel-exact; the Office 97 vector
+  actors use their 2x drawings. Input region, drag, `moveto`, `gestureat` and balloon
+  placement follow the size; balloons keep their size. A change keeps the character's
+  bottom centre, applies at once and is remembered across restarts. `bentwire scale`
+  without an argument prints the current factor.
 - The converter can take a palette from a sibling character with the same pictures
   (`palette-from` in the classics `options.txt`, A-CONV-7).
 
