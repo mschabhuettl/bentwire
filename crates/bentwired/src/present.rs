@@ -76,11 +76,17 @@ pub fn scale_of(outputs: &[OutputInfo], id: Option<u32>) -> (u32, bool) {
     (bentwire_render::scene::buffer_scale(s), s.fract() != 0.0)
 }
 
-/// The character picture at buffer scale `k`.
+/// The character picture at buffer scale `k` and the scene's size factor (B-SCALE-1):
+/// at `k` or at `k` times the factor, see [`library::density`]. The buffer maps it to the
+/// surface (logical size times `k`) by nearest neighbour.
 pub fn character_picture(scene: &Scene, lib: &Library, k: u32) -> Option<RgbaImage> {
     let ch = scene.character.as_ref()?;
     let c = lib.get(&ch.id)?;
-    Some(library::picture(c, &ch.picture, k))
+    Some(library::picture(
+        c,
+        &ch.picture,
+        library::density(c, k, ch.scale),
+    ))
 }
 
 pub fn render(scene: &Scene, lib: &Library, fonts: &Fonts, theme: Option<&Theme>) -> Rendered {
@@ -310,4 +316,109 @@ pub fn requests(
         _ => {}
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bentwire_core::api::{
+        CharacterLoader, CharacterScene, Picture, Rect as CoreRect, TrayScene,
+    };
+    use std::path::Path;
+
+    fn lib(dir: &str, id: &str) -> Library {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join(dir);
+        let shared = std::rc::Rc::new(std::cell::RefCell::new(Library::new(vec![root])));
+        library::Loader(shared.clone()).load(id).unwrap();
+        shared.take()
+    }
+
+    /// The rest frame of `id` (display `size`) at `scale` on an output of `out_scale`.
+    fn rendered(l: &Library, id: &str, size: u32, scale: u32, out_scale: f64) -> Buf {
+        let scene = Scene {
+            character: Some(CharacterScene {
+                id: id.into(),
+                mapped: true,
+                x: 10,
+                y: 20,
+                width: size * scale,
+                height: size * scale,
+                scale,
+                picture: Picture::Frame {
+                    animation: "RestPose".into(),
+                    frame: 0,
+                    mouth: None,
+                },
+                output: Some(0),
+                dragging: false,
+                keyboard_on_demand: false,
+            }),
+            agent_balloon: None,
+            office_balloon: None,
+            menu: None,
+            tray: TrayScene {
+                icon_character: None,
+                title: String::new(),
+                tooltip: String::new(),
+                menu: Vec::new(),
+            },
+            outputs: vec![OutputInfo {
+                id: 0,
+                rect: CoreRect::new(0, 0, 800, 600),
+                scale: out_scale,
+            }],
+        };
+        let fonts = Fonts::bundled();
+        render(&scene, l, &fonts, None).character.unwrap().buf
+    }
+
+    fn px(b: &Buf, x: u32, y: u32) -> &[u8] {
+        let o = ((y * b.w * b.scale + x) * 4) as usize;
+        &b.argb[o..o + 4]
+    }
+
+    fn covered(b: &Buf, x: i32, y: i32) -> bool {
+        b.input.iter().any(|q| q.contains(x, y))
+    }
+
+    #[test]
+    fn b_scale_1_bitmap_character_pixels_replicated_and_region_doubled() {
+        // pebble: a 32 x 32 bitmap character without hidpi sheets.
+        let l = lib("tests/fixtures/characters", "pebble");
+        let one = rendered(&l, "pebble", 32, 1, 1.0);
+        assert!(one.argb.chunks(4).any(|p| p[3] == 255) && !one.input.is_empty());
+        for (scale, out_scale) in [(2, 1.0), (3, 1.0), (2, 2.0)] {
+            let b = rendered(&l, "pebble", 32, scale, out_scale);
+            assert_eq!((b.w, b.h), (32 * scale, 32 * scale));
+            // Device pixels per source pixel: factor times buffer scale (4 on a 2x output).
+            let n = scale * b.scale;
+            for y in 0..32 * n {
+                for x in 0..32 * n {
+                    assert_eq!(px(&b, x, y), px(&one, x / n, y / n), "{scale} {x},{y}");
+                }
+            }
+            for y in 0..(32 * scale) as i32 {
+                for x in 0..(32 * scale) as i32 {
+                    let s = scale as i32;
+                    assert_eq!(covered(&b, x, y), covered(&one, x / s, y / s));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn b_scale_1_vector_character_drawn_at_the_target_density() {
+        // The placeholder has 2x sheets: a 2x character on a 1x output is the picture of a
+        // 1x character on a 2x output (its 2x sheet), not the 1x picture doubled.
+        let l = lib("../../characters/builtin", "bentwire-placeholder");
+        let two = rendered(&l, "bentwire-placeholder", 96, 2, 1.0);
+        let hidpi = rendered(&l, "bentwire-placeholder", 96, 1, 2.0);
+        assert_eq!((two.w, two.scale, hidpi.w, hidpi.scale), (192, 1, 96, 2));
+        assert_eq!(two.argb, hidpi.argb);
+        let one = rendered(&l, "bentwire-placeholder", 96, 1, 1.0);
+        let doubled = (0..192)
+            .flat_map(|y| (0..192).map(move |x| (x, y)))
+            .all(|(x, y)| px(&two, x, y) == px(&one, x / 2, y / 2));
+        assert!(!doubled);
+    }
 }

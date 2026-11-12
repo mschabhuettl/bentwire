@@ -95,7 +95,12 @@ pub struct Config {
     pub speaking_speed: f64,
     pub idle: bool,
     pub double_click_ms: u32,
+    /// Size factor of the character, 1 to 4 (B-SCALE-1).
+    pub scale: u32,
 }
+
+/// B-SCALE-1: the size factors offered.
+pub const SCALES: [u32; 4] = [1, 2, 3, 4];
 
 impl Default for Config {
     fn default() -> Self {
@@ -108,6 +113,7 @@ impl Default for Config {
             speaking_speed: 1.0,
             idle: true,
             double_click_ms: 500,
+            scale: 1,
         }
     }
 }
@@ -121,6 +127,24 @@ pub struct StateFile {
     pub visible: bool,
     /// The user chose `character` (Select, gallery OK). If not, B-CHAR-4 skips step 1.
     pub chosen: bool,
+    /// The size factor `left` and `top` belong to (B-SCALE-1).
+    pub scale: u32,
+    /// The user chose `scale` (menu, tray, `Scale` property). If not, the config's applies.
+    pub scale_chosen: bool,
+}
+
+impl Default for StateFile {
+    fn default() -> Self {
+        StateFile {
+            character: String::new(),
+            left: 0,
+            top: 0,
+            visible: true,
+            chosen: false,
+            scale: 1,
+            scale_chosen: false,
+        }
+    }
 }
 
 /// Locale environment for `language = "auto"` (B-L10N-1).
@@ -281,16 +305,29 @@ pub enum Call {
     ListCharacters,
     Select(String),
     Quit,
-    Show { fast: bool },
-    Hide { fast: bool },
+    Show {
+        fast: bool,
+    },
+    Hide {
+        fast: bool,
+    },
     Play(String),
     Speak(String),
     Ask(AskSpec),
-    MoveTo { x: i32, y: i32, speed: u32 },
-    GestureAt { x: i32, y: i32 },
+    MoveTo {
+        x: i32,
+        y: i32,
+        speed: u32,
+    },
+    GestureAt {
+        x: i32,
+        y: i32,
+    },
     Stop(u32),
     StopAll(Vec<String>),
     SetIdleOn(bool),
+    /// Agent1 `Scale` property write (B-SCALE-1).
+    SetScale(u32),
 }
 
 /// Inputs of the core.
@@ -454,9 +491,11 @@ pub struct CharacterScene {
     /// Top-left, global logical coordinates (not clamped, B-WL-4).
     pub x: i32,
     pub y: i32,
-    /// Display size.
+    /// Display size times `scale` (B-SCALE-1), logical px.
     pub width: u32,
     pub height: u32,
+    /// Size factor (B-SCALE-1): the picture is drawn `scale` times its display size.
+    pub scale: u32,
     pub picture: Picture,
     /// Output the surface lives on (B-WL-2); only changes outside drags.
     pub output: Option<u32>,
@@ -673,6 +712,8 @@ pub struct Properties {
     pub visibility_cause: u32,
     pub balloon_enabled: bool,
     pub animation_names: Vec<String>,
+    /// Agent1 `Scale` (B-SCALE-1).
+    pub scale: u32,
 }
 
 /// Error names (5.4).

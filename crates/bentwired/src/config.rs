@@ -15,6 +15,8 @@ pub struct Config {
     pub idle: bool,
     pub double_click_ms: u32,
     pub character_paths: Vec<PathBuf>,
+    /// B-SCALE-1 size factor, 1 to 4.
+    pub scale: u32,
 }
 
 impl Default for Config {
@@ -29,6 +31,7 @@ impl Default for Config {
             idle: true,
             double_click_ms: 500,
             character_paths: Vec::new(),
+            scale: 1,
         }
     }
 }
@@ -45,6 +48,7 @@ pub const DEFAULT_CONFIG_TEXT: &str = "\
 # idle = true
 # double_click_ms = 500
 # character_paths = []      # extra search roots (A-PACK-1)
+# scale = 1                 # character size: 1, 2, 3 or 4 (the Size menu wins once used)
 ";
 
 impl Config {
@@ -78,6 +82,7 @@ impl Config {
             speaking_speed: self.speaking_speed,
             idle: self.idle,
             double_click_ms: self.double_click_ms,
+            scale: self.scale,
         }
     }
 }
@@ -93,6 +98,9 @@ pub struct State {
     pub chosen: Option<bool>,
     /// B-CHAR-6: the install hint was shown.
     pub install_hint_shown: bool,
+    /// B-SCALE-1: the size factor of `left`/`top` (absent: 1) and whether the user chose it.
+    pub scale: Option<u32>,
+    pub scale_chosen: Option<bool>,
 }
 
 /// The builtin placeholder (A-CHAR-1).
@@ -199,10 +207,22 @@ pub(crate) mod tests {
             visible: Some(true),
             chosen: Some(false),
             install_hint_shown: true,
+            scale: Some(3),
+            scale_chosen: Some(true),
         };
         s.save(&p).unwrap();
         assert_eq!(State::load(&p), s);
         assert!(!s.chosen());
+    }
+
+    #[test]
+    fn b_scale_1_config_and_state_keys() {
+        let c: Config = toml::from_str("scale = 3").unwrap();
+        assert_eq!((c.scale, c.to_core().scale), (3, 3));
+        assert_eq!(Config::default().to_core().scale, 1);
+        // State files of 0.1.x have no factor: 1, not chosen.
+        let st: State = toml::from_str("character = \"a\"\nleft = 1").unwrap();
+        assert_eq!((st.scale, st.scale_chosen), (None, None));
     }
 
     #[test]

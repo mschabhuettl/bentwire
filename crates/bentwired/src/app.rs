@@ -349,10 +349,11 @@ impl App {
                 .collect::<Vec<_>>()
         });
         let p = self.core.properties();
-        // B-CHAR-5: the opaque box of the rest picture at the current position, through the
-        // renderer's alpha shape (B-PIX-3).
+        // B-CHAR-5: the opaque box of the rest picture at the current position and size
+        // factor (B-SCALE-1), through the renderer's alpha shape (B-PIX-3).
         let rest_opaque = library::rest_picture(&self.lib.borrow(), &p.character).and_then(|pic| {
-            let b = bentwire_render::picture::picture_buffer(&pic, pic.width, pic.height, 1);
+            let (w, h) = (pic.width * p.scale, pic.height * p.scale);
+            let b = bentwire_render::picture::picture_buffer(&pic, w, h, 1);
             let i = &b.input_region;
             let x0 = i.iter().map(|q| q.x).min()?;
             let y0 = i.iter().map(|q| q.y).min()?;
@@ -370,6 +371,7 @@ impl App {
             "visible": p.visible,
             "left": p.left,
             "top": p.top,
+            "scale": p.scale,
             "rest_opaque": rest_opaque,
             "keyboard_interactivity": if r.keyboard { "on_demand" } else { "none" },
             "surfaces": surfaces,
@@ -387,7 +389,7 @@ impl App {
     fn prop_map(&self, iface: &str) -> Option<HashMap<&'static str, Value<'static>>> {
         let p = self.core.properties();
         match iface {
-            dbus::AGENT_IFACE => Some(dbus::agent_props_map(&p.character)),
+            dbus::AGENT_IFACE => Some(dbus::agent_props_map(&p)),
             dbus::CHAR_IFACE => Some(dbus::char_props_map(&p)),
             _ => None,
         }
@@ -451,6 +453,8 @@ impl App {
                         visible: Some(s.visible),
                         chosen: Some(s.chosen),
                         install_hint_shown: self.install_hint_shown,
+                        scale: Some(s.scale),
+                        scale_chosen: Some(s.scale_chosen),
                     };
                     if let Err(e) = st.save(&self.state_path) {
                         log::warn!("writing {}: {e}", self.state_path.display());
@@ -499,8 +503,8 @@ impl App {
                 &self.conn,
                 dbus::AGENT_PATH,
                 dbus::AGENT_IFACE,
-                &dbus::agent_props_map(&old.character),
-                &dbus::agent_props_map(&p.character),
+                &dbus::agent_props_map(old),
+                &dbus::agent_props_map(&p),
             );
             dbus::emit_props_changed(
                 &self.conn,
@@ -636,6 +640,7 @@ fn call_method(c: &api::Call) -> &'static str {
         Stop(_) => "Stop",
         StopAll(_) => "StopAll",
         SetIdleOn(_) => "SetIdleOn",
+        SetScale(_) => "SetScale",
     }
 }
 
@@ -652,6 +657,7 @@ fn call_args(c: &api::Call) -> serde_json::Value {
         Stop(id) => json!([id]),
         StopAll(t) => json!([t]),
         SetIdleOn(b) => json!([b]),
+        SetScale(n) => json!([n]),
         ListCharacters | Quit => json!([]),
     }
 }

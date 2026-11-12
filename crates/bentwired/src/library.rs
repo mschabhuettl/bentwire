@@ -128,6 +128,18 @@ pub fn rest_picture(lib: &Library, id: &str) -> Option<RgbaImage> {
     Some(picture(lib.get(id)?, &p, 1))
 }
 
+/// B-SCALE-1: the density to compose a picture at, for buffer scale `k` and size factor
+/// `scale`. A character with `hidpi` sheets (vector actors, drawn pictures) is composed at
+/// the target density, where A-CHAR-3 picks its 2x files; a bitmap character only at `k`,
+/// so the buffer repeats each of its pixels `scale` times (nearest neighbour, exact).
+pub fn density(c: &Character, k: u32, scale: u32) -> u32 {
+    if c.manifest.sheets.iter().any(|s| !s.hidpi.is_empty()) {
+        k * scale
+    } else {
+        k
+    }
+}
+
 /// The composed character picture at `density` times the display size, straight RGBA.
 /// Mouth overlays are never requested in v1 (B-LIP-2), so they are not drawn.
 pub fn picture(c: &Character, p: &Picture, density: u32) -> RgbaImage {
