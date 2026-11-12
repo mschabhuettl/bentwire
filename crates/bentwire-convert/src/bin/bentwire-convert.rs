@@ -10,7 +10,7 @@
 //! writes `OUTDIR/<id>.bwc` for every source that converts completely (A-PACK-2, A-CONV-5) and
 //! prints one tab-separated report line per source: `included id path bytes`,
 //! `excluded path reason` or `duplicate path first-path`. `--per-id` names a file of
-//! `id lang codepage` lines.
+//! `id lang codepage` lines and `id palette-from sibling-id` lines (A-CONV-7).
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
