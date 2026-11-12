@@ -40,7 +40,8 @@ and keep `bentwired` a thin shell around backends).
 - `pack.toml`: `name`, `licence` (SPDX or free text), `provenance` (free text),
   optional `description`. The daemon hardcodes no pack.
 - Installing for a user: copy (or symlink) `characters/builtin` to
-  `~/.local/share/bentwire/characters/`, and clone the `bentwire-classics` repository into
+  `~/.local/share/bentwire/characters/`, and run `bentwire characters install classics`
+  (spec B-CLI-1) or clone the `bentwire-classics` repository into
   `~/.local/share/bentwire/characters/classics`.
 
 **A-ID-1 Character ids in classics** (the pack in the `bentwire-classics` repository). Ids
@@ -60,8 +61,8 @@ when conversion succeeds and `source.missing_animations` is empty (character-for
 source with the reason; its generated `CONTENTS.md` lists them, if any.
 
 **A-CHAR-1 Fallback default.** B-CHAR-4 step 3 is `clippit`; when it is absent the
-daemon falls through to step 4 (first id in sorted order), which with only `builtin`
-installed is `bentwire-placeholder`.
+daemon falls through to step 4, `bentwire-placeholder` (the only character of `builtin`),
+then to the first id in sorted order.
 
 **A-THEME-1 Office balloon theme.** A pack may contain `balloon-themes/<id>/theme.toml`
 with PNGs (button strips, bullets, icons) extracted from `OBALLOON.DLL` at pack
