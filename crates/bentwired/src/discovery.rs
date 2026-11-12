@@ -2,9 +2,15 @@
 //! Display names and startup selection are the core's (B-CHAR-3, B-CHAR-4).
 
 use serde::Deserialize;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::time::SystemTime;
+
+/// Cheap-check results by entry path, valid while the manifest file (`character.toml` or
+/// the `.bwc`) keeps its modification time and size. Rescans on use (B-CHAR-1) read only
+/// what changed.
+pub type Cache = HashMap<PathBuf, (Option<SystemTime>, u64, Option<Entry>)>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Entry {
@@ -49,29 +55,38 @@ pub fn roots(cli: &[PathBuf], config_paths: &[PathBuf]) -> Vec<PathBuf> {
 }
 
 /// All characters under the roots, sorted by id; the first entry of an id wins.
+#[cfg(test)]
 pub fn discover(roots: &[PathBuf]) -> Vec<Entry> {
+    discover_cached(roots, &mut Cache::new())
+}
+
+/// All characters under the roots, sorted by id; the first entry of an id wins. `cache`
+/// is kept between scans; entries no longer found are dropped from it.
+pub fn discover_cached(roots: &[PathBuf], cache: &mut Cache) -> Vec<Entry> {
+    let mut next = Cache::new();
     let mut found: BTreeMap<String, Entry> = BTreeMap::new();
     for root in roots {
-        for e in scan_root(root) {
+        for e in scan_root(root, cache, &mut next) {
             found.entry(e.id.clone()).or_insert(e);
         }
     }
+    *cache = next;
     found.into_values().collect()
 }
 
-fn scan_root(root: &Path) -> Vec<Entry> {
+fn scan_root(root: &Path, old: &Cache, new: &mut Cache) -> Vec<Entry> {
     if root.join("character.toml").is_file() {
-        return check(root).into_iter().collect();
+        return check_cached(root, old, new).into_iter().collect();
     }
     if root.join("pack.toml").is_file() {
-        return scan_dir(root, false);
+        return scan_dir(root, false, old, new);
     }
     let chars = root.join("characters");
     if chars.is_dir() {
-        return scan_dir(&chars, true);
+        return scan_dir(&chars, true, old, new);
     }
     if root.file_name().is_some_and(|n| n == "characters") && root.is_dir() {
-        return scan_dir(root, true);
+        return scan_dir(root, true, old, new);
     }
     Vec::new()
 }
@@ -86,17 +101,32 @@ fn sorted_children(dir: &Path) -> Vec<PathBuf> {
 }
 
 /// `allow_packs`: a `characters/` dir may hold packs; a pack's children may not.
-fn scan_dir(dir: &Path, allow_packs: bool) -> Vec<Entry> {
+fn scan_dir(dir: &Path, allow_packs: bool, old: &Cache, new: &mut Cache) -> Vec<Entry> {
     let mut out = Vec::new();
     for p in sorted_children(dir) {
         let is_bwc = p.extension().is_some_and(|e| e == "bwc") && p.is_file();
         if p.is_dir() && p.join("character.toml").is_file() || is_bwc {
-            out.extend(check(&p));
+            out.extend(check_cached(&p, old, new));
         } else if allow_packs && p.is_dir() && p.join("pack.toml").is_file() {
-            out.extend(scan_dir(&p, false));
+            out.extend(scan_dir(&p, false, old, new));
         }
     }
     out
+}
+
+fn check_cached(path: &Path, old: &Cache, new: &mut Cache) -> Option<Entry> {
+    let file = if path.is_dir() {
+        path.join("character.toml")
+    } else {
+        path.to_path_buf()
+    };
+    let key = std::fs::metadata(&file).map_or((None, 0), |m| (m.modified().ok(), m.len()));
+    let e = match old.get(path).or_else(|| new.get(path)) {
+        Some((t, n, e)) if key.0.is_some() && (*t, *n) == key => e.clone(),
+        _ => check(path),
+    };
+    new.insert(path.to_path_buf(), (key.0, key.1, e.clone()));
+    e
 }
 
 /// A-THEME-1: the first `balloon-themes/<id>/theme.toml` of a pack under the roots,
@@ -219,6 +249,23 @@ mod tests {
         let e = discover(&[r1.clone(), r2.clone(), r3.clone()]);
         let ids: Vec<&str> = e.iter().map(|e| e.id.as_str()).collect();
         assert_eq!(ids, ["alpha", "beta", "gamma", "zed"]);
+        // B-CHAR-1 on use: a cached rescan gives the same result and sees changes.
+        let mut cache = Cache::new();
+        let roots = [r1.clone(), r2.clone(), r3.clone()];
+        assert_eq!(discover_cached(&roots, &mut cache), e);
+        assert_eq!(discover_cached(&roots, &mut cache), e);
+        write_char(&chars, "new", "agent");
+        std::fs::write(
+            pack.join("alpha/character.toml"),
+            "format = 1\nfamily = \"agent\"\n[[character.info]]\nlang = \"en\"\nname = \"Changed\"\n",
+        )
+        .unwrap();
+        let e2 = discover_cached(&roots, &mut cache);
+        let ids2: Vec<&str> = e2.iter().map(|e| e.id.as_str()).collect();
+        assert_eq!(ids2, ["alpha", "beta", "gamma", "new", "zed"]);
+        assert_eq!(e2[0].info[0].name, "Changed");
+        std::fs::remove_dir_all(chars.join("new")).unwrap();
+        assert_eq!(discover_cached(&roots, &mut cache).len(), 4);
         assert_eq!(e[0].path, pack.join("alpha"));
         assert_eq!(e[3].info[0].name, "N-Zed");
         // A-THEME-1: a theme in the first root's pack.

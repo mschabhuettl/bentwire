@@ -20,6 +20,7 @@ pub struct Library {
     pub roots: Vec<PathBuf>,
     /// The A-THEME-1 balloon theme under the roots at the last scan.
     pub theme: Option<PathBuf>,
+    pub cache: crate::discovery::Cache,
 }
 
 pub type Shared = Rc<RefCell<Library>>;
@@ -37,7 +38,7 @@ impl Library {
     /// Discover the characters and the theme under the roots again.
     pub fn scan(&mut self) {
         let t = std::time::Instant::now();
-        let entries = crate::discovery::discover(&self.roots);
+        let entries = crate::discovery::discover_cached(&self.roots, &mut self.cache);
         if entries.len() != self.entries.len() {
             log::info!("{} characters found", entries.len());
         }
