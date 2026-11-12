@@ -194,6 +194,8 @@ fn run(args: args::Args) -> Result<(), String> {
         top: state.top.unwrap_or(0),
         visible: state.visible.unwrap_or(true),
         chosen: state.chosen(),
+        scale: state.scale.unwrap_or(1),
+        scale_chosen: state.scale_chosen.unwrap_or(false),
     });
     // B-CHAR-6: once, when only the builtin placeholder is installed and it starts visible.
     let install_hint = !state.install_hint_shown

@@ -109,20 +109,24 @@ pub fn parse(msg: &Message, test: bool, test_full: bool) -> Option<Result<Call, 
             }
             (PROPS_IFACE, "Set") => {
                 let (i, n, v): (String, String, OwnedValue) = body(msg)?;
-                if path != CHAR_PATH || i != CHAR_IFACE {
-                    return Err(err(
-                        "org.freedesktop.DBus.Error.PropertyReadOnly",
-                        format!("{i}.{n} is read-only"),
-                    ));
+                match (path.as_str(), i.as_str(), n.as_str()) {
+                    (CHAR_PATH, CHAR_IFACE, "IdleOn") => {
+                        let b =
+                            bool::try_from(&*v).map_err(|_| invalid("IdleOn takes a boolean"))?;
+                        Call::Core(CoreCall::SetIdleOn(b))
+                    }
+                    (AGENT_PATH, AGENT_IFACE, "Scale") => {
+                        let s = u32::try_from(&*v)
+                            .map_err(|_| invalid("Scale takes an unsigned integer (u)"))?;
+                        Call::Core(CoreCall::SetScale(s))
+                    }
+                    _ => {
+                        return Err(err(
+                            "org.freedesktop.DBus.Error.PropertyReadOnly",
+                            format!("{i}.{n} is read-only"),
+                        ));
+                    }
                 }
-                if n != "IdleOn" {
-                    return Err(err(
-                        "org.freedesktop.DBus.Error.PropertyReadOnly",
-                        format!("{n} is read-only"),
-                    ));
-                }
-                let b = bool::try_from(&*v).map_err(|_| invalid("IdleOn takes a boolean"))?;
-                Call::Core(CoreCall::SetIdleOn(b))
             }
             (AGENT_IFACE, m) if path == AGENT_PATH => match m {
                 "ListCharacters" => Call::Core(CoreCall::ListCharacters),
@@ -396,9 +400,10 @@ pub fn char_props_map(p: &Properties) -> HashMap<&'static str, Value<'static>> {
     m
 }
 
-pub fn agent_props_map(character: &str) -> HashMap<&'static str, Value<'static>> {
+pub fn agent_props_map(p: &Properties) -> HashMap<&'static str, Value<'static>> {
     let mut m = HashMap::new();
-    m.insert("Character", Value::from(safe(character)));
+    m.insert("Character", Value::from(safe(&p.character)));
+    m.insert("Scale", Value::from(p.scale));
     m.insert(
         "Version",
         Value::from(env!("CARGO_PKG_VERSION").to_string()),
@@ -445,6 +450,7 @@ pub fn introspect(path: &str, test: bool, test_full: bool) -> String {
 <method name="Quit"/>
 <property name="Character" type="s" access="read"/>
 <property name="Version" type="s" access="read"/>
+<property name="Scale" type="u" access="readwrite"/>
 </interface>"#
             .to_string(),
         CHAR_PATH => {

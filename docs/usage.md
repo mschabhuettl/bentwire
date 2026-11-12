@@ -39,6 +39,7 @@ prints the usage.
 | `characters` | List installed characters | `id<TAB>name` per line, the current one with a third column `*` |
 | `select <id>` | Switch character | nothing |
 | `animations` | Animation names of the current character | one per line |
+| `scale [<n>]` | Character size factor 1 to 4; without `n`, print it | the factor, or nothing |
 | `status` | Properties | `character`, `visible`, `left`, `top`, `idle` as `key=value` lines |
 | `quit` | Stop the daemon | nothing |
 | `convert <source> <dest> [--palette FILE] [--lang TAG] [--codepage LABEL]` | Convert a character file locally, no daemon | nothing |

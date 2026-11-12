@@ -189,6 +189,7 @@ impl T {
             top: 500,
             visible: true,
             chosen: true,
+            ..Default::default()
         };
         let mut t = T::with(vec![m], Some(st), vec![]);
         t.run_until_idle_armed();
@@ -344,6 +345,7 @@ fn b_char_4_state_then_config_then_sorted() {
         top: 2,
         visible: false,
         chosen: true,
+        ..Default::default()
     };
     let t = T::with(
         vec![character("alpha", 1), character("beta", 1)],
@@ -384,6 +386,7 @@ fn b_char_4_b_cfg_2_unchosen_state_keeps_position_only() {
         top: 2,
         visible: false,
         chosen: false,
+        ..Default::default()
     };
     let t = T::with(
         vec![
@@ -932,6 +935,7 @@ fn b_idle_t_r_idle_1_r_idle_2_r_idle_3_vector() {
         top: 0,
         visible: true,
         chosen: true,
+        ..Default::default()
     };
     let mut m = character("c", 1000);
     // Fast Show so the queue is empty at t = 0.
@@ -948,6 +952,7 @@ fn b_idle_t_r_idle_1_r_idle_2_r_idle_3_vector() {
             top: 0,
             visible: true,
             chosen: true,
+            ..Default::default()
         }),
         vec![],
     );
@@ -1004,6 +1009,7 @@ fn b_idle_t_r_idle_4_play_interrupts_idle() {
         top: 0,
         visible: true,
         chosen: true,
+        ..Default::default()
     };
     let mut t = T::with(vec![character_idle()], Some(st), vec![]);
     t.advance(9500);
@@ -1038,6 +1044,7 @@ fn r_idle_4_idle_on_false_and_r_idle_1_conditions() {
         top: 0,
         visible: true,
         chosen: true,
+        ..Default::default()
     };
     let mut t = T::with(vec![character_idle()], Some(st), vec![]);
     t.advance(4500);
@@ -1066,6 +1073,7 @@ fn r_idle_5_missing_level() {
         top: 0,
         visible: true,
         chosen: true,
+        ..Default::default()
     };
     let mut t = T::with(vec![m], Some(st), vec![]);
     // Level 1 missing at 4000: n becomes 1, re-armed (retry at 8000); n stays 1.
@@ -1108,6 +1116,7 @@ fn b_idle_o_office97() {
         top: 0,
         visible: true,
         chosen: true,
+        ..Default::default()
     };
     // Draws: variant 0 (300 ms), then 1 (0 ms) repeatedly.
     let mut t = T::with(vec![m], Some(st), vec![0, 1, 1, 1, 1]);
@@ -1135,6 +1144,7 @@ fn b_idle_o_office97() {
         top: 0,
         visible: true,
         chosen: true,
+        ..Default::default()
     };
     let mut t = T::with(vec![m], Some(st), vec![]);
     t.advance(0);
@@ -1238,6 +1248,7 @@ fn r_speak_3_alternative_draw() {
         top: 500,
         visible: true,
         chosen: true,
+        ..Default::default()
     };
     let mut t = T::with(vec![m], Some(st), vec![0; 64]);
     t.run_until_idle_armed();
@@ -1627,6 +1638,7 @@ fn b_ask_7_matrix_autodown_and_switch() {
             top: 500,
             visible: true,
             chosen: true,
+            ..Default::default()
         }),
         vec![],
     );
@@ -1672,6 +1684,7 @@ fn b_char_5_switch() {
             top: 88,
             visible: true,
             chosen: true,
+            ..Default::default()
         }),
         vec![],
     );
@@ -1814,7 +1827,7 @@ fn b_menu_1_r_ui_3_b_menu_2_b_menu_3() {
         .entries
         .iter()
         .map(|e| match e {
-            MenuEntry::Item { label, .. } => label.clone(),
+            MenuEntry::Item { label, .. } | MenuEntry::Submenu { label, .. } => label.clone(),
             MenuEntry::Separator => "-".into(),
         })
         .collect();
@@ -1825,7 +1838,8 @@ fn b_menu_1_r_ui_3_b_menu_2_b_menu_3() {
             "-",
             "&Options...",
             "&Choose Assistant...",
-            "&Animate!"
+            "&Animate!",
+            "&Size"
         ]
     );
     // Options... opens the config file after the menu closes.
@@ -1867,7 +1881,7 @@ fn b_menu_1_r_ui_3_b_menu_2_b_menu_3() {
     let mut t = T::visible(m);
     t.press(PointerKind::Press, Surface::Character, 2, 501, 501);
     t.press(PointerKind::Release, Surface::Character, 2, 501, 501);
-    assert_eq!(t.core.scene().menu.unwrap().entries.len(), 4);
+    assert_eq!(t.core.scene().menu.unwrap().entries.len(), 5);
 }
 
 #[test]
@@ -1896,7 +1910,8 @@ fn b_ui_4_user_hide() {
         tray,
         vec![MenuEntry::Item {
             label: "&Show".into(),
-            action: MenuAction::Show
+            action: MenuAction::Show,
+            checked: None,
         }]
     );
     t.ev(Event::Tray(TrayInput::Menu(MenuAction::Show)));
@@ -1963,6 +1978,7 @@ fn b_menu_4_animate_shuffle() {
         top: 500,
         visible: true,
         chosen: true,
+        ..Default::default()
     };
     // Shuffle draws at load: list = [Greeting, Explain, Wave, Print] (resolution order
     // of ANIMATE_NAMES), Fisher-Yates with draws 0, 0, 0.
@@ -2000,6 +2016,7 @@ fn b_gal_1_gallery() {
             top: 500,
             visible: true,
             chosen: true,
+            ..Default::default()
         }),
         vec![],
     );
@@ -2312,6 +2329,7 @@ fn b_bal_2_font_choice() {
         top: 500,
         visible: true,
         chosen: true,
+        ..Default::default()
     };
     let mut t = T::with_config(vec![m], Some(st), vec![], cfg);
     t.advance(1000);
@@ -2415,6 +2433,7 @@ fn b_o97_4_play_group_picks_variant() {
         top: 0,
         visible: true,
         chosen: true,
+        ..Default::default()
     };
     let mut t = T::with(vec![m], Some(st), vec![]);
     t.core.set_draws(Box::new(ScriptedDraws::new([2])));
@@ -2526,6 +2545,7 @@ fn r_move_2_drag_cancel_keeps_output_and_emits_no_target_move() {
             top: 500,
             visible: true,
             chosen: true,
+            ..Default::default()
         }),
         vec![],
     );
@@ -2601,6 +2621,7 @@ fn b_char_5_new_character_keeps_the_bottom_centre() {
         top,
         visible: true,
         chosen: true,
+        ..Default::default()
     };
     let mut t = T::with(chars.clone(), Some(st(500, 500)), vec![]);
     t.advance(1000);
@@ -2635,6 +2656,7 @@ fn b_gal_1_balloon_stays_while_it_fits_next_to_the_new_character() {
             top: 500,
             visible: true,
             chosen: true,
+            ..Default::default()
         }),
         vec![],
     );
@@ -2680,6 +2702,7 @@ fn b_gal_1_hide_closes_as_cancel() {
         top: 500,
         visible: true,
         chosen: true,
+        ..Default::default()
     };
     // User hide after Next: back to the original, which hides with cause 7.
     let mut t = T::with(
@@ -2779,6 +2802,7 @@ fn b_gal_1_running_ask_is_interrupted_when_gallery_opens() {
         top: 500,
         visible: true,
         chosen: true,
+        ..Default::default()
     };
     let mut t = T::with(
         vec![character("a", 100), character("b", 100)],
@@ -2869,6 +2893,7 @@ fn b_ui_4_user_hide_in_gallery_reports_hidden_by_user() {
         top: 500,
         visible: true,
         chosen: true,
+        ..Default::default()
     };
     let mut t = T::with(
         vec![character("a", 100), character("b", 100)],
@@ -2890,4 +2915,414 @@ fn b_ui_4_user_hide_in_gallery_reports_hidden_by_user() {
     t.ev(Event::Menu(MenuInput::Activate(0)));
     assert_eq!(t.complete_of(p1).unwrap().2, errors::HIDDEN_BY_USER);
     assert_eq!(t.complete_of(p2).unwrap().2, errors::HIDDEN_BY_USER);
+}
+
+// ---------- size factor (B-SCALE-1) ----------
+
+fn scale_state(left: i32, top: i32, scale: u32, scale_chosen: bool) -> StateFile {
+    StateFile {
+        character: "a".into(),
+        left,
+        top,
+        visible: true,
+        chosen: true,
+        scale,
+        scale_chosen,
+    }
+}
+
+fn persisted(t: &T) -> Option<StateFile> {
+    t.log.iter().rev().find_map(|(_, o)| match o {
+        Output::PersistState(s) => Some(s.clone()),
+        _ => None,
+    })
+}
+
+#[test]
+fn b_scale_1_set_keeps_the_bottom_centre_and_persists() {
+    // Foot at 1x: (40, 90) from the rest box; at 3x: ((60 + 183) / 2, 270) = (121, 270).
+    let a = sized("a", 100, 100, Some((20, 10, 61, 90)));
+    let mut t = T::with(vec![a], Some(scale_state(500, 500, 1, false)), vec![]);
+    t.advance(1000);
+    t.log.clear();
+    assert_eq!(t.call(Call::SetScale(3)), Ok(ReplyValue::Unit));
+    let p = t.core.properties();
+    assert_eq!((p.scale, p.width, p.height), (3, 300, 300));
+    assert_eq!(t.pos(), (540 - 121, 590 - 270));
+    let c = t.core.scene().character.unwrap();
+    assert_eq!((c.width, c.height, c.scale), (300, 300, 3));
+    // Like a character switch (B-CHAR-5), the size change emits no Move.
+    assert_eq!(t.count(|s| matches!(s, Signal::Move { .. })), 0);
+    t.advance(t.now + 1000);
+    let s = persisted(&t).expect("persisted");
+    assert_eq!((s.scale, s.scale_chosen), (3, true));
+    assert_eq!((s.left, s.top), (540 - 121, 590 - 270));
+    // Back to 1x: the same place again.
+    t.call(Call::SetScale(1)).unwrap();
+    assert_eq!(t.pos(), (500, 500));
+    for bad in [0, 5, 100] {
+        assert_eq!(
+            t.call(Call::SetScale(bad)).unwrap_err().name,
+            errors::INVALID_ARGS
+        );
+    }
+    assert_eq!(t.core.properties().scale, 1);
+}
+
+#[test]
+fn b_scale_1_pulled_inside_the_output() {
+    let a = sized("a", 100, 100, None);
+    let mut t = T::with(vec![a], Some(scale_state(1800, 950, 1, false)), vec![]);
+    t.advance(1000);
+    t.call(Call::SetScale(4)).unwrap();
+    // Foot (1850, 1050) would put the 400 x 400 frame at (1650, 650): right edge first.
+    assert_eq!(t.pos(), (1920 - 400, 650));
+    let mut t = T::with(
+        vec![sized("a", 100, 100, None)],
+        Some(scale_state(0, 0, 1, false)),
+        vec![],
+    );
+    t.advance(1000);
+    t.call(Call::SetScale(2)).unwrap();
+    assert_eq!(t.pos(), (0, 0));
+}
+
+#[test]
+fn b_scale_1_precedence_state_then_config() {
+    let a = || sized("a", 100, 100, None);
+    let cfg = |scale| Config {
+        scale,
+        ..Config::default()
+    };
+    // No state: the config key, also for the first-run position (B-CFG-3).
+    let t = T::with_config(vec![a()], None, vec![], cfg(2));
+    let p = t.core.properties();
+    assert_eq!((p.scale, p.width), (2, 200));
+    assert_eq!(t.pos(), (1920 - 48 - 200, 1080 - 96 - 200));
+    // A chosen factor in the state wins over the config.
+    let t = T::with_config(
+        vec![a()],
+        Some(scale_state(500, 500, 3, true)),
+        vec![],
+        cfg(2),
+    );
+    assert_eq!(t.core.properties().scale, 3);
+    assert_eq!(t.pos(), (500, 500));
+    // Not chosen: the config applies; the saved position (at 1x) keeps its bottom centre.
+    let t = T::with_config(
+        vec![a()],
+        Some(scale_state(500, 500, 1, false)),
+        vec![],
+        cfg(2),
+    );
+    assert_eq!(t.core.properties().scale, 2);
+    assert_eq!(t.pos(), (550 - 100, 600 - 200));
+    // Out-of-range values are clamped.
+    let t = T::with_config(vec![a()], None, vec![], cfg(9));
+    assert_eq!(t.core.properties().scale, 4);
+}
+
+#[test]
+fn b_scale_1_sighup_applies_until_the_user_chooses() {
+    let mut t = T::with(
+        vec![sized("a", 100, 100, None)],
+        Some(scale_state(500, 500, 1, false)),
+        vec![],
+    );
+    t.advance(1000);
+    t.ev(Event::Config(Config {
+        scale: 2,
+        ..Config::default()
+    }));
+    assert_eq!(t.core.properties().scale, 2);
+    assert_eq!(t.pos(), (450, 400));
+    t.call(Call::SetScale(3)).unwrap();
+    t.ev(Event::Config(Config {
+        scale: 1,
+        ..Config::default()
+    }));
+    assert_eq!(t.core.properties().scale, 3);
+}
+
+/// At 3x, a 100 x 100 character behaves like a 300 x 300 one at 1x: placement of both
+/// balloons (mouth point, B-BAL-3, B-OB-3), MoveTo and GestureAt directions.
+#[test]
+fn b_scale_1_geometry_at_3x_equals_a_3x_character() {
+    let mouths = |m: &mut CharacterModel| {
+        let sp = m
+            .animations
+            .iter_mut()
+            .find(|a| a.name == "SpeakingA")
+            .unwrap();
+        sp.frames[0].mouths = vec![Mouth {
+            kind: 1,
+            anchor: (10, 30),
+        }];
+    };
+    let mut small = sized("a", 100, 100, Some((20, 10, 61, 90)));
+    small.canvas = (50, 50);
+    mouths(&mut small);
+    let mut big = sized("a", 300, 300, Some((60, 30, 183, 270)));
+    big.canvas = (50, 50);
+    mouths(&mut big);
+    let run = |m: CharacterModel, scale: u32| {
+        let mut t = T::with(vec![m], Some(scale_state(400, 300, scale, true)), vec![]);
+        t.advance(1000);
+        t.req(Call::Speak("hello".into()));
+        t.advance(t.now + 1000);
+        let agent = t.core.scene().agent_balloon.unwrap();
+        t.call(Call::Stop(0)).unwrap();
+        t.advance(t.now + 3000);
+        t.req(Call::Ask(AskSpec {
+            text: Some("question".into()),
+            animation: Some(String::new()),
+            ..Default::default()
+        }));
+        t.advance(t.now + 100);
+        let office = t.core.scene().office_balloon.unwrap();
+        t.call(Call::Stop(0)).unwrap();
+        t.advance(t.now + 3000);
+        t.req(Call::GestureAt { x: 650, y: 310 });
+        let gesture = t.core.scene().character.unwrap().picture;
+        t.call(Call::Stop(0)).unwrap();
+        t.advance(t.now + 3000);
+        t.req(Call::MoveTo {
+            x: 420,
+            y: 590,
+            speed: 1000,
+        });
+        let moving = t.core.scene().character.unwrap().picture;
+        (agent, office.window, office.tail, gesture, moving, t.pos())
+    };
+    let (a3, o3, ot3, g3, m3, p3) = run(small, 3);
+    let (a1, o1, ot1, g1, m1, p1) = run(big, 1);
+    // The mouth point (10, 30) of the 50 x 50 canvas lands on the 300 x 300 frame.
+    assert_eq!(a3, a1);
+    assert_eq!((o3, ot3), (o1, ot1));
+    assert_eq!(g3, g1);
+    match &g3 {
+        // Up from the 300 x 300 frame; from the 1x frame it would be GesturingLeft.
+        Picture::Frame { animation, .. } => assert_eq!(animation, "GesturingUpA"),
+        p => panic!("{p:?}"),
+    }
+    // (420, 590) lies inside the 300 x 300 frame: MovingLeft (R-MOVE-1); outside the
+    // 1x frame it would be MovingDown.
+    assert_eq!(m3, m1);
+    match &m3 {
+        Picture::Frame { animation, .. } => assert_eq!(animation, "MovingLeftA"),
+        p => panic!("{p:?}"),
+    }
+    assert_eq!(p3, p1);
+}
+
+#[test]
+fn b_scale_1_drag_at_3x_and_change_during_a_drag() {
+    let mut t = T::with(
+        vec![sized("a", 100, 100, None)],
+        Some(scale_state(500, 500, 3, true)),
+        vec![],
+    );
+    t.advance(1000);
+    // A press far inside the 300 x 300 frame (outside the 1x one) drags 1:1.
+    t.press(PointerKind::Press, Surface::Character, 1, 750, 750);
+    t.press(PointerKind::Motion, Surface::Character, 1, 760, 740);
+    assert_eq!(t.pos(), (510, 490));
+    // A change during the drag re-anchors, and the drag goes on from there.
+    t.call(Call::SetScale(1)).unwrap();
+    let (x, y) = (510 + 150 - 50, 490 + 300 - 100);
+    assert_eq!(t.pos(), (x, y));
+    t.press(PointerKind::Motion, Surface::Character, 1, 770, 740);
+    assert_eq!(t.pos(), (x + 10, y));
+    t.press(PointerKind::Release, Surface::Character, 1, 770, 740);
+    assert!(t.signals().iter().any(|(_, s)| *s
+        == Signal::Move {
+            x: x + 10,
+            y,
+            cause: 1
+        }));
+}
+
+#[test]
+fn b_scale_1_switch_and_output_change_use_the_factor() {
+    let chars = vec![
+        sized("a", 100, 100, Some((20, 10, 61, 90))),
+        sized("b", 50, 150, None),
+    ];
+    let mut t = T::with(chars, Some(scale_state(500, 500, 2, true)), vec![]);
+    t.advance(1000);
+    // Foot of a at 2x: ((40 + 122) / 2, 180) = (81, 180) -> (581, 680); b at 2x: (50, 300).
+    t.call(Call::Select("b".into())).unwrap();
+    assert_eq!(t.pos(), (581 - 50, 680 - 300));
+    assert_eq!(t.core.properties().width, 100);
+    // B-WL-4 pulls the 2x frame inside a smaller output.
+    t.ev(Event::Outputs(vec![output(600, 600)]));
+    assert_eq!(t.pos(), (600 - 100, 600 - 300));
+}
+
+fn size_items(entries: &[MenuEntry]) -> Vec<(String, Option<bool>)> {
+    match entries.last() {
+        Some(MenuEntry::Submenu { entries, .. }) => entries
+            .iter()
+            .map(|e| match e {
+                MenuEntry::Item { label, checked, .. } => (label.clone(), *checked),
+                e => panic!("{e:?}"),
+            })
+            .collect(),
+        e => panic!("{e:?}"),
+    }
+}
+
+#[test]
+fn b_scale_1_size_submenu_pointer_keys_and_tray() {
+    let mut t = T::visible(sized("a", 100, 100, None));
+    let right_click = |t: &mut T| {
+        t.press(PointerKind::Press, Surface::Character, 2, 510, 520);
+        t.press(PointerKind::Release, Surface::Character, 2, 510, 520);
+        t.core.scene().menu.unwrap()
+    };
+    let m = right_click(&mut t);
+    let size = m.entries.len() - 1;
+    assert!(matches!(&m.entries[size], MenuEntry::Submenu { label, .. } if label == "&Size"));
+    let items = size_items(&m.entries);
+    assert_eq!(
+        items,
+        vec![
+            ("&1x".to_string(), Some(true)),
+            ("&2x".to_string(), Some(false)),
+            ("&3x".to_string(), Some(false)),
+            ("&4x".to_string(), Some(false)),
+        ]
+    );
+    // Pointer: hovering Size opens it, the submenu item runs, the menu closes.
+    t.ev(Event::Menu(MenuInput::Hover(Some(size))));
+    let m = t.core.scene().menu.unwrap();
+    assert_eq!((m.open, m.open_highlighted), (Some(size), None));
+    // Between items the submenu stays open; another item closes it.
+    t.ev(Event::Menu(MenuInput::Hover(None)));
+    assert_eq!(t.core.scene().menu.unwrap().open, Some(size));
+    t.ev(Event::Menu(MenuInput::Hover(Some(0))));
+    assert_eq!(t.core.scene().menu.unwrap().open, None);
+    // A click on Size opens it too and keeps the menu.
+    t.ev(Event::Menu(MenuInput::Activate(size)));
+    t.ev(Event::Menu(MenuInput::SubmenuHover(Some(2))));
+    let m = t.core.scene().menu.unwrap();
+    assert_eq!(
+        (m.highlighted, m.open, m.open_highlighted),
+        (Some(size), Some(size), Some(2))
+    );
+    t.ev(Event::Menu(MenuInput::SubmenuActivate(2)));
+    assert!(t.core.scene().menu.is_none());
+    assert_eq!(t.core.properties().scale, 3);
+    t.advance(t.now + 1000);
+    assert_eq!(
+        persisted(&t).map(|s| (s.scale, s.scale_chosen)),
+        Some((3, true))
+    );
+    // Keys: the mnemonic opens Size on its first item; Down, Enter.
+    let m = right_click(&mut t);
+    assert_eq!(size_items(&m.entries)[2].1, Some(true));
+    key(&mut t, Key::Char('S'));
+    let m = t.core.scene().menu.unwrap();
+    assert_eq!((m.open, m.open_highlighted), (Some(size), Some(0)));
+    key(&mut t, Key::Down);
+    assert_eq!(t.core.scene().menu.unwrap().open_highlighted, Some(1));
+    // Escape (or Left) closes only the submenu; Right opens it again.
+    key(&mut t, Key::Escape);
+    let m = t.core.scene().menu.unwrap();
+    assert_eq!((m.highlighted, m.open), (Some(size), None));
+    key(&mut t, Key::Right);
+    key(&mut t, Key::Up);
+    assert_eq!(t.core.scene().menu.unwrap().open_highlighted, Some(3));
+    key(&mut t, Key::Left);
+    assert_eq!(t.core.scene().menu.unwrap().open, None);
+    key(&mut t, Key::Enter);
+    key(&mut t, Key::Char('2'));
+    assert!(t.core.scene().menu.is_none());
+    assert_eq!(t.core.properties().scale, 2);
+    // Tray: the same submenu; a choice from it.
+    assert_eq!(size_items(&t.core.scene().tray.menu)[1].1, Some(true));
+    t.ev(Event::Tray(TrayInput::Menu(MenuAction::Scale(4))));
+    assert_eq!(t.core.properties().scale, 4);
+    t.ev(Event::Tray(TrayInput::Menu(MenuAction::Scale(9))));
+    assert_eq!(t.core.properties().scale, 4);
+}
+
+#[test]
+fn b_scale_1_size_menu_german() {
+    let cfg = Config {
+        language: LanguageSetting::De,
+        ..Config::default()
+    };
+    let mut t = T::with_config(vec![sized("a", 100, 100, None)], None, vec![], cfg);
+    t.advance(1000);
+    let (x, y) = t.pos();
+    t.press(PointerKind::Press, Surface::Character, 2, x + 1, y + 1);
+    t.press(PointerKind::Release, Surface::Character, 2, x + 1, y + 1);
+    let m = t.core.scene().menu.unwrap();
+    assert!(
+        matches!(m.entries.last(), Some(MenuEntry::Submenu { label, .. }) if label == "&Größe")
+    );
+    key(&mut t, Key::Char('g'));
+    key(&mut t, Key::Char('4'));
+    assert_eq!(t.core.properties().scale, 4);
+}
+
+#[test]
+fn b_scale_1_change_during_a_drag_onto_another_output_is_not_pulled_back() {
+    let mut t = T::with(
+        vec![sized("a", 100, 100, None)],
+        Some(scale_state(500, 500, 1, true)),
+        vec![],
+    );
+    let mut o2 = output(1000, 1080);
+    o2.id = 2;
+    o2.rect.x = 1920;
+    t.ev(Event::Outputs(vec![output(1920, 1080), o2]));
+    t.advance(1000);
+    t.press(PointerKind::Press, Surface::Character, 1, 550, 550);
+    t.press(PointerKind::Motion, Surface::Character, 1, 2550, 550);
+    assert_eq!(t.pos(), (2500, 500));
+    let out = t.core.scene().character.unwrap().output;
+    t.call(Call::SetScale(2)).unwrap();
+    // Bottom centre (2550, 600) kept, not pulled onto the drag's first output.
+    assert_eq!(t.pos(), (2450, 400));
+    assert_eq!(t.core.scene().character.unwrap().output, out);
+    t.press(PointerKind::Motion, Surface::Character, 1, 2560, 550);
+    assert_eq!(t.pos(), (2460, 400));
+    t.press(PointerKind::Release, Surface::Character, 1, 2560, 550);
+    assert_eq!(t.core.scene().character.unwrap().output, Some(2));
+}
+
+#[test]
+fn b_scale_1_without_outputs_keeps_the_bottom_centre_unclamped() {
+    let mut t = T::with(
+        vec![sized("a", 100, 100, None)],
+        Some(scale_state(500, 500, 1, true)),
+        vec![],
+    );
+    t.advance(1000);
+    t.ev(Event::Outputs(vec![]));
+    t.req(Call::MoveTo {
+        x: 3000,
+        y: 500,
+        speed: 0,
+    });
+    t.advance(t.now + 1000);
+    assert_eq!(t.pos(), (3000, 500));
+    t.call(Call::SetScale(2)).unwrap();
+    assert_eq!(t.pos(), (3000 + 50 - 100, 500 + 100 - 200));
+}
+
+#[test]
+fn b_scale_1_open_menu_shows_the_new_check_mark() {
+    let mut t = T::visible(sized("a", 100, 100, None));
+    t.press(PointerKind::Press, Surface::Character, 2, 510, 520);
+    t.press(PointerKind::Release, Surface::Character, 2, 510, 520);
+    t.call(Call::SetScale(3)).unwrap();
+    let m = t.core.scene().menu.expect("menu stays open");
+    let checked: Vec<_> = size_items(&m.entries).into_iter().map(|i| i.1).collect();
+    assert_eq!(
+        checked,
+        vec![Some(false), Some(false), Some(true), Some(false)]
+    );
 }

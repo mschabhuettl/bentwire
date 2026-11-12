@@ -7,7 +7,7 @@ use bentwire_core::api::{MenuEntry, OutputInfo, Scene, Surface as CoreSurface};
 use bentwire_render::balloon::{self, agent_balloon_region, office_balloon_region, window_canvas};
 use bentwire_render::canvas::{Rect, Region, RgbaImage};
 use bentwire_render::font::Fonts;
-use bentwire_render::menu::{MenuGeometry, draw_menu, menu_layout};
+use bentwire_render::menu::{MenuGeometry, draw_menu, menu_layout, submenu_scene};
 use bentwire_render::picture::picture_buffer;
 use bentwire_render::theme::Theme;
 use serde_json::{Value, json};
@@ -55,6 +55,8 @@ pub struct MenuSurface {
     pub buf: Buf,
     pub geometry: MenuGeometry,
     pub entries: Vec<MenuEntry>,
+    /// A submenu: its parent item, relative to the parent menu (B-WL-9 positioner).
+    pub anchor: Option<Rect>,
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]
@@ -63,6 +65,8 @@ pub struct Rendered {
     /// Agent balloon (index 0) and Office balloon (index 1, stacked above).
     pub balloons: [Option<BalloonSurface>; 2],
     pub menu: Option<MenuSurface>,
+    /// The open submenu (B-SCALE-1 Size), a popup of the menu.
+    pub submenu: Option<MenuSurface>,
     pub keyboard: bool,
 }
 
@@ -76,11 +80,17 @@ pub fn scale_of(outputs: &[OutputInfo], id: Option<u32>) -> (u32, bool) {
     (bentwire_render::scene::buffer_scale(s), s.fract() != 0.0)
 }
 
-/// The character picture at buffer scale `k`.
+/// The character picture at buffer scale `k` and the scene's size factor (B-SCALE-1):
+/// at `k` or at `k` times the factor, see [`library::density`]. The buffer maps it to the
+/// surface (logical size times `k`) by nearest neighbour.
 pub fn character_picture(scene: &Scene, lib: &Library, k: u32) -> Option<RgbaImage> {
     let ch = scene.character.as_ref()?;
     let c = lib.get(&ch.id)?;
-    Some(library::picture(c, &ch.picture, k))
+    Some(library::picture(
+        c,
+        &ch.picture,
+        library::density(c, k, ch.scale),
+    ))
 }
 
 pub fn render(scene: &Scene, lib: &Library, fonts: &Fonts, theme: Option<&Theme>) -> Rendered {
@@ -139,12 +149,12 @@ pub fn render(scene: &Scene, lib: &Library, fonts: &Fonts, theme: Option<&Theme>
         balloon::draw_agent_balloon(&mut c, k, fonts, b);
         r.balloons[0] = Some(mk_balloon(false, b.window, agent_balloon_region(b), c));
     }
-    if let Some(m) = &scene.menu {
+    let menu = |m: &bentwire_core::api::MenuScene, anchor: Option<Rect>| {
         let g = menu_layout(fonts, &m.entries);
         let mut c = bentwire_render::canvas::Canvas::new(g.width as u32 * k, g.height as u32 * k);
         c.origin = (m.x * k as i32, m.y * k as i32);
         draw_menu(&mut c, k, fonts, m);
-        r.menu = Some(MenuSurface {
+        MenuSurface {
             x: m.x,
             y: m.y,
             buf: Buf {
@@ -156,7 +166,14 @@ pub fn render(scene: &Scene, lib: &Library, fonts: &Fonts, theme: Option<&Theme>
             },
             geometry: g,
             entries: m.entries.clone(),
-        });
+            anchor,
+        }
+    };
+    if let Some(m) = &scene.menu {
+        let main = menu(m, None);
+        let anchor = m.open.and_then(|i| main.geometry.items.get(i).copied());
+        r.submenu = submenu_scene(fonts, m).map(|s| menu(&s, anchor));
+        r.menu = Some(main);
     }
     r
 }
@@ -165,10 +182,16 @@ pub fn render(scene: &Scene, lib: &Library, fonts: &Fonts, theme: Option<&Theme>
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Hit {
     Menu(Option<usize>),
+    Submenu(Option<usize>),
     Surface(CoreSurface),
 }
 
 pub fn hit(r: &Rendered, x: i32, y: i32) -> Option<Hit> {
+    if let Some(m) = &r.submenu
+        && Rect::new(m.x, m.y, m.buf.w as i32, m.buf.h as i32).contains(x, y)
+    {
+        return Some(Hit::Submenu(m.geometry.hit(&m.entries, x - m.x, y - m.y)));
+    }
     if let Some(m) = &r.menu
         && Rect::new(m.x, m.y, m.buf.w as i32, m.buf.h as i32).contains(x, y)
     {
@@ -291,6 +314,10 @@ pub fn requests(
             _ => {}
         }
     }
+    // Nested popups go in reverse order of creation (xdg_popup.destroy).
+    if prev.submenu.is_some() && next.submenu.is_none() {
+        out.push(json!({"req": "destroy", "surface": "submenu"}));
+    }
     match (&prev.menu, &next.menu) {
         (Some(_), None) => out.push(json!({"req": "destroy", "surface": "menu"})),
         (p, Some(m)) if p.as_ref() != Some(m) => {
@@ -309,5 +336,135 @@ pub fn requests(
         }
         _ => {}
     }
+    if let Some(s) = &next.submenu
+        && prev.submenu.as_ref() != Some(s)
+    {
+        if prev.submenu.is_none() {
+            // As the Wayland backend asks: the parent item's row across the menu, to its
+            // right, first items level.
+            let (m, a) = (
+                next.menu.as_ref(),
+                s.anchor.unwrap_or(Rect::new(0, 0, 1, 1)),
+            );
+            let (mx, my, mw) = m.map_or((0, 0, 0), |m| (m.x, m.y, m.buf.w as i32));
+            out.push(json!({
+                "req": "popup",
+                "surface": "submenu",
+                "parent": "menu",
+                "anchor_rect": [0, a.y, mw, a.h],
+                "anchor": "top_right",
+                "gravity": "bottom_right",
+                "offset": [s.x - mx - mw, s.y - my - a.y],
+                "size": [s.buf.w, s.buf.h],
+                "constraint_adjustment": "flip_x|slide_x|slide_y",
+            }));
+        }
+        out.push(buffer_req("submenu", &s.buf, false));
+    }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bentwire_core::api::{
+        CharacterLoader, CharacterScene, Picture, Rect as CoreRect, TrayScene,
+    };
+    use std::path::Path;
+
+    fn lib(dir: &str, id: &str) -> Library {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join(dir);
+        let shared = std::rc::Rc::new(std::cell::RefCell::new(Library::new(vec![root])));
+        library::Loader(shared.clone()).load(id).unwrap();
+        shared.take()
+    }
+
+    /// The rest frame of `id` (display `size`) at `scale` on an output of `out_scale`.
+    fn rendered(l: &Library, id: &str, size: u32, scale: u32, out_scale: f64) -> Buf {
+        let scene = Scene {
+            character: Some(CharacterScene {
+                id: id.into(),
+                mapped: true,
+                x: 10,
+                y: 20,
+                width: size * scale,
+                height: size * scale,
+                scale,
+                picture: Picture::Frame {
+                    animation: "RestPose".into(),
+                    frame: 0,
+                    mouth: None,
+                },
+                output: Some(0),
+                dragging: false,
+                keyboard_on_demand: false,
+            }),
+            agent_balloon: None,
+            office_balloon: None,
+            menu: None,
+            tray: TrayScene {
+                icon_character: None,
+                title: String::new(),
+                tooltip: String::new(),
+                menu: Vec::new(),
+            },
+            outputs: vec![OutputInfo {
+                id: 0,
+                rect: CoreRect::new(0, 0, 800, 600),
+                scale: out_scale,
+            }],
+        };
+        let fonts = Fonts::bundled();
+        render(&scene, l, &fonts, None).character.unwrap().buf
+    }
+
+    fn px(b: &Buf, x: u32, y: u32) -> &[u8] {
+        let o = ((y * b.w * b.scale + x) * 4) as usize;
+        &b.argb[o..o + 4]
+    }
+
+    fn covered(b: &Buf, x: i32, y: i32) -> bool {
+        b.input.iter().any(|q| q.contains(x, y))
+    }
+
+    #[test]
+    fn b_scale_1_bitmap_character_pixels_replicated_and_region_doubled() {
+        // pebble: a 32 x 32 bitmap character without hidpi sheets.
+        let l = lib("tests/fixtures/characters", "pebble");
+        let one = rendered(&l, "pebble", 32, 1, 1.0);
+        assert!(one.argb.chunks(4).any(|p| p[3] == 255) && !one.input.is_empty());
+        for (scale, out_scale) in [(2, 1.0), (3, 1.0), (2, 2.0)] {
+            let b = rendered(&l, "pebble", 32, scale, out_scale);
+            assert_eq!((b.w, b.h), (32 * scale, 32 * scale));
+            // Device pixels per source pixel: factor times buffer scale (4 on a 2x output).
+            let n = scale * b.scale;
+            for y in 0..32 * n {
+                for x in 0..32 * n {
+                    assert_eq!(px(&b, x, y), px(&one, x / n, y / n), "{scale} {x},{y}");
+                }
+            }
+            for y in 0..(32 * scale) as i32 {
+                for x in 0..(32 * scale) as i32 {
+                    let s = scale as i32;
+                    assert_eq!(covered(&b, x, y), covered(&one, x / s, y / s));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn b_scale_1_vector_character_drawn_at_the_target_density() {
+        // The placeholder has 2x sheets: a 2x character on a 1x output is the picture of a
+        // 1x character on a 2x output (its 2x sheet), not the 1x picture doubled.
+        let l = lib("../../characters/builtin", "bentwire-placeholder");
+        let two = rendered(&l, "bentwire-placeholder", 96, 2, 1.0);
+        let hidpi = rendered(&l, "bentwire-placeholder", 96, 1, 2.0);
+        assert_eq!((two.w, two.scale, hidpi.w, hidpi.scale), (192, 1, 96, 2));
+        assert_eq!(two.argb, hidpi.argb);
+        let one = rendered(&l, "bentwire-placeholder", 96, 1, 1.0);
+        let doubled = (0..192)
+            .flat_map(|y| (0..192).map(move |x| (x, y)))
+            .all(|(x, y)| px(&two, x, y) == px(&one, x / 2, y / 2));
+        assert!(!doubled);
+    }
 }

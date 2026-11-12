@@ -3,13 +3,31 @@
 use crate::api::{OutputInfo, Rect};
 use crate::model::CharacterModel;
 
+/// B-SCALE-1: the frame size of `m` at size factor `scale` (display size times `scale`).
+pub fn size(m: &CharacterModel, scale: u32) -> (u32, u32) {
+    (
+        m.display.0.saturating_mul(scale),
+        m.display.1.saturating_mul(scale),
+    )
+}
+
+/// B-SCALE-1: the opaque box of the rest picture at size factor `scale`.
+pub fn rest_box(m: &CharacterModel, scale: u32) -> Option<(i32, i32, i32, i32)> {
+    let k = scale as i32;
+    m.rest_box
+        .map(|(x0, y0, x1, y1)| (x0 * k, y0 * k, x1 * k, y1 * k))
+}
+
 /// B-CHAR-5 anchor, relative to the top-left: the bottom centre of the opaque box of the
-/// rest picture, else of the frame. Every placement that keeps a character standing where
-/// it stood uses this one function.
-pub fn foot(m: &CharacterModel) -> (i32, i32) {
-    match m.rest_box {
+/// rest picture, else of the frame, at size factor `scale` (B-SCALE-1). Every placement
+/// that keeps a character standing where it stood uses this one function.
+pub fn foot(m: &CharacterModel, scale: u32) -> (i32, i32) {
+    match rest_box(m, scale) {
         Some((x0, _, x1, y1)) => ((x0 + x1).div_euclid(2), y1),
-        None => (m.display.0 as i32 / 2, m.display.1 as i32),
+        None => {
+            let (w, h) = size(m, scale);
+            (w as i32 / 2, h as i32)
+        }
     }
 }
 
@@ -263,9 +281,9 @@ mod tests {
     #[test]
     fn b_char_5_foot_and_stand_at() {
         let mut m = CharacterModel::new("x", crate::model::Family::Agent, (100, 80));
-        assert_eq!(foot(&m), (50, 80));
+        assert_eq!(foot(&m, 1), (50, 80));
         m.rest_box = Some((10, 5, 41, 70));
-        assert_eq!(foot(&m), (25, 70));
+        assert_eq!(foot(&m, 1), (25, 70));
         let out = Rect::new(0, 0, 1000, 800);
         assert_eq!(stand_at((500, 600), (25, 70), (100, 80), out), (475, 530));
         // Clamped: right and bottom first, then left and top.
@@ -275,6 +293,18 @@ mod tests {
             stand_at((i32::MIN, i32::MAX), (25, 70), (100, 80), out),
             (0, 720)
         );
+    }
+
+    #[test]
+    fn b_scale_1_foot_size_and_rest_box_follow_the_factor() {
+        let mut m = CharacterModel::new("x", crate::model::Family::Agent, (100, 80));
+        assert_eq!(size(&m, 3), (300, 240));
+        assert_eq!(foot(&m, 3), (150, 240));
+        m.rest_box = Some((10, 5, 41, 70));
+        assert_eq!(rest_box(&m, 3), Some((30, 15, 123, 210)));
+        // The bottom centre of the scaled box, not the scaled 1x foot (25 * 3 = 75).
+        assert_eq!(foot(&m, 3), (76, 210));
+        assert_eq!(foot(&m, 2), (51, 140));
     }
 
     #[test]

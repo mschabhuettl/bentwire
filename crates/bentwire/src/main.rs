@@ -39,6 +39,7 @@ usage: bentwire <command> [args]
   characters install classics
   select <id>
   animations
+  scale [<1-4>]
   status
   quit
   convert <source> <dest> [--palette OFFICE.ACS|MSO97.DLL] [--lang TAG] [--codepage LABEL]
@@ -493,6 +494,27 @@ fn run(args: &[String]) -> Result<(), Fail> {
                 outln!("{n}");
             }
             Ok(())
+        }
+        "scale" => {
+            let o = Opts::parse(rest, &[], &[])?;
+            let c = Client::new(false)?;
+            match o.positional.as_slice() {
+                [] => {
+                    let v = u32::try_from(c.prop(AGENT_PATH, AGENT_IFACE, "Scale")?).unwrap_or(1);
+                    outln!("{v}");
+                    Ok(())
+                }
+                [n] => {
+                    let n: u32 = int(n, "the factor")?;
+                    c.call::<_, ()>(
+                        AGENT_PATH,
+                        "org.freedesktop.DBus.Properties",
+                        "Set",
+                        &(AGENT_IFACE, "Scale", Value::from(n)),
+                    )
+                }
+                _ => Err(Fail::Usage("expected [<1-4>]".into())),
+            }
         }
         "status" => {
             Opts::parse(rest, &[], &[])?.npos(0, "no arguments")?;

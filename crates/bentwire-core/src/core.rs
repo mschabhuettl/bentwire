@@ -186,6 +186,9 @@ pub struct Core {
     state_file: Option<StateFile>,
     /// The user chose the character (B-CHAR-4).
     chosen: bool,
+    /// Size factor (B-SCALE-1) and whether the user chose it.
+    scale: u32,
+    scale_chosen: bool,
     catalog: Vec<CatalogEntry>,
     loader: Box<dyn CharacterLoader>,
     metrics: Box<dyn TextMetrics>,
@@ -243,7 +246,14 @@ impl Core {
         let mut catalog = init.catalog;
         catalog.sort_by(|a, b| a.id.cmp(&b.id));
         let lang = l10n::resolve_language(init.config.language, &init.locale);
+        let scale_chosen = init.state.as_ref().is_some_and(|s| s.scale_chosen);
+        let scale = clamp_scale(match &init.state {
+            Some(s) if s.scale_chosen => s.scale,
+            _ => init.config.scale,
+        });
         Core {
+            scale,
+            scale_chosen,
             now: 0,
             idle_on: init.config.idle,
             config: init.config,
@@ -305,8 +315,14 @@ impl Core {
         );
         let model = cands.iter().find_map(|id| self.loader.load(id).ok());
         if let Some(model) = model {
-            let (w, h) = (model.display.0 as i32, model.display.1 as i32);
+            let (w, h) = geometry::size(&model, self.scale);
+            let (w, h) = (w as i32, h as i32);
             let (x, y, visible) = match &st {
+                // B-SCALE-1: a position saved at another factor keeps its bottom centre.
+                Some(s) if clamp_scale(s.scale) != self.scale => {
+                    let (x, y) = self.rescaled(&model, (s.left, s.top), clamp_scale(s.scale));
+                    (x, y, s.visible)
+                }
                 Some(s) => (s.left, s.top, s.visible),
                 None => match self.outputs.first() {
                     Some(o) => (o.rect.right() - 48 - w, o.rect.bottom() - 96 - h, true),
@@ -332,7 +348,7 @@ impl Core {
             player: Player::new(),
             output: None,
         };
-        c.output = geometry::output_for(frame_rect(&c), &self.outputs).map(|o| o.id);
+        c.output = geometry::output_for(frame_rect(&c, self.scale), &self.outputs).map(|o| o.id);
         self.ch = Some(c);
         self.build_animate_list();
     }
@@ -353,7 +369,11 @@ impl Core {
             Event::Outputs(o) => self.set_outputs(o),
             Event::Config(c) => {
                 self.lang = l10n::resolve_language(c.language, &self.locale);
+                let scale = clamp_scale(c.scale);
                 self.config = c;
+                if !self.scale_chosen {
+                    self.set_scale(scale);
+                }
             }
             Event::Catalog(c) => self.set_catalog(c, true),
             Event::InstallHint => self.install_hint(),
@@ -535,6 +555,8 @@ impl Core {
             top: c.y,
             visible: c.visible,
             chosen: self.chosen,
+            scale: self.scale,
+            scale_chosen: self.scale_chosen,
         })
     }
 
@@ -543,6 +565,80 @@ impl Core {
         self.last_persist = Some(self.now);
         if let Some(s) = self.state_snapshot() {
             self.out.push(Output::PersistState(s));
+        }
+    }
+
+    // ----- size factor (B-SCALE-1) -----
+
+    /// The user chose factor `n` (menu, tray, `Scale` property): it is persisted and wins
+    /// over the config key from now on.
+    fn choose_scale(&mut self, n: u32) {
+        self.scale_chosen = true;
+        self.mark_dirty();
+        self.set_scale(n);
+    }
+
+    /// Applies factor `n` live: the character keeps its bottom centre (B-CHAR-5 anchor)
+    /// and is pulled inside its output; no `Move` is emitted. A drag in progress keeps
+    /// following the pointer from the new position, unclamped and on its output (B-WL-4
+    /// chooses the output at the drag end).
+    fn set_scale(&mut self, n: u32) {
+        let old = self.scale;
+        if n == old {
+            return;
+        }
+        let Some(c) = &self.ch else {
+            self.scale = n;
+            return;
+        };
+        let (model, from) = (c.model.clone(), (c.x, c.y));
+        let m = (!self.dragging && !self.outputs.is_empty()).then(|| self.output_rect());
+        self.scale = n;
+        let (x, y) = self.rescaled_in(&model, from, old, m);
+        self.set_position(x, y);
+        if let Some(p) = &mut self.press {
+            p.left = p.left.saturating_add(x.saturating_sub(from.0));
+            p.top = p.top.saturating_add(y.saturating_sub(from.1));
+        }
+        if !self.dragging {
+            self.update_output();
+        }
+        // An open menu shows the new check mark.
+        if let Some(e) = self.menu.as_ref().map(|m| self.menu_entries(m.from_tray))
+            && let Some(m) = &mut self.menu
+        {
+            m.scene.entries = e;
+        }
+        self.mark_dirty();
+        self.replace_ask();
+    }
+
+    /// Top-left at the current factor of `model` whose top-left was `at` at factor `from`,
+    /// keeping the bottom centre, inside the output that frame was on.
+    fn rescaled(&self, model: &CharacterModel, at: (i32, i32), from: u32) -> (i32, i32) {
+        let (w, h) = geometry::size(model, from);
+        let fr = Rect::new(at.0, at.1, w as i32, h as i32);
+        let m = geometry::output_for(fr, &self.outputs).map(|o| o.rect);
+        self.rescaled_in(model, at, from, m)
+    }
+
+    fn rescaled_in(
+        &self,
+        model: &CharacterModel,
+        at: (i32, i32),
+        from: u32,
+        m: Option<Rect>,
+    ) -> (i32, i32) {
+        let (fx, fy) = geometry::foot(model, from);
+        let foot = (at.0.saturating_add(fx), at.1.saturating_add(fy));
+        let new_foot = geometry::foot(model, self.scale);
+        match m {
+            Some(m) => geometry::stand_at(foot, new_foot, geometry::size(model, self.scale), m),
+            // No output to pull into (none known yet, or during a drag).
+            None => (
+                foot.0.saturating_sub(new_foot.0),
+                foot.1.saturating_sub(new_foot.1),
+            ),
         }
     }
 
@@ -598,6 +694,19 @@ impl Core {
                     self.out.push(Output::PersistState(s));
                 }
                 self.out.push(Output::Quit);
+            }
+            Call::SetScale(n) => {
+                if !SCALES.contains(&n) {
+                    return self.reply(
+                        token,
+                        Err(err(
+                            errors::INVALID_ARGS,
+                            format!("Scale must be 1 to 4, not {n} (B-SCALE-1)"),
+                        )),
+                    );
+                }
+                self.reply(token, Ok(ReplyValue::Unit));
+                self.choose_scale(n);
             }
             Call::SetIdleOn(on) => {
                 self.reply(token, Ok(ReplyValue::Unit));
@@ -879,7 +988,8 @@ impl Core {
                 {
                     let c = self.ch.as_mut().expect("character");
                     c.visible = true;
-                    c.output = geometry::output_for(frame_rect(c), &self.outputs).map(|o| o.id);
+                    c.output = geometry::output_for(frame_rect(c, self.scale), &self.outputs)
+                        .map(|o| o.id);
                 }
                 self.visibility_cause = cause;
                 self.emit(Signal::Shown { cause });
@@ -932,7 +1042,11 @@ impl Core {
                 }
             }
             Kind::GestureAt { x, y } => {
-                let st = geometry::gesture_state(frame_rect(self.ch.as_ref().unwrap()), x, y);
+                let st = geometry::gesture_state(
+                    frame_rect(self.ch.as_ref().unwrap(), self.scale),
+                    x,
+                    y,
+                );
                 self.set_stage(Stage::Anim(1));
                 match self.play_state_for_request(st, false) {
                     None => self.finish(),
@@ -998,7 +1112,7 @@ impl Core {
             }
             Kind::MoveTo { x, y, .. } => {
                 let c = self.ch.as_ref().expect("character");
-                let (rect, visible) = (frame_rect(c), c.visible);
+                let (rect, visible) = (frame_rect(c, self.scale), c.visible);
                 self.set_stage(Stage::Anim(1));
                 if !visible {
                     // R-MOVE-4.
@@ -1218,7 +1332,7 @@ impl Core {
 
     fn update_output(&mut self) {
         if let Some(c) = &mut self.ch {
-            c.output = geometry::output_for(frame_rect(c), &self.outputs).map(|o| o.id);
+            c.output = geometry::output_for(frame_rect(c, self.scale), &self.outputs).map(|o| o.id);
         }
     }
 
@@ -1226,7 +1340,9 @@ impl Core {
         let c = self.ch.as_ref();
         let o = c
             .and_then(|c| self.outputs.iter().find(|o| Some(o.id) == c.output))
-            .or_else(|| c.and_then(|c| geometry::output_for(frame_rect(c), &self.outputs)))
+            .or_else(|| {
+                c.and_then(|c| geometry::output_for(frame_rect(c, self.scale), &self.outputs))
+            })
             .or(self.outputs.first());
         o.map_or(Rect::new(0, 0, 1024, 768), |o| o.rect)
     }
@@ -1454,7 +1570,7 @@ impl Core {
         let c = self.ch.as_ref().expect("character");
         let m = self.output_rect();
         let cx = office::Ctx::new(self.metrics.as_ref(), m.w);
-        office::place(&a.model, &a.it, frame_rect(c), m, &cx)
+        office::place(&a.model, &a.it, frame_rect(c, self.scale), m, &cx)
     }
 
     fn apply_placement(&mut self, p: office::Placed) {
@@ -1710,8 +1826,8 @@ impl Core {
             return false;
         };
         let c = self.ch.as_ref().expect("character");
-        let fr = frame_rect(c);
-        let visible = c.model.rest_box.map_or(fr, |(x0, y0, x1, y1)| {
+        let fr = frame_rect(c, self.scale);
+        let visible = geometry::rest_box(&c.model, self.scale).map_or(fr, |(x0, y0, x1, y1)| {
             Rect::new(c.x + x0, c.y + y0, x1 - x0, y1 - y0)
         });
         let m = self.output_rect();
@@ -1823,9 +1939,14 @@ impl Core {
                 }
                 self.out.extend(env_out);
                 // The new character stands where the old one stood, inside the output.
-                let (fx, fy) = geometry::foot(&c.model);
+                let (fx, fy) = geometry::foot(&c.model, self.scale);
                 let at = (c.x.saturating_add(fx), c.y.saturating_add(fy));
-                let (x, y) = geometry::stand_at(at, geometry::foot(&model), model.display, m);
+                let (x, y) = geometry::stand_at(
+                    at,
+                    geometry::foot(&model, self.scale),
+                    geometry::size(&model, self.scale),
+                    m,
+                );
                 (x, y, c.visible)
             }
             None => (0, 0, false),
@@ -2225,6 +2346,7 @@ impl Core {
         let item = |s, a| MenuEntry::Item {
             label: l10n::menu_string(self.lang, s).into(),
             action: a,
+            checked: None,
         };
         if self.ch.is_none() {
             return Vec::new();
@@ -2241,6 +2363,18 @@ impl Core {
         if !self.animate.is_empty() {
             v.push(item(MenuString::Animate, MenuAction::Animate));
         }
+        // B-SCALE-1: the factors, the current one checked.
+        v.push(MenuEntry::Submenu {
+            label: l10n::menu_string(self.lang, MenuString::Size).into(),
+            entries: SCALES
+                .iter()
+                .map(|&n| MenuEntry::Item {
+                    label: format!("&{n}x"),
+                    action: MenuAction::Scale(n),
+                    checked: Some(n == self.scale),
+                })
+                .collect(),
+        });
         v
     }
 
@@ -2252,6 +2386,8 @@ impl Core {
                 y,
                 entries,
                 highlighted: None,
+                open: None,
+                open_highlighted: None,
             },
             from_tray,
         });
@@ -2259,64 +2395,120 @@ impl Core {
 
     fn menu_input(&mut self, m: MenuInput) {
         let Some(menu) = &mut self.menu else { return };
+        let s = &mut menu.scene;
         match m {
-            MenuInput::Hover(h) => menu.scene.highlighted = h,
+            // Hovering a submenu item opens it, another item closes it; between items
+            // (on the way to the submenu) it stays open with its item highlighted.
+            MenuInput::Hover(h) => match h {
+                Some(i) if submenu(&s.entries, i).is_some() => {
+                    if s.open != Some(i) {
+                        s.open = Some(i);
+                        s.open_highlighted = None;
+                    }
+                    s.highlighted = Some(i);
+                }
+                Some(i) => {
+                    s.highlighted = Some(i);
+                    s.open = None;
+                    s.open_highlighted = None;
+                }
+                None => s.highlighted = s.open,
+            },
+            MenuInput::SubmenuHover(h) => {
+                if s.open.is_some() {
+                    s.open_highlighted = h;
+                    s.highlighted = s.open;
+                }
+            }
             MenuInput::Dismiss => self.menu = None,
             MenuInput::Activate(i) => {
+                if submenu(&s.entries, i).is_some() {
+                    s.open = Some(i);
+                    s.highlighted = Some(i);
+                    return;
+                }
                 let menu = self.menu.take().unwrap();
                 if let Some(MenuEntry::Item { action, .. }) = menu.scene.entries.get(i) {
                     self.menu_action(*action, menu.from_tray);
                 }
             }
+            MenuInput::SubmenuActivate(i) => {
+                let action =
+                    s.open
+                        .and_then(|o| submenu(&s.entries, o))
+                        .and_then(|e| match e.get(i) {
+                            Some(MenuEntry::Item { action, .. }) => Some(*action),
+                            _ => None,
+                        });
+                if let Some(a) = action {
+                    let from_tray = self.menu.take().unwrap().from_tray;
+                    self.menu_action(a, from_tray);
+                }
+            }
         }
     }
 
+    /// B-WL-9 keys. The open submenu has the keyboard once one of its items is
+    /// highlighted (Right, Enter or the mnemonic of its parent item); Left and Escape give
+    /// it back to the parent menu.
     fn menu_key(&mut self, key: Key) {
         let Some(menu) = &mut self.menu else { return };
-        let items: Vec<usize> = menu
-            .scene
-            .entries
-            .iter()
-            .enumerate()
-            .filter(|(_, e)| matches!(e, MenuEntry::Item { .. }))
-            .map(|(i, _)| i)
-            .collect();
-        if items.is_empty() {
+        let s = &mut menu.scene;
+        if let (Some(sub), Some(_)) = (
+            s.open.and_then(|o| submenu(&s.entries, o)),
+            s.open_highlighted,
+        ) {
+            let sub = sub.to_vec();
+            match key {
+                Key::Escape | Key::Left => {
+                    s.open = None;
+                    s.open_highlighted = None;
+                }
+                Key::Down | Key::Up => {
+                    s.open_highlighted = menu_step(&sub, s.open_highlighted, key == Key::Down)
+                }
+                Key::Enter => {
+                    if let Some(h) = s.open_highlighted {
+                        self.menu_input(MenuInput::SubmenuActivate(h));
+                    }
+                }
+                Key::Char(c) => {
+                    if let Some(i) = menu_mnemonic(&sub, c) {
+                        self.menu_input(MenuInput::SubmenuActivate(i));
+                    }
+                }
+                _ => {}
+            }
+            return;
+        }
+        if menu_step(&s.entries, None, true).is_none() {
             self.menu = None;
             return;
         }
-        let pos = menu
-            .scene
-            .highlighted
-            .and_then(|h| items.iter().position(|&i| i == h));
+        let open_sub = |s: &mut MenuScene, i: usize| {
+            s.highlighted = Some(i);
+            s.open = Some(i);
+            s.open_highlighted = submenu(&s.entries, i).and_then(|e| menu_step(e, None, true));
+        };
         match key {
+            Key::Escape if s.open.is_some() => s.open = None,
             Key::Escape => self.menu = None,
-            Key::Down => {
-                let n = pos.map_or(0, |p| (p + 1) % items.len());
-                menu.scene.highlighted = Some(items[n]);
+            Key::Left => s.open = None,
+            Key::Down | Key::Up => {
+                s.highlighted = menu_step(&s.entries, s.highlighted, key == Key::Down);
+                s.open = None;
+                s.open_highlighted = None;
             }
-            Key::Up => {
-                let n = pos.map_or(items.len() - 1, |p| (p + items.len() - 1) % items.len());
-                menu.scene.highlighted = Some(items[n]);
-            }
-            Key::Enter => {
-                if let Some(h) = menu.scene.highlighted {
-                    self.menu_input(MenuInput::Activate(h));
-                }
-            }
-            Key::Char(c) => {
-                let c = c.to_lowercase().next().unwrap_or(c);
-                let hit = items
-                    .iter()
-                    .copied()
-                    .find(|&i| match &menu.scene.entries[i] {
-                        MenuEntry::Item { label, .. } => office::mnemonic(label).2 == Some(c),
-                        _ => false,
-                    });
-                if let Some(i) = hit {
-                    self.menu_input(MenuInput::Activate(i));
-                }
-            }
+            Key::Enter | Key::Right => match s.highlighted {
+                Some(h) if submenu(&s.entries, h).is_some() => open_sub(s, h),
+                Some(h) if key == Key::Enter => self.menu_input(MenuInput::Activate(h)),
+                _ => {}
+            },
+            Key::Char(c) => match menu_mnemonic(&s.entries, c) {
+                Some(i) if submenu(&s.entries, i).is_some() => open_sub(s, i),
+                Some(i) => self.menu_input(MenuInput::Activate(i)),
+                None => {}
+            },
             _ => {}
         }
     }
@@ -2335,6 +2527,11 @@ impl Core {
                 }
             }
             MenuAction::Animate => self.animate_next(),
+            MenuAction::Scale(n) => {
+                if SCALES.contains(&n) {
+                    self.choose_scale(n);
+                }
+            }
         }
     }
 
@@ -2415,7 +2612,7 @@ impl Core {
     fn set_outputs(&mut self, o: Vec<OutputInfo>) {
         self.outputs = o;
         let Some(c) = &self.ch else { return };
-        let fr = frame_rect(c);
+        let fr = frame_rect(c, self.scale);
         if let Some((x, y)) = geometry::pull_on_output_change(fr, &self.outputs)
             && (x, y) != (c.x, c.y)
         {
@@ -2437,8 +2634,9 @@ impl Core {
             mapped: c.visible,
             x: c.x,
             y: c.y,
-            width: c.model.display.0,
-            height: c.model.display.1,
+            width: geometry::size(&c.model, self.scale).0,
+            height: geometry::size(&c.model, self.scale).1,
+            scale: self.scale,
             picture: match c.player.picture() {
                 Pic::Empty => Picture::Empty,
                 Pic::Pose(p) => Picture::Pose(p),
@@ -2486,7 +2684,7 @@ impl Core {
             return None;
         }
         let c = self.ch.as_ref()?;
-        let fr = frame_rect(c);
+        let fr = frame_rect(c, self.scale);
         let m = self.output_rect();
         // B-BAL-3 anchor: mouth point of the lowest mouth type, else the frame centre.
         let anchor = match c.player.picture() {
@@ -2573,8 +2771,14 @@ impl Core {
             visible: self.visible(),
             left: self.ch.as_ref().map_or(0, |c| c.x),
             top: self.ch.as_ref().map_or(0, |c| c.y),
-            width: self.ch.as_ref().map_or(0, |c| c.model.display.0),
-            height: self.ch.as_ref().map_or(0, |c| c.model.display.1),
+            width: self
+                .ch
+                .as_ref()
+                .map_or(0, |c| geometry::size(&c.model, self.scale).0),
+            height: self
+                .ch
+                .as_ref()
+                .map_or(0, |c| geometry::size(&c.model, self.scale).1),
             idle_on: self.idle_on,
             move_cause: self.move_cause,
             visibility_cause: self.visibility_cause,
@@ -2587,10 +2791,61 @@ impl Core {
                 .as_ref()
                 .map(|c| c.model.animation_names())
                 .unwrap_or_default(),
+            scale: self.scale,
         }
     }
 }
 
-fn frame_rect(c: &Char) -> Rect {
-    Rect::new(c.x, c.y, c.model.display.0 as i32, c.model.display.1 as i32)
+/// B-SCALE-1: factors outside 1 to 4 (a hand-edited file) are clamped.
+fn clamp_scale(n: u32) -> u32 {
+    n.clamp(SCALES[0], SCALES[SCALES.len() - 1])
+}
+
+/// The frame at size factor `scale` (B-SCALE-1).
+fn frame_rect(c: &Char, scale: u32) -> Rect {
+    let (w, h) = geometry::size(&c.model, scale);
+    Rect::new(c.x, c.y, w as i32, h as i32)
+}
+
+/// The entries of the submenu at `i`, if entry `i` is one.
+fn submenu(entries: &[MenuEntry], i: usize) -> Option<&[MenuEntry]> {
+    match entries.get(i) {
+        Some(MenuEntry::Submenu { entries, .. }) => Some(entries),
+        _ => None,
+    }
+}
+
+/// The selectable entry (not a separator) after (`down`) or before `cur`, wrapping; from
+/// none, the first or the last.
+fn menu_step(entries: &[MenuEntry], cur: Option<usize>, down: bool) -> Option<usize> {
+    let items: Vec<usize> = entries
+        .iter()
+        .enumerate()
+        .filter(|(_, e)| !matches!(e, MenuEntry::Separator))
+        .map(|(i, _)| i)
+        .collect();
+    let n = items.len();
+    if n == 0 {
+        return None;
+    }
+    let pos = cur.and_then(|h| items.iter().position(|&i| i == h));
+    Some(
+        items[match (pos, down) {
+            (Some(p), true) => (p + 1) % n,
+            (Some(p), false) => (p + n - 1) % n,
+            (None, true) => 0,
+            (None, false) => n - 1,
+        }],
+    )
+}
+
+/// The entry whose `&` mnemonic is `c` (ignoring case).
+fn menu_mnemonic(entries: &[MenuEntry], c: char) -> Option<usize> {
+    let c = c.to_lowercase().next().unwrap_or(c);
+    entries.iter().position(|e| match e {
+        MenuEntry::Item { label, .. } | MenuEntry::Submenu { label, .. } => {
+            office::mnemonic(label).2 == Some(c)
+        }
+        MenuEntry::Separator => false,
+    })
 }

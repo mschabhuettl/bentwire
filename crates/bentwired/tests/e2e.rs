@@ -1456,3 +1456,309 @@ fn library_gallery_walk_keeps_the_bottom_centre() {
     );
     assert!(bad.is_empty(), "{bad:#?}");
 }
+
+// ---------- size factor (B-SCALE-1) ----------
+
+fn set_scale(e: &Env, n: u32) -> Result<(), String> {
+    e.conn
+        .call_method(
+            Some("org.bentwire.Agent"),
+            AGENT,
+            Some("org.freedesktop.DBus.Properties"),
+            "Set",
+            &(AGENT_IF, "Scale", Value::from(n)),
+        )
+        .map(|_| ())
+        .map_err(|err| match err {
+            zbus::Error::MethodError(name, _, _) => name.to_string(),
+            other => other.to_string(),
+        })
+}
+
+fn scale_of(e: &Env) -> u32 {
+    u32::try_from(e.prop(AGENT, AGENT_IF, "Scale")).unwrap()
+}
+
+fn surface(s: &serde_json::Value, kind: &str) -> serde_json::Value {
+    s["surfaces"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|x| x["kind"] == kind)
+        .unwrap_or_else(|| panic!("no {kind} in {s}"))
+        .clone()
+}
+
+fn int(v: &serde_json::Value) -> i64 {
+    v.as_i64().unwrap()
+}
+
+/// The newest `--dump-frames` PNG as (width, RGBA).
+fn last_frame(dir: &std::path::Path) -> (u32, Vec<u8>) {
+    let mut names: Vec<_> = std::fs::read_dir(dir)
+        .unwrap()
+        .map(|d| d.unwrap().path())
+        .collect();
+    names.sort();
+    let f = std::fs::File::open(names.last().unwrap()).unwrap();
+    let mut r = png::Decoder::new(std::io::BufReader::new(f))
+        .read_info()
+        .unwrap();
+    let mut buf = vec![0; r.output_buffer_size()];
+    let info = r.next_frame(&mut buf).unwrap();
+    buf.truncate(info.buffer_size());
+    (info.width, buf)
+}
+
+#[test]
+fn b_scale_1_test1_snapshot_and_pixels_at_1x_and_2x() {
+    let mut e = Env::new("scale12");
+    let frames = e.dir.join("frames");
+    e.start(&[
+        "--dump-frames",
+        frames.to_str().unwrap(),
+        "--outputs",
+        "800x600+0+0",
+    ]);
+    e.advance(1000);
+    assert_eq!(scale_of(&e), 1);
+    let s1 = e.snapshot();
+    let (w, img1) = last_frame(&frames);
+    set_scale(&e, 2).unwrap();
+    e.advance(10);
+    let s2 = e.snapshot();
+    let (_, img2) = last_frame(&frames);
+    let (c1, c2) = (surface(&s1, "character"), surface(&s2, "character"));
+    assert_eq!((int(&c1["w"]), int(&c1["h"])), (32, 32));
+    assert_eq!((int(&c2["w"]), int(&c2["h"])), (64, 64));
+    assert_eq!((int(&c2["buffer_scale"]), int(&s2["scale"])), (1, 2));
+    assert_eq!(u32::try_from(e.prop(CHAR, CHAR_IF, "Width")).unwrap(), 64);
+    // The input region's box is doubled and keeps its bottom centre (B-CHAR-5 anchor).
+    let (o1, o2) = (&c1["opaque"], &c2["opaque"]);
+    assert_eq!(int(&o2["w"]), 2 * int(&o1["w"]));
+    assert_eq!(int(&o2["h"]), 2 * int(&o1["h"]));
+    assert_eq!(
+        int(&o2["x"]) + int(&o2["w"]) / 2,
+        int(&o1["x"]) + int(&o1["w"]) / 2
+    );
+    assert_eq!(int(&o2["y"]) + int(&o2["h"]), int(&o1["y"]) + int(&o1["h"]));
+    assert_eq!(s2["rest_opaque"], *o2);
+    // Every pixel of the 2x surface repeats its 1x pixel (nearest neighbour, bitmap).
+    let px = |img: &[u8], x: i64, y: i64| {
+        let o = ((y * w as i64 + x) * 4) as usize;
+        img[o..o + 4].to_vec()
+    };
+    let (x1, y1, x2, y2) = (int(&c1["x"]), int(&c1["y"]), int(&c2["x"]), int(&c2["y"]));
+    let mut opaque = 0;
+    for y in 0..64 {
+        for x in 0..64 {
+            let p = px(&img2, x2 + x, y2 + y);
+            assert_eq!(p, px(&img1, x1 + x / 2, y1 + y / 2), "pixel {x},{y}");
+            opaque += usize::from(p[3] == 255);
+        }
+    }
+    assert_eq!(opaque, 4 * 24 * 24);
+}
+
+#[test]
+fn b_scale_1_drag_and_balloon_at_3x() {
+    let mut e = Env::new("scale3");
+    e.start(&["--outputs", "800x600+0+0"]);
+    e.advance(1000);
+    let c1 = surface(&e.snapshot(), "character");
+    let (_, so, _) = out(&e.cli(&["scale", "3"]));
+    assert_eq!(so, "");
+    e.advance(10);
+    let s = e.snapshot();
+    let c = surface(&s, "character");
+    assert_eq!((int(&c["w"]), int(&c["h"])), (96, 96));
+    // A press on a pixel that only the 3x picture covers (right of the 1x frame) drags.
+    let o = &c["opaque"];
+    let (px, py) = (
+        int(&o["x"]) + int(&o["w"]) - 3,
+        int(&o["y"]) + int(&o["h"]) / 2,
+    );
+    assert!(px >= int(&c1["x"]) + 32, "{c1} {c}");
+    let mut cl = e.client();
+    let (px, py) = (px as i32, py as i32);
+    e.pointer("press", 1, px, py);
+    e.pointer("motion", 1, px - 300, py + 5);
+    e.pointer("release", 1, px - 300, py + 5);
+    let (x, y) = (int(&c["x"]) - 300, int(&c["y"]) + 5);
+    cl.wait_for("Move after the drag", |r| {
+        r.member == "Move" && r.args == json!([x, y, 1])
+    });
+    // The Agent balloon sits above the 96 x 96 frame, centred on it; its size is the
+    // normal one.
+    cl.call_id("Speak", &("Hi there",)).unwrap();
+    e.advance(500);
+    let b = surface(&e.snapshot(), "agent_balloon");
+    assert_eq!(int(&b["y"]) + int(&b["h"]), y);
+    assert_eq!(int(&b["x"]), x + (96 - int(&b["w"])) / 2);
+    e.cli(&["scale", "1"]);
+    e.advance(10);
+    let b1 = surface(&e.snapshot(), "agent_balloon");
+    assert_eq!((&b1["w"], &b1["h"]), (&b["w"], &b["h"]));
+}
+
+#[test]
+fn b_scale_1_cli_dbus_round_trip_and_persistence() {
+    let mut e = Env::new("scalecli");
+    e.start(&[]);
+    e.advance(1000);
+    let conn = connect(&e.addr);
+    conn.call_method(
+        Some("org.freedesktop.DBus"),
+        "/org/freedesktop/DBus",
+        Some("org.freedesktop.DBus"),
+        "AddMatch",
+        &("type='signal',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged'",),
+    )
+    .unwrap();
+    let it = zbus::blocking::MessageIterator::from(&conn);
+    assert_eq!(out(&e.cli(&["scale"])), (0, "1\n".into(), String::new()));
+    assert_eq!(out(&e.cli(&["scale", "2"])).0, 0);
+    assert_eq!(out(&e.cli(&["scale"])).1, "2\n");
+    let (code, _, se) = out(&e.cli(&["scale", "5"]));
+    assert_eq!(code, 1);
+    assert!(
+        se.contains("org.freedesktop.DBus.Error.InvalidArgs"),
+        "{se}"
+    );
+    assert_eq!(out(&e.cli(&["scale", "two"])).0, 1);
+    assert_eq!(
+        set_scale(&e, 0),
+        Err("org.freedesktop.DBus.Error.InvalidArgs".into())
+    );
+    set_scale(&e, 3).unwrap();
+    assert_eq!(scale_of(&e), 3);
+    assert_eq!(u32::try_from(e.prop(CHAR, CHAR_IF, "Width")).unwrap(), 96);
+    // PropertiesChanged: Agent1 Scale and Character1 Width.
+    let (mut scale, mut width) = (false, false);
+    for m in it.flatten().take(20) {
+        if m.header().member().map(|x| x.as_str()) != Some("PropertiesChanged") {
+            continue;
+        }
+        let (iface, changed, _): (
+            String,
+            std::collections::HashMap<String, zbus::zvariant::OwnedValue>,
+            Vec<String>,
+        ) = m.body().deserialize().unwrap();
+        if iface == AGENT_IF && changed.contains_key("Scale") {
+            scale |= u32::try_from(&changed["Scale"]).unwrap() == 2;
+        }
+        if iface == CHAR_IF && changed.contains_key("Width") {
+            width |= u32::try_from(&changed["Width"]).unwrap() == 64;
+        }
+        if scale && width {
+            break;
+        }
+    }
+    assert!(scale && width);
+    // Persisted (B-CFG-2) and chosen: it wins over the config key after a restart.
+    let s = e.snapshot();
+    e.client().call_unit(AGENT, AGENT_IF, "Quit", &()).unwrap();
+    assert_eq!(e.wait_exit(10), Some(0));
+    let st = e.state();
+    assert!(
+        st.contains("scale = 3") && st.contains("scale_chosen = true"),
+        "{st}"
+    );
+    std::fs::create_dir_all(e.dir.join("cfg/bentwire")).unwrap();
+    std::fs::write(e.dir.join("cfg/bentwire/config.toml"), "scale = 2\n").unwrap();
+    e.start(&[]);
+    e.advance(1000);
+    assert_eq!(scale_of(&e), 3);
+    let s2 = e.snapshot();
+    assert_eq!((&s2["left"], &s2["top"]), (&s["left"], &s["top"]));
+}
+
+#[test]
+fn b_scale_1_size_submenu_through_test1_and_trace() {
+    let mut e = Env::new("scalemenu");
+    let trace = e.dir.join("trace.jsonl");
+    e.start(&["--trace", trace.to_str().unwrap()]);
+    e.advance(1000);
+    let c = surface(&e.snapshot(), "character");
+    let o = &c["opaque"];
+    let (x, y) = (
+        (int(&o["x"]) + int(&o["w"]) / 2) as i32,
+        (int(&o["y"]) + int(&o["h"]) / 2) as i32,
+    );
+    e.click(2, x, y);
+    let s = e.snapshot();
+    let size = s["menu"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|i| i["label"] == "&Size")
+        .unwrap_or_else(|| panic!("no Size in {s}"))
+        .clone();
+    assert_eq!(size["submenu"], true);
+    let (sx, sy) = ((int(&size["x"]) + 5) as i32, (int(&size["y"]) + 5) as i32);
+    e.pointer("motion", 0, sx, sy);
+    let s = e.snapshot();
+    let sub = s["submenu"].as_array().unwrap().clone();
+    let labels: Vec<_> = sub
+        .iter()
+        .map(|i| (i["label"].clone(), i["checked"].clone()))
+        .collect();
+    assert_eq!(
+        labels,
+        vec![
+            (json!("&1x"), json!(true)),
+            (json!("&2x"), json!(false)),
+            (json!("&3x"), json!(false)),
+            (json!("&4x"), json!(false)),
+        ]
+    );
+    // Right of the menu, its first item level with Size.
+    let m = surface(&s, "menu");
+    assert_eq!(
+        int(&surface(&s, "submenu")["x"]),
+        int(&m["x"]) + int(&m["w"])
+    );
+    assert_eq!(int(&sub[0]["y"]), int(&size["y"]));
+    let (tx, ty) = (
+        (int(&sub[2]["x"]) + 5) as i32,
+        (int(&sub[2]["y"]) + 5) as i32,
+    );
+    e.pointer("motion", 0, tx, ty);
+    e.click(1, tx, ty);
+    e.advance(10);
+    let s = e.snapshot();
+    assert!(s["menu"].is_null() && s["submenu"].is_null(), "{s}");
+    assert_eq!(scale_of(&e), 3);
+    // The trace: the submenu popup is a child of the menu and is destroyed first.
+    let t = std::fs::read_to_string(&trace).unwrap();
+    let reqs: Vec<String> = t
+        .lines()
+        .map(|l| serde_json::from_str::<serde_json::Value>(l).unwrap())
+        .filter(|l| l["surface"] == "menu" || l["surface"] == "submenu")
+        .filter(|l| l["req"] == "popup" || l["req"] == "destroy")
+        .map(|l| {
+            format!(
+                "{} {}",
+                l["req"].as_str().unwrap(),
+                l["surface"].as_str().unwrap()
+            )
+        })
+        .collect();
+    assert_eq!(
+        reqs,
+        [
+            "popup menu",
+            "popup submenu",
+            "destroy submenu",
+            "destroy menu"
+        ]
+    );
+    let popup = t
+        .lines()
+        .map(|l| serde_json::from_str::<serde_json::Value>(l).unwrap())
+        .find(|l| l["req"] == "popup" && l["surface"] == "submenu")
+        .unwrap();
+    // Anchored at Size's row across the menu, first items level (3 = border + padding).
+    assert_eq!(popup["anchor_rect"][2], m["w"]);
+    assert_eq!(popup["offset"], json!([0, -3]));
+}

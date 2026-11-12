@@ -249,7 +249,9 @@ impl App {
             PointerKind::Press => {
                 let h = present::hit(&self.rendered, x, y);
                 self.menu_serial += 1;
-                if self.rendered.menu.is_some() && !matches!(h, Some(Hit::Menu(_))) {
+                if self.rendered.menu.is_some()
+                    && !matches!(h, Some(Hit::Menu(_) | Hit::Submenu(_)))
+                {
                     // A press outside the grabbed popup: popup_done.
                     return self.event(Event::Menu(MenuInput::Dismiss));
                 }
@@ -257,8 +259,8 @@ impl App {
                 h
             }
             PointerKind::Release => self.grab.take().map(|g| match g {
-                Hit::Menu(_) => match present::hit(&self.rendered, x, y) {
-                    Some(Hit::Menu(i)) => Hit::Menu(i),
+                Hit::Menu(_) | Hit::Submenu(_) => match present::hit(&self.rendered, x, y) {
+                    Some(h @ (Hit::Menu(_) | Hit::Submenu(_))) => h,
                     _ => Hit::Menu(None),
                 },
                 other => other,
@@ -273,6 +275,15 @@ impl App {
                     }
                 }
                 PointerKind::Motion => self.event(Event::Menu(MenuInput::Hover(i))),
+                _ => {}
+            },
+            Some(Hit::Submenu(i)) => match kind {
+                PointerKind::Release => {
+                    if let Some(i) = i {
+                        self.event(Event::Menu(MenuInput::SubmenuActivate(i)))
+                    }
+                }
+                PointerKind::Motion => self.event(Event::Menu(MenuInput::SubmenuHover(i))),
                 _ => {}
             },
             Some(Hit::Surface(surface)) => self.event(Event::Pointer(PointerEvent {
@@ -320,11 +331,13 @@ impl App {
                 "mapped": true}),
             );
         }
-        if let Some(m) = &r.menu {
-            surfaces.push(
-                json!({"kind": "menu", "x": m.x, "y": m.y, "w": m.buf.w, "h": m.buf.h,
-                "mapped": true}),
-            );
+        for (kind, m) in [("menu", &r.menu), ("submenu", &r.submenu)] {
+            if let Some(m) = m {
+                surfaces.push(
+                    json!({"kind": kind, "x": m.x, "y": m.y, "w": m.buf.w, "h": m.buf.h,
+                    "mapped": true}),
+                );
+            }
         }
         let office = s.office_balloon.as_ref().map(|b| {
             json!({
@@ -336,23 +349,31 @@ impl App {
                     "checked": x.checked})).collect::<Vec<_>>(),
             })
         });
-        let menu = r.menu.as_ref().map(|m| {
+        let items = |m: &present::MenuSurface| {
             m.entries
                 .iter()
                 .zip(&m.geometry.items)
                 .map(|(e, q)| match e {
-                    api::MenuEntry::Item { label, .. } => {
-                        json!({"label": label, "x": m.x + q.x, "y": m.y + q.y, "w": q.w, "h": q.h})
+                    api::MenuEntry::Item { label, checked, .. } => {
+                        json!({"label": label, "x": m.x + q.x, "y": m.y + q.y, "w": q.w, "h": q.h,
+                            "checked": checked})
+                    }
+                    api::MenuEntry::Submenu { label, .. } => {
+                        json!({"label": label, "x": m.x + q.x, "y": m.y + q.y, "w": q.w, "h": q.h,
+                            "submenu": true})
                     }
                     api::MenuEntry::Separator => json!({"separator": true}),
                 })
                 .collect::<Vec<_>>()
-        });
+        };
+        let menu = r.menu.as_ref().map(items);
+        let submenu = r.submenu.as_ref().map(items);
         let p = self.core.properties();
-        // B-CHAR-5: the opaque box of the rest picture at the current position, through the
-        // renderer's alpha shape (B-PIX-3).
+        // B-CHAR-5: the opaque box of the rest picture at the current position and size
+        // factor (B-SCALE-1), through the renderer's alpha shape (B-PIX-3).
         let rest_opaque = library::rest_picture(&self.lib.borrow(), &p.character).and_then(|pic| {
-            let b = bentwire_render::picture::picture_buffer(&pic, pic.width, pic.height, 1);
+            let (w, h) = (pic.width * p.scale, pic.height * p.scale);
+            let b = bentwire_render::picture::picture_buffer(&pic, w, h, 1);
             let i = &b.input_region;
             let x0 = i.iter().map(|q| q.x).min()?;
             let y0 = i.iter().map(|q| q.y).min()?;
@@ -370,12 +391,14 @@ impl App {
             "visible": p.visible,
             "left": p.left,
             "top": p.top,
+            "scale": p.scale,
             "rest_opaque": rest_opaque,
             "keyboard_interactivity": if r.keyboard { "on_demand" } else { "none" },
             "surfaces": surfaces,
             "office_balloon": office,
             "agent_balloon_lines": s.agent_balloon.as_ref().map(|b| b.lines.clone()),
             "menu": menu,
+            "submenu": submenu,
             "tray": {"title": s.tray.title, "tooltip": s.tray.tooltip},
             "backend": self.backend.snapshot(),
             "outputs": self.outputs.iter().map(|o| json!({"id": o.id, "x": o.rect.x,
@@ -387,7 +410,7 @@ impl App {
     fn prop_map(&self, iface: &str) -> Option<HashMap<&'static str, Value<'static>>> {
         let p = self.core.properties();
         match iface {
-            dbus::AGENT_IFACE => Some(dbus::agent_props_map(&p.character)),
+            dbus::AGENT_IFACE => Some(dbus::agent_props_map(&p)),
             dbus::CHAR_IFACE => Some(dbus::char_props_map(&p)),
             _ => None,
         }
@@ -451,6 +474,8 @@ impl App {
                         visible: Some(s.visible),
                         chosen: Some(s.chosen),
                         install_hint_shown: self.install_hint_shown,
+                        scale: Some(s.scale),
+                        scale_chosen: Some(s.scale_chosen),
                     };
                     if let Err(e) = st.save(&self.state_path) {
                         log::warn!("writing {}: {e}", self.state_path.display());
@@ -499,8 +524,8 @@ impl App {
                 &self.conn,
                 dbus::AGENT_PATH,
                 dbus::AGENT_IFACE,
-                &dbus::agent_props_map(&old.character),
-                &dbus::agent_props_map(&p.character),
+                &dbus::agent_props_map(old),
+                &dbus::agent_props_map(&p),
             );
             dbus::emit_props_changed(
                 &self.conn,
@@ -636,6 +661,7 @@ fn call_method(c: &api::Call) -> &'static str {
         Stop(_) => "Stop",
         StopAll(_) => "StopAll",
         SetIdleOn(_) => "SetIdleOn",
+        SetScale(_) => "SetScale",
     }
 }
 
@@ -652,6 +678,7 @@ fn call_args(c: &api::Call) -> serde_json::Value {
         Stop(id) => json!([id]),
         StopAll(t) => json!([t]),
         SetIdleOn(b) => json!([b]),
+        SetScale(n) => json!([n]),
         ListCharacters | Quit => json!([]),
     }
 }
