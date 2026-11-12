@@ -42,6 +42,7 @@ writing the spec itself are marked **bentwire decision** in its sections 3.1 to 
 | A-CONV-5 | Ids for file names with a parenthesised qualifier; identical sources converted once |
 | A-CONV-6 | Out-of-range indices in source data mean no layer, no sound or transparent |
 | A-PACK-3 | Fully transparent helper actors are excluded from `classics` |
+| A-LABEL-1 | Display names are labels "<name> (<product>)", product from the format or `pack.toml`, never empty |
 | W-RAST-1 | WMF geometry: mapping mode, pixel-centre coverage, pen widths |
 | W-RAST-2 | Ellipse and RoundRect pens |
 | W-COL-1 | WMF colours map to the nearest palette entry |

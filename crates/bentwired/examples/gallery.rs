@@ -3,6 +3,8 @@
 //! the pose `office97.rest_pose`), else the last frame of the first Showing member, else an
 //! empty picture of the display size. Writes `OUTDIR/<id>.png` per character file (`<id>.bwc`
 //! or a `<id>/` folder with `character.toml`) in PACKDIR. Output is deterministic.
+//! Prints one JSON object per line and character: id, English name, product (null when there
+//! is none) and display label (A-LABEL-1), for scripts/gallery-table.py.
 //! usage: gallery PACKDIR OUTDIR
 
 #[allow(dead_code)]
@@ -12,6 +14,7 @@ mod model;
 use std::path::{Path, PathBuf};
 
 use bentwire_character::Character;
+use bentwire_character::label::{PackLabels, label, name_and_product};
 use bentwire_core::fallback::state_members;
 use bentwire_core::model::Family;
 use bentwire_render::canvas::RgbaImage;
@@ -72,10 +75,19 @@ fn main() {
         .collect();
     chars.sort();
     std::fs::create_dir_all(out).unwrap();
+    let pack = PackLabels::of_pack(pack).unwrap_or_else(|e| panic!("{e}"));
     for (id, path) in &chars {
         let c = Character::load(Path::new(path)).unwrap_or_else(|e| panic!("{id}: {e}"));
         let img = rest_picture(id, &c);
         bentwire_render::scene::write_png(&out.join(format!("{id}.png")), &img).unwrap();
-        println!("{id}.png {}x{}", img.width, img.height);
+        let info = &c.manifest.character.info;
+        let names: Vec<(&str, &str)> = info.iter().map(|i| (&*i.lang, &*i.name)).collect();
+        let format = (c.manifest.source.as_ref())
+            .and_then(|s| s.get("format"))
+            .and_then(|f| f.as_str());
+        let (name, product) = name_and_product(id, &names, format, &pack);
+        let l = label(&name, product.as_deref());
+        let line = serde_json::json!({"id": id, "name": name, "product": product, "label": l});
+        println!("{line}");
     }
 }

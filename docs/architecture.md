@@ -38,7 +38,9 @@ and keep `bentwired` a thin shell around backends).
   for `pack.toml` / `character.toml` first. Entries are visited in sorted name order;
   the first character with a given id wins.
 - `pack.toml`: `name`, `licence` (SPDX or free text), `provenance` (free text),
-  optional `description`. The daemon hardcodes no pack.
+  optional `description`; optional `[labels.<id>]` tables with `name` and `product` for
+  the display labels (spec 3.14 A-LABEL-1) and `products`, the product order of a pack
+  README's gallery table (`scripts/gallery-table.py`). The daemon hardcodes no pack.
 - Installing for a user: copy (or symlink) `characters/builtin` to
   `~/.local/share/bentwire/characters/`, and clone the `bentwire-classics` repository into
   `~/.local/share/bentwire/characters/classics`.

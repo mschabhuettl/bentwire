@@ -1581,6 +1581,19 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
 - **A-PACK-3 Helper actors.** A source whose every frame is fully transparent (the Bob helper
   ZVISIBLE.ACT, whose metafile draws nothing) is excluded from `classics` with that reason.
   Reason: a character without a visible picture has no use as a desktop character.
+- **A-LABEL-1 Display labels.** The names the daemon shows (`ListCharacters`, the
+  gallery, the tray menu) are labels "<name> (<product>)" for every info entry, computed in
+  one place (`bentwire_character::label`). The product comes from `source.format`
+  (`acs-2.0` Microsoft Agent 2.0, `acs-1.5` Microsoft Agent 1.5, `act-2.2` Office 97,
+  `act-1.0` Microsoft Bob); a character without a known format shows its name alone. A
+  qualifier in the product joins with a comma (product "P (q)" gives "Name (P, q)").
+  The pack's `pack.toml` may override name and product per id (`[labels.<id>]`, keys
+  `name`, `product`). English entries take the overridden name; an empty name becomes the
+  English name, else the first non-empty name in any language, else the id; a character
+  without an English entry gets one. So B-CHAR-3 step 4 (empty string) is never reached
+  for an installed character. Reason: the same name exists in several products (Clippit,
+  Merlin, The Dot, Rover, ...), and some files carry no English or no real name; ids and
+  `[[character.info]]` stay as converted.
 - **W-RAST-1 WMF geometry (D2, act-format 4.6).** Logical points go through
   MM_ANISOTROPIC (viewport = destination rectangle, window = placeable bbox until the
   metafile's own SetWindowOrg/SetWindowExt) in floating point and are rounded to whole
