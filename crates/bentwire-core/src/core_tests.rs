@@ -545,6 +545,27 @@ fn b_char_1_rescan_on_use_and_b_char_4_default_when_not_chosen() {
 }
 
 #[test]
+fn b_char_4_rescan_installs_a_character_when_none_loaded() {
+    let (mut t, inst) = T::installed(vec![character("clippit", 100)], &[], None);
+    t.advance(1000);
+    assert_eq!(
+        t.call(Call::Play("Wave".into())).unwrap_err().name,
+        errors::NO_CHARACTER
+    );
+    inst.borrow_mut().push("clippit".into());
+    t.call(Call::ListCharacters).unwrap();
+    let p = t.core.properties();
+    assert_eq!(p.character, "clippit");
+    // B-CFG-3 first-run place and an animated Show.
+    assert_eq!((p.left, p.top), (1920 - 48 - 100, 1080 - 96 - 100));
+    assert!(
+        t.signals()
+            .iter()
+            .any(|(_, s)| *s == Signal::Shown { cause: 4 })
+    );
+}
+
+#[test]
 fn b_char_6_install_hint_is_an_internal_speak() {
     let mut t = T::visible(character("bentwire-placeholder", 0));
     let now = t.now;
@@ -2630,6 +2651,17 @@ fn b_gal_1_balloon_stays_while_it_fits_next_to_the_new_character() {
     next(&mut t, "b", (502, 508));
     let b1 = body(&t);
     assert_eq!((b1.x, b1.bottom()), (b0.x, b0.bottom()), "kept for b");
+    // Focus and hover changes keep it there.
+    key(&mut t, Key::Tab);
+    let ok = t.core.scene().office_balloon.unwrap().buttons[2].rect;
+    t.press(
+        PointerKind::Motion,
+        Surface::OfficeBalloon,
+        0,
+        ok.x + 1,
+        ok.y + 1,
+    );
+    assert_eq!(body(&t), b1, "kept after Tab and hover");
     next(&mut t, "c", (500, 480));
     let b2 = body(&t);
     assert_eq!((b2.x, b2.bottom()), (b0.x, b0.bottom()), "kept for c");

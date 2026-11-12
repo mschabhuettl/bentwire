@@ -186,7 +186,8 @@ The user chooses a character with `Select` or with OK in the gallery (B-GAL-1). 
 user never chose one, steps 2 to 5 also apply to a running daemon after the rescan of
 `ListCharacters` and after SIGHUP: if they give another character, it replaces the current
 one as in B-CHAR-5 (an open client ask closes with `CharacterChanged`). Not while the
-gallery is open; `Select` and the gallery rescan without it. **bentwire decision.**
+gallery is open; `Select` and the gallery rescan without it. A daemon that has no
+character yet selects one this way as at start (B-CFG-3). **bentwire decision.**
 Reason: installing the classics pack (5.5 `characters install`) should make `clippit` the
 character without a restart, but never override a choice.
 

@@ -286,6 +286,14 @@ impl Core {
     /// Startup: B-CHAR-4 selection, B-CFG-3 first-run position and the initial Show.
     pub fn start(&mut self, now: Ms) -> Vec<Output> {
         self.now = now;
+        self.select_initial();
+        self.pump();
+        std::mem::take(&mut self.out)
+    }
+
+    /// B-CHAR-4 and B-CFG-3 for a daemon without a character (start, or a rescan that
+    /// finds the first loadable one).
+    fn select_initial(&mut self) {
         let ids: Vec<String> = self.catalog.iter().map(|c| c.id.clone()).collect();
         let st = self.state_file.clone();
         let cands = l10n::startup_candidates(
@@ -313,8 +321,6 @@ impl Core {
                 });
             }
         }
-        self.pump();
-        std::mem::take(&mut self.out)
     }
 
     fn install(&mut self, model: Arc<CharacterModel>, x: i32, y: i32) {
@@ -1485,6 +1491,11 @@ impl Core {
         if a.hidden || a.scene.is_none() {
             return;
         }
+        // B-GAL-1: a kept gallery balloon stays kept.
+        if a.id == 0 && self.keep_gallery_balloon() {
+            return;
+        }
+        let Some(a) = &self.ask else { return };
         if let Ok(mut p) = self.place_ask(a) {
             office::shift(&mut p.scene, -p.move_by.0, -p.move_by.1);
             p.move_by = (0, 0);
@@ -1760,15 +1771,16 @@ impl Core {
                 a.model = model;
             }
             self.refresh_ask();
-        } else if default && !self.chosen {
+        } else if default && (!self.chosen || self.ch.is_none()) {
             self.apply_default();
         }
     }
 
-    /// B-CHAR-4 steps 2 to 4 for a running daemon whose user never chose a character.
+    /// B-CHAR-4 steps 2 to 5 for a running daemon whose user never chose a character, or
+    /// the start selection when none loaded yet.
     fn apply_default(&mut self) {
         let Some(cur) = self.ch.as_ref().map(|c| c.model.id.clone()) else {
-            return;
+            return self.select_initial();
         };
         let ids: Vec<String> = self.catalog.iter().map(|c| c.id.clone()).collect();
         for id in l10n::startup_candidates(None, self.config.character.as_deref(), &ids) {
