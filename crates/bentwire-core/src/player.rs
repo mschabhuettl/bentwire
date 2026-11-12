@@ -14,6 +14,26 @@ pub enum Pic {
     Pose(u32),
 }
 
+/// B-SHOW-3: the picture `Show(fast)` displays, also the rest picture the character is
+/// anchored by (B-CHAR-5): frame 0 of `RestPose` (office97: the rest pose), else the last
+/// frame of the first Showing member, else empty.
+pub fn rest_picture(m: &CharacterModel) -> Pic {
+    let pic = if m.family == Family::Office97 {
+        m.office97.as_ref().and_then(|o| o.rest_pose).map(Pic::Pose)
+    } else {
+        m.animation_index("RestPose")
+            .filter(|&i| !m.animations[i].frames.is_empty())
+            .map(|i| Pic::Frame(i, 0))
+    };
+    pic.or_else(|| {
+        let members = crate::fallback::state_members(m, "Showing")?;
+        let i = m.animation_index(members.first()?)?;
+        let n = m.animations[i].frames.len();
+        (n > 0).then(|| Pic::Frame(i, n - 1))
+    })
+    .unwrap_or(Pic::Empty)
+}
+
 /// Context of one player call.
 pub struct Env<'a> {
     pub model: &'a CharacterModel,

@@ -994,6 +994,7 @@ pub struct Placed {
     pub scene: OfficeBalloonScene,
     /// B-OB-4: character displacement needed so the balloon fits (0, 0 if it fits).
     pub move_by: (i32, i32),
+    pub candidate: Candidate,
 }
 
 /// B-OB-1..4: size, lay out and place. `character` is the frame rect, `m` the output.
@@ -1060,7 +1061,11 @@ pub fn place(
     }
     let c2 = Rect::new(c.x + move_by.0, c.y + move_by.1, c.w, c.h);
     let (_, body) = candidate_rects(k, c2, w, h);
-    let (side, tail_pts) = tail(k, body, c2);
+    Ok(assemble(k, lay, body, win, c2, move_by))
+}
+
+fn assemble(k: Candidate, lay: Layout, body: Rect, win: Rect, c: Rect, mv: (i32, i32)) -> Placed {
+    let (side, tail_pts) = tail(k, body, c);
     let content = Rect::new(body.x + 6, body.y + 6, lay.content_w, lay.content_h);
     let mut sc = lay.scene;
     translate(&mut sc, content.x, content.y);
@@ -1069,7 +1074,76 @@ pub fn place(
     sc.tail_side = side;
     sc.tail = tail_pts;
     sc.content = content;
-    Ok(Placed { scene: sc, move_by })
+    Placed {
+        scene: sc,
+        move_by: mv,
+        candidate: k,
+    }
+}
+
+/// B-GAL-1: the balloon kept at its place for a new character, if it still fits next to
+/// it. `old` is the body of placement `k`, `character` the new frame, `visible` the new
+/// character's opaque rest box (or its frame). The new body (sized for the new text) keeps
+/// the corner at the tail: bottom-left or bottom-right above the character, top-left or
+/// top-right beside it. It is kept when its window is inside the output, the body does not
+/// cover `visible`, it still overlaps the frame along the other axis, and its tail-side
+/// edge is at most 16 px (the tail length) farther from the frame than a new placement
+/// would put it. `None`: place again.
+#[allow(clippy::too_many_arguments)]
+pub fn place_kept(
+    a: &AskModel,
+    it: &Interaction,
+    k: Candidate,
+    old: Rect,
+    character: Rect,
+    visible: Rect,
+    m: Rect,
+    cx: &Ctx,
+) -> Option<Placed> {
+    use Candidate::*;
+    let c = intersect(character, m);
+    if c.w == 0 || c.h == 0 {
+        return None;
+    }
+    let (shapes, _) = sizes(a, cx);
+    for &(sw, _) in &shapes {
+        let lay = layout(a, sw - 12, cx, it);
+        let (w, h) = (lay.content_w + 12, lay.content_h + 12);
+        // Body, window, distance beyond a new placement's, overlap along the other axis.
+        let (body, win, extra, overlap) = match k {
+            AboveLeftAligned | AboveRightAligned => {
+                let x = if k == AboveLeftAligned {
+                    old.x
+                } else {
+                    old.right() - w
+                };
+                let b = Rect::new(x, old.bottom() - h, w, h);
+                let o = b.x < c.right() && b.right() > c.x;
+                (b, Rect::new(b.x, b.y, w, h + 16), (c.y - 4) - b.bottom(), o)
+            }
+            BesideRight | BesideLeft => {
+                let (b, win, extra) = if k == BesideRight {
+                    let b = Rect::new(old.x, old.y, w, h);
+                    (
+                        b,
+                        Rect::new(b.x - 16, b.y, w + 16, h),
+                        b.x - (c.right() + 4),
+                    )
+                } else {
+                    let b = Rect::new(old.right() - w, old.y, w, h);
+                    (b, Rect::new(b.x, b.y, w + 16, h), (c.x - 4) - b.right())
+                };
+                let o = b.y < c.bottom() && b.bottom() > c.y;
+                (b, win, extra, o)
+            }
+        };
+        let i = intersect(body, visible);
+        let covers = i.w > 0 && i.h > 0;
+        if score(win, m) == 0 && !covers && overlap && extra <= 16 {
+            return Some(assemble(k, lay, body, win, c, (0, 0)));
+        }
+    }
+    None
 }
 
 /// Move a whole placed scene (window, body, tail and content) by (dx, dy).

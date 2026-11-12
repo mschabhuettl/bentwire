@@ -754,7 +754,7 @@ fn b_ask_7_b_char_5_character_switch_closes_ask() {
         "pebble"
     };
     let ask = open_ask(&e, &c, "modal");
-    let left = e.snapshot()["left"].clone();
+    let stand = e.snapshot()["rest_opaque"].clone();
     c.call_unit(AGENT, AGENT_IF, "Select", &(other,)).unwrap();
     e.advance(3000);
     assert_eq!(
@@ -762,8 +762,14 @@ fn b_ask_7_b_char_5_character_switch_closes_ask() {
         (0, 3, "org.bentwire.Error.CharacterChanged".into())
     );
     assert_eq!(e.character(), other);
-    // B-CHAR-5: the new character takes the old top-left.
-    assert_eq!(e.snapshot()["left"], left);
+    // B-CHAR-5: the new character stands on the old one's bottom centre.
+    let bc = |o: &serde_json::Value| {
+        let v = |k: &str| o[k].as_i64().unwrap();
+        ((2 * v("x") + v("w")) / 2, v("y") + v("h"))
+    };
+    let now = e.snapshot()["rest_opaque"].clone();
+    assert_eq!(bc(&now), bc(&stand), "{stand} -> {now}");
+    assert_ne!(now["h"], stand["h"], "characters of different size");
 }
 
 #[test]
@@ -1308,4 +1314,133 @@ fn b_char_6_install_hint_once_with_only_builtin() {
             "hint with pebble"
         );
     }
+}
+
+/// Bottom centre of an `{x, y, w, h}` box of the snapshot.
+fn bottom_centre(o: &serde_json::Value) -> Option<(i64, i64)> {
+    let v = |k: &str| o[k].as_i64();
+    Some(((2 * v("x")? + v("w")?) / 2, v("y")? + v("h")?))
+}
+
+/// The displayed character's opaque box (`None`: nothing drawn).
+fn displayed(s: &serde_json::Value) -> Option<(i64, i64)> {
+    let c = s["surfaces"]
+        .as_array()?
+        .iter()
+        .find(|x| x["kind"] == "character")?;
+    bottom_centre(&c["opaque"])
+}
+
+/// B-CHAR-5, B-GAL-1 on real data: a gallery walk with Next through every character under
+/// $BENTWIRE_PACKS (builtin and classics in `scripts/oracle-check.sh library`). The
+/// bottom centre of each character's rest picture (Test1.Snapshot `rest_opaque`, the
+/// renderer's alpha shape at the character's position) stays within 2 px of the first
+/// character's. The walk starts mid-screen, so nothing is clamped and nothing is exempt.
+/// The displayed picture after the Wave preview is printed for information: some
+/// characters end their preview in another pose than their rest picture.
+#[test]
+#[ignore = "needs BENTWIRE_PACKS=<characters dir>"]
+fn library_gallery_walk_keeps_the_bottom_centre() {
+    let Some(packs) = std::env::var_os("BENTWIRE_PACKS") else {
+        panic!("NOT RUN: set BENTWIRE_PACKS to a characters/ directory with packs");
+    };
+    let mut e = Env::new("walk");
+    std::fs::create_dir_all(e.dir.join("cfg/bentwire")).unwrap();
+    std::fs::write(e.dir.join("cfg/bentwire/config.toml"), "idle = false\n").unwrap();
+    e.seed_state("install_hint_shown = true\n");
+    let root = std::path::PathBuf::from(packs);
+    e.start_raw(&["--characters", root.to_str().unwrap()]);
+    e.advance(5000);
+    let c = e.client();
+    let list: Vec<(String, String, String)> = c
+        .conn
+        .call_method(
+            Some("org.bentwire.Agent"),
+            AGENT,
+            Some(AGENT_IF),
+            "ListCharacters",
+            &(),
+        )
+        .unwrap()
+        .body()
+        .deserialize()
+        .unwrap();
+    let ids: Vec<String> = list.into_iter().map(|x| x.0).collect();
+    assert!(ids.len() > 1, "{ids:?}");
+    c.call_unit(AGENT, AGENT_IF, "Select", &(ids[0].as_str(),))
+        .unwrap();
+    c.call_id("MoveTo", &(800i32, 450i32, 0u32)).unwrap();
+    e.advance(10_000);
+    let (x, y) = centre(&e);
+    e.click(2, x, y);
+    let s = e.snapshot();
+    let item = s["menu"]
+        .as_array()
+        .expect("menu")
+        .iter()
+        .find(|i| i["label"] == "&Choose Assistant...")
+        .expect("Choose Assistant item")
+        .clone();
+    e.click(
+        1,
+        item["x"].as_i64().unwrap() as i32 + 3,
+        item["y"].as_i64().unwrap() as i32 + 3,
+    );
+    e.advance(10_000);
+    let s = e.snapshot();
+    assert!(!s["office_balloon"].is_null(), "gallery open");
+    let first = bottom_centre(&s["rest_opaque"]).unwrap_or_else(|| panic!("{s}"));
+    let mut bad = Vec::new();
+    let mut other_pose = Vec::new();
+    let (mut worst, mut kept) = (0, 0);
+    let balloon = |s: &serde_json::Value| {
+        s["surfaces"]
+            .as_array()
+            .and_then(|v| v.iter().find(|x| x["kind"] == "office_balloon").cloned())
+            .map(|b| {
+                let v = |k: &str| b[k].as_i64().unwrap_or(0);
+                (v("x"), v("x") + v("w"), v("y") + v("h"))
+            })
+    };
+    let mut prev_balloon = balloon(&s);
+    for id in &ids[1..] {
+        e.key("n");
+        e.advance(10_000);
+        let s = e.snapshot();
+        let b = balloon(&s);
+        // Kept: same bottom edge and same left or right edge (it grows from its corner).
+        if let (Some(p), Some(n)) = (prev_balloon, b)
+            && n.2 == p.2
+            && (n.0 == p.0 || n.1 == p.1)
+        {
+            kept += 1;
+        }
+        prev_balloon = b;
+        assert_eq!(s["character"], id.as_str());
+        assert!(!s["office_balloon"].is_null(), "gallery open at {id}");
+        let rest = bottom_centre(&s["rest_opaque"]).unwrap_or_else(|| panic!("{id}: {s}"));
+        let (dx, dy) = (rest.0 - first.0, rest.1 - first.1);
+        worst = worst.max(dx.abs()).max(dy.abs());
+        if dx.abs() > 2 || dy.abs() > 2 {
+            bad.push(format!(
+                "{id}: rest picture at {rest:?}, first at {first:?}"
+            ));
+        }
+        match displayed(&s) {
+            Some(d) if d != rest => {
+                other_pose.push(format!("{id} {:+} {:+}", d.0 - rest.0, d.1 - rest.1))
+            }
+            Some(_) => {}
+            None => other_pose.push(format!("{id} (nothing drawn)")),
+        }
+    }
+    eprintln!(
+        "{} characters walked; rest picture bottom centre at most {worst} px off; the balloon \
+         stayed {kept} times; after the preview {} show another picture than their rest \
+         picture: {}",
+        ids.len(),
+        other_pose.len(),
+        other_pose.join(", ")
+    );
+    assert!(bad.is_empty(), "{bad:#?}");
 }

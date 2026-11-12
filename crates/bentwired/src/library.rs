@@ -16,6 +16,8 @@ use std::sync::Arc;
 pub struct Library {
     pub entries: Vec<Entry>,
     pub loaded: HashMap<String, Arc<Character>>,
+    /// The core's models of the loaded characters (Test1.Snapshot `rest_opaque`).
+    pub models: HashMap<String, Arc<CharacterModel>>,
     /// Search roots (A-PACK-1), scanned again on use (B-CHAR-1).
     pub roots: Vec<PathBuf>,
     /// The A-THEME-1 balloon theme under the roots at the last scan.
@@ -87,6 +89,7 @@ impl CharacterLoader for Loader {
         }
         let model = Arc::new(crate::model::model_from(id, &c));
         lib.loaded.insert(id.to_string(), Arc::new(c));
+        lib.models.insert(id.to_string(), model.clone());
         Ok(model)
     }
 
@@ -95,6 +98,22 @@ impl CharacterLoader for Loader {
         lib.scan();
         Some(lib.catalog())
     }
+}
+
+/// The rest picture (B-SHOW-3) of a loaded character, as the renderer draws it.
+pub fn rest_picture(lib: &Library, id: &str) -> Option<RgbaImage> {
+    use bentwire_core::player::{Pic, rest_picture};
+    let m = lib.models.get(id)?;
+    let p = match rest_picture(m) {
+        Pic::Empty => Picture::Empty,
+        Pic::Frame(a, f) => Picture::Frame {
+            animation: m.animations[a].name.clone(),
+            frame: f,
+            mouth: None,
+        },
+        Pic::Pose(p) => Picture::Pose(p),
+    };
+    Some(picture(lib.get(id)?, &p, 1))
 }
 
 /// The composed character picture at `density` times the display size, straight RGBA.

@@ -722,7 +722,10 @@ fn install_into(tmp: &Path, dest: &Path) -> Result<String, Fail> {
             .arg(&archive)
             .arg("-C")
             .arg(&unpack)
-            .arg("--no-same-owner"),
+            .arg("--no-same-owner")
+            // Extraction time as mtime: releases carry one fixed time, and discovery caches
+            // by mtime and size.
+            .arg("-m"),
     )?;
     let new = unpack.join("classics");
     if !new.join("pack.toml").is_file() {

@@ -2557,6 +2557,89 @@ fn gallery_open(t: &mut T) {
     t.ev(Event::Menu(MenuInput::Activate(3)));
 }
 
+fn sized(id: &str, w: u32, h: u32, rest: Option<(i32, i32, i32, i32)>) -> CharacterModel {
+    let mut m = character(id, 100);
+    m.display = (w, h);
+    m.canvas = (w, h);
+    m.rest_box = rest;
+    m
+}
+
+#[test]
+fn b_char_5_new_character_keeps_the_bottom_centre() {
+    // a: foot (40, 90) from its rest box; b: no rest box, foot = frame bottom centre (25, 150);
+    // c: 200 x 200, foot (100, 200).
+    let chars = vec![
+        sized("a", 100, 100, Some((20, 10, 61, 90))),
+        sized("b", 50, 150, None),
+        sized("c", 200, 200, None),
+    ];
+    let st = |left, top| StateFile {
+        character: "a".into(),
+        left,
+        top,
+        visible: true,
+        chosen: true,
+    };
+    let mut t = T::with(chars.clone(), Some(st(500, 500)), vec![]);
+    t.advance(1000);
+    t.call(Call::Select("b".into())).unwrap();
+    assert_eq!(t.pos(), (540 - 25, 590 - 150));
+    t.call(Call::Select("a".into())).unwrap();
+    assert_eq!(t.pos(), (500, 500));
+    // Pulled inside the output when the new frame would stick out (right edge here).
+    let mut t = T::with(chars, Some(st(1820, 980)), vec![]);
+    t.advance(1000);
+    t.call(Call::Select("c".into())).unwrap();
+    assert_eq!(t.pos(), (1920 - 200, 1070 - 200));
+}
+
+#[test]
+fn b_gal_1_balloon_stays_while_it_fits_next_to_the_new_character() {
+    // All stand on (550, 600). b's frame top is 8 px lower than a's: the balloon stays.
+    // c's frame is 20 px taller, but its top 30 px are transparent: the balloon does not
+    // cover it and stays. d's frame top is 60 px lower: more than the 16 px tail farther
+    // than a new placement, so it is placed again.
+    let chars = vec![
+        sized("a", 100, 100, None),
+        sized("b", 96, 92, None),
+        sized("c", 100, 120, Some((0, 30, 100, 120))),
+        sized("d", 100, 40, None),
+    ];
+    let mut t = T::with(
+        chars,
+        Some(StateFile {
+            character: "a".into(),
+            left: 500,
+            top: 500,
+            visible: true,
+            chosen: true,
+        }),
+        vec![],
+    );
+    t.advance(1000);
+    open_gallery(&mut t);
+    let body = |t: &T| t.core.scene().office_balloon.unwrap().body;
+    let b0 = body(&t);
+    assert_eq!(b0.bottom(), 500 - 4, "above the character");
+    let next = |t: &mut T, id: &str, pos: (i32, i32)| {
+        key(t, Key::Char('n'));
+        assert_eq!(t.core.properties().character, id);
+        assert_eq!(t.pos(), pos);
+    };
+    next(&mut t, "b", (502, 508));
+    let b1 = body(&t);
+    assert_eq!((b1.x, b1.bottom()), (b0.x, b0.bottom()), "kept for b");
+    next(&mut t, "c", (500, 480));
+    let b2 = body(&t);
+    assert_eq!((b2.x, b2.bottom()), (b0.x, b0.bottom()), "kept for c");
+    next(&mut t, "d", (500, 560));
+    assert_eq!(body(&t).bottom(), 560 - 4, "placed again for d");
+    // Back to c: the balloon above d would cover c's opaque top (y 510), so placed again.
+    key(&mut t, Key::Char('b'));
+    assert_eq!(body(&t).bottom(), 480 - 4);
+}
+
 #[test]
 fn b_gal_1_hide_closes_as_cancel() {
     let st = StateFile {

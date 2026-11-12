@@ -5,7 +5,7 @@
 use crate::config::{self, State};
 use crate::dbus::{self, Call, TestCall};
 use crate::discovery;
-use crate::library::Shared;
+use crate::library::{self, Shared};
 use crate::present::{self, Hit, Rendered};
 use bentwire_core::Core;
 use bentwire_core::api::{
@@ -294,9 +294,19 @@ impl App {
         let rect = |q: api::Rect| json!({"x": q.x, "y": q.y, "w": q.w, "h": q.h});
         let mut surfaces = Vec::new();
         if let Some(c) = &r.character {
+            // Bounding box of the input region, the alpha > 0 shape (B-PIX-3), on screen.
+            let i = &c.buf.input;
+            let opaque = (!i.is_empty()).then(|| {
+                let x0 = i.iter().map(|q| q.x).min().unwrap_or(0);
+                let y0 = i.iter().map(|q| q.y).min().unwrap_or(0);
+                let x1 = i.iter().map(|q| q.x + q.w).max().unwrap_or(0);
+                let y1 = i.iter().map(|q| q.y + q.h).max().unwrap_or(0);
+                rect(api::Rect::new(c.x + x0, c.y + y0, x1 - x0, y1 - y0))
+            });
             surfaces.push(
                 json!({"kind": "character", "x": c.x, "y": c.y, "w": c.buf.w,
-                "h": c.buf.h, "mapped": true, "output": c.output, "buffer_scale": c.buf.scale}),
+                "h": c.buf.h, "mapped": true, "output": c.output, "buffer_scale": c.buf.scale,
+                "opaque": opaque}),
             );
         }
         for b in r.balloons.iter().flatten() {
@@ -339,11 +349,28 @@ impl App {
                 .collect::<Vec<_>>()
         });
         let p = self.core.properties();
+        // B-CHAR-5: the opaque box of the rest picture at the current position, through the
+        // renderer's alpha shape (B-PIX-3).
+        let rest_opaque = library::rest_picture(&self.lib.borrow(), &p.character).and_then(|pic| {
+            let b = bentwire_render::picture::picture_buffer(&pic, pic.width, pic.height, 1);
+            let i = &b.input_region;
+            let x0 = i.iter().map(|q| q.x).min()?;
+            let y0 = i.iter().map(|q| q.y).min()?;
+            let x1 = i.iter().map(|q| q.x + q.w).max()?;
+            let y1 = i.iter().map(|q| q.y + q.h).max()?;
+            Some(rect(api::Rect::new(
+                p.left + x0,
+                p.top + y0,
+                x1 - x0,
+                y1 - y0,
+            )))
+        });
         json!({
             "character": p.character,
             "visible": p.visible,
             "left": p.left,
             "top": p.top,
+            "rest_opaque": rest_opaque,
             "keyboard_interactivity": if r.keyboard { "on_demand" } else { "none" },
             "surfaces": surfaces,
             "office_balloon": office,

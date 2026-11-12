@@ -151,6 +151,8 @@ struct OpenAsk {
     model: AskModel,
     it: Interaction,
     scene: Option<OfficeBalloonScene>,
+    /// Placement candidate of `scene` (B-GAL-1 keeps it).
+    candidate: Option<office::Candidate>,
     /// Hidden during a drag or slide (modal), placed again afterwards.
     hidden: bool,
 }
@@ -1062,22 +1064,7 @@ impl Core {
     fn fast_show_picture(&mut self) {
         // B-SHOW-3.
         let c = self.ch.as_mut().expect("character");
-        let m = &c.model;
-        let pic = if m.family == Family::Office97 {
-            m.office97.as_ref().and_then(|o| o.rest_pose).map(Pic::Pose)
-        } else {
-            m.animation_index("RestPose")
-                .filter(|&i| !m.animations[i].frames.is_empty())
-                .map(|i| Pic::Frame(i, 0))
-        };
-        let pic = pic
-            .or_else(|| {
-                let members = fallback::state_members(m, "Showing")?;
-                let i = m.animation_index(members.first()?)?;
-                let n = m.animations[i].frames.len();
-                (n > 0).then(|| Pic::Frame(i, n - 1))
-            })
-            .unwrap_or(Pic::Empty);
+        let pic = player::rest_picture(&c.model);
         c.player.set_picture(pic);
     }
 
@@ -1441,6 +1428,7 @@ impl Core {
             model: *model,
             it,
             scene: None,
+            candidate: None,
             hidden: false,
         };
         match self.place_ask(&a) {
@@ -1483,6 +1471,7 @@ impl Core {
         }
         let was = a.scene.is_some();
         a.scene = Some(p.scene);
+        a.candidate = Some(p.candidate);
         a.hidden = false;
         if !was {
             self.emit(Signal::BalloonShown);
@@ -1612,6 +1601,7 @@ impl Core {
                 ..Default::default()
             },
             scene: None,
+            candidate: None,
             hidden: false,
         });
         let a = self.ask.as_ref().unwrap();
@@ -1688,7 +1678,9 @@ impl Core {
                     a.it.pressed = None;
                     a.it.hot = None;
                 }
-                self.replace_ask();
+                if !self.keep_gallery_balloon() {
+                    self.replace_ask();
+                }
             }
             -27 => {
                 self.close_gallery(false, false);
@@ -1699,7 +1691,29 @@ impl Core {
         }
     }
 
-    /// Close the gallery; `cancel` switches back to the original character.
+    /// B-GAL-1: after a gallery switch the balloon stays where it is while it still fits
+    /// next to the new character (office::place_kept).
+    fn keep_gallery_balloon(&mut self) -> bool {
+        let Some(a) = &self.ask else { return false };
+        let (Some(sc), Some(k), false) = (&a.scene, a.candidate, a.hidden) else {
+            return false;
+        };
+        let c = self.ch.as_ref().expect("character");
+        let fr = frame_rect(c);
+        let visible = c.model.rest_box.map_or(fr, |(x0, y0, x1, y1)| {
+            Rect::new(c.x + x0, c.y + y0, x1 - x0, y1 - y0)
+        });
+        let m = self.output_rect();
+        let cx = office::Ctx::new(self.metrics.as_ref(), m.w);
+        match office::place_kept(&a.model, &a.it, k, sc.body, fr, visible, m, &cx) {
+            Some(p) => {
+                self.apply_placement(p);
+                true
+            }
+            None => false,
+        }
+    }
+
     /// Close the gallery; `cancel` switches back to the original character. With
     /// `for_hide` (B-GAL-1: hiding closes the gallery as Cancel) the switch keeps the
     /// visibility instead of queuing a Show, so the Hide runs on the original.
@@ -1788,6 +1802,7 @@ impl Core {
         self.idle_reset();
         self.hide_speech_balloon();
         self.speech = None;
+        let m = self.output_rect();
         let (x, y, was_visible) = match &mut self.ch {
             Some(c) => {
                 let mut env_out = Vec::new();
@@ -1795,7 +1810,11 @@ impl Core {
                     env_out.push(Output::SoundStop);
                 }
                 self.out.extend(env_out);
-                (c.x, c.y, c.visible)
+                // The new character stands where the old one stood, inside the output.
+                let (fx, fy) = geometry::foot(&c.model);
+                let at = (c.x.saturating_add(fx), c.y.saturating_add(fy));
+                let (x, y) = geometry::stand_at(at, geometry::foot(&model), model.display, m);
+                (x, y, c.visible)
             }
             None => (0, 0, false),
         };
@@ -1811,9 +1830,6 @@ impl Core {
                 fast: false,
                 cause: 4,
             });
-        }
-        if gallery {
-            self.replace_ask();
         }
     }
 

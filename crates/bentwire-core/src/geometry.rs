@@ -1,6 +1,25 @@
 //! Directions, MoveTo slide and output geometry (R-DIR-1, R-MOVE-1/2, R-GEST-1, B-WL-2/4).
 
 use crate::api::{OutputInfo, Rect};
+use crate::model::CharacterModel;
+
+/// B-CHAR-5 anchor, relative to the top-left: the bottom centre of the opaque box of the
+/// rest picture, else of the frame. Every placement that keeps a character standing where
+/// it stood uses this one function.
+pub fn foot(m: &CharacterModel) -> (i32, i32) {
+    match m.rest_box {
+        Some((x0, _, x1, y1)) => ((x0 + x1).div_euclid(2), y1),
+        None => (m.display.0 as i32 / 2, m.display.1 as i32),
+    }
+}
+
+/// B-CHAR-5: top-left of the frame `size` whose [`foot`] `new_foot` lands on the absolute
+/// point `at`, pulled inside `m` (B-WL-4 order).
+pub fn stand_at(at: (i32, i32), new_foot: (i32, i32), size: (u32, u32), m: Rect) -> (i32, i32) {
+    let x = at.0.saturating_sub(new_foot.0);
+    let y = at.1.saturating_sub(new_foot.1);
+    pull_inside(Rect::new(x, y, size.0 as i32, size.1 as i32), m)
+}
 
 /// R-DIR-1 result.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -238,6 +257,23 @@ mod tests {
         assert_eq!(
             pull_inside(Rect::new(i32::MIN, i32::MAX, 100, 100), o[0].rect),
             (0, 700)
+        );
+    }
+
+    #[test]
+    fn b_char_5_foot_and_stand_at() {
+        let mut m = CharacterModel::new("x", crate::model::Family::Agent, (100, 80));
+        assert_eq!(foot(&m), (50, 80));
+        m.rest_box = Some((10, 5, 41, 70));
+        assert_eq!(foot(&m), (25, 70));
+        let out = Rect::new(0, 0, 1000, 800);
+        assert_eq!(stand_at((500, 600), (25, 70), (100, 80), out), (475, 530));
+        // Clamped: right and bottom first, then left and top.
+        assert_eq!(stand_at((990, 795), (25, 70), (100, 80), out), (900, 720));
+        assert_eq!(stand_at((5, 10), (25, 70), (100, 80), out), (0, 0));
+        assert_eq!(
+            stand_at((i32::MIN, i32::MAX), (25, 70), (100, 80), out),
+            (0, 720)
         );
     }
 
