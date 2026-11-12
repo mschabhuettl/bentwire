@@ -43,6 +43,8 @@ enum Cmd {
         rate: u32,
         samples: Vec<f32>,
         reply: Sender<bool>,
+        /// `play` has given up after this.
+        deadline: Instant,
     },
     Stop,
 }
@@ -102,6 +104,7 @@ impl Audio {
             rate: pcm.rate,
             samples,
             reply,
+            deadline: Instant::now() + OPEN_WAIT,
         };
         if self.tx.as_ref().is_none_or(|tx| tx.send(cmd).is_err()) {
             return false;
@@ -160,9 +163,9 @@ fn run(rx: Receiver<Cmd>, mut open: Opener) {
                 rate,
                 samples,
                 reply,
+                deadline,
             }) => {
-                let t = Instant::now();
-                if out.is_none() {
+                if out.is_none() && Instant::now() <= deadline {
                     let fault = Fault::default();
                     match open(fault.clone()) {
                         Ok(o) => {
@@ -180,7 +183,7 @@ fn run(rx: Receiver<Cmd>, mut open: Opener) {
                         }
                     }
                 }
-                let ok = out.is_some() && t.elapsed() <= OPEN_WAIT;
+                let ok = out.is_some() && Instant::now() <= deadline;
                 if ok && let Some((o, _)) = &mut out {
                     o.play(channels, rate, samples);
                     idle_since = None;
@@ -277,6 +280,9 @@ mod tests {
         fail: AtomicBool,
         /// Closing blocks forever.
         hang: AtomicBool,
+        /// Closing blocks until this is cleared.
+        hold: AtomicBool,
+        plays: AtomicUsize,
         faults: Mutex<Vec<Fault>>,
     }
 
@@ -288,6 +294,7 @@ mod tests {
 
     impl Output for Fake {
         fn play(&mut self, _: u16, rate: u32, samples: Vec<f32>) {
+            self.c.plays.fetch_add(1, Ordering::SeqCst);
             let ms = samples.len() as u64 * 1000 / rate as u64;
             self.until = Some(Instant::now() + Duration::from_millis(ms));
         }
@@ -299,6 +306,9 @@ mod tests {
     impl Drop for Fake {
         fn drop(&mut self) {
             self.c.open.fetch_sub(1, Ordering::SeqCst);
+            while self.c.hold.load(Ordering::SeqCst) {
+                std::thread::sleep(Duration::from_millis(10));
+            }
             if self.c.hang.load(Ordering::SeqCst) {
                 loop {
                     std::thread::park();
@@ -400,6 +410,20 @@ mod tests {
         let t = Instant::now();
         drop(a);
         assert!(t.elapsed() < CLOSE_WAIT * 2, "{:?}", t.elapsed());
+    }
+
+    #[test]
+    fn sound_given_up_does_not_start_later() {
+        let (mut a, c) = fake();
+        assert!(a.play(&pcm(10_000)));
+        c.hold.store(true, Ordering::SeqCst);
+        a.stop();
+        wait_for("close started", || c.open.load(Ordering::SeqCst) == 0);
+        assert!(!a.play(&pcm(100)), "the close takes longer than OPEN_WAIT");
+        c.hold.store(false, Ordering::SeqCst);
+        assert_eq!(a.pending.take().unwrap().recv(), Ok(false));
+        assert_eq!(c.plays.load(Ordering::SeqCst), 1);
+        assert!(a.play(&pcm(100)), "the thread is free again");
     }
 
     #[test]
