@@ -1586,7 +1586,7 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   one place (`bentwire_character::label`). The product comes from `source.format`
   (`acs-2.0` Microsoft Agent 2.0, `acs-1.5` Microsoft Agent 1.5, `act-2.2` Office 97,
   `act-1.0` Microsoft Bob); a character without a known format shows its name alone. A
-  qualifier in the product joins with a comma ("Al (Microsoft Agent 1.5, third-party)").
+  qualifier in the product joins with a comma (product "P (q)" gives "Name (P, q)").
   The pack's `pack.toml` may override name and product per id (`[labels.<id>]`, keys
   `name`, `product`). English entries take the overridden name; an empty name becomes the
   English name, else the first non-empty name in any language, else the id; a character
