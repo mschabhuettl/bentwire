@@ -204,7 +204,7 @@ package installs only the placeholder; the classics need the user's own download
    closes (AskComplete result 0). The gallery balloon is the exception (B-GAL-1).
 2. The new character stands where the old one stood: the anchor of a character is the
    bottom centre of the opaque bounding box of its rest picture (B-SHOW-3), or of its
-   frame if that picture is empty; the new character's anchor is placed on the old one's
+   frame if that picture is empty, both at the size factor (B-SCALE-1); the new character's anchor is placed on the old one's
    (centre rounded down), then its frame is pulled inside the old character's output as in
    B-WL-4 (right and bottom edges first). The switch emits no `Move`. **bentwire
    decision.** Reason: characters differ in size and in where they stand in their frame;
@@ -441,7 +441,8 @@ source.
 **B-PIX-1 Compositing.**
 - The picture of a frame is composited exactly as in character-format 5.3. This includes
   office97 poses scaled from logical units.
-- The picture is in RGBA at the display size, times the buffer scale (B-WL-6).
+- The picture is in RGBA at the display size, times the buffer scale (B-WL-6), and for
+  a character with `hidpi` sheets also times the size factor (B-SCALE-1).
 
 **B-PIX-2 Mouth overlays are clipped to the base frame.** [DOC] **bentwire decision**,
 closing character-format 14 item 3.
@@ -1071,8 +1072,11 @@ office-assistant 4 [obs].)
   3. "&Options...".
   4. "&Choose Assistant...".
   5. "&Animate!", only if B-MENU-4's list is not empty.
+  6. "&Size", a submenu with the factors "&1x" to "&4x", the current one checked
+     (B-SCALE-1).
 - That Hide comes first and the Office items after it is a **bentwire decision** resting
-  on R-UI-3's build order (item 3 there is [INF]).
+  on R-UI-3's build order (item 3 there is [INF]). Size is not an original item; it comes
+  last so the original items keep their places (**bentwire decision**).
 
 **B-MENU-2 Menu strings.** The UI language is chosen by B-L10N-1.
 
@@ -1083,6 +1087,8 @@ office-assistant 4 [obs].)
 | Options | `&Options...` | `&Optionen...` | verbatim, MSOINTL 10.0.2609 (1033/1031) string 0x60015 |
 | Choose Assistant | `&Choose Assistant...` | `Assistenten &wählen...` | verbatim, MSOINTL 0x60016 |
 | Animate | `&Animate!` | `A&nimation!` | verbatim, MSOINTL 0x60017 |
+| Size | `&Size` | `&Größe` | bentwire (B-SCALE-1) |
+| Size factors | `&1x`, `&2x`, `&3x`, `&4x` | the same | bentwire (B-SCALE-1) |
 
 **B-MENU-3 Options...** writes a default config file if none exists, then opens it with
 `xdg-open`. **bentwire decision.** Reason: the options dialog is out of v1, but the item
@@ -1150,7 +1156,8 @@ belongs to the original menu.
   `Click(1, 0, x, y, true)`.
 - `SecondaryActivate` (middle click) emits `Click(4, 0, x, y, true)`.
 - The context menu is supplied as dbusmenu:
-  - when visible, the items of B-MENU-1;
+  - when visible, the items of B-MENU-1; Size is a dbusmenu submenu whose factors form
+    one radio group;
   - when hidden, only `&Show` ([DOC] `pop-up-menu-support`).
 - SNI hosts show the menu themselves, so a right click on the tray emits no `Click`, and
   tray double-click is not available. These are documented deviations.
@@ -1211,7 +1218,39 @@ Nothing else in v1 needs the global pointer.
 - Buffers are wl_shm ARGB8888 with straight-to-premultiplied conversion.
 - Buffer scale = ceil(output scale), with nearest-neighbour integer upscaling, or the
   `hidpi` sheet when present. A fractional scale is reached through viewporter. The
-  logical size stays the display size.
+  logical size stays the display size times the size factor (B-SCALE-1).
+
+**B-SCALE-1 Character size.** **bentwire decision.**
+- The size factor is 1, 2, 3 or 4 (default 1). The character's logical size is its
+  display size times the factor; the output scale applies on top of that (B-WL-6), so on
+  a 2x output a 2x character uses 4 x 4 device pixels per source pixel.
+- Pictures. A character without `hidpi` sheets (the bitmap characters: ACS, ACF, Agent
+  1.5, Office 97 and Bob bitmap actors) is composed at the buffer scale as without a
+  factor, and each of its pixels is repeated factor times on both axes (nearest
+  neighbour, exact). A character with `hidpi` sheets (the vector actors, the placeholder)
+  is composed at the buffer scale times the factor, so A-CHAR-3 takes its 2x sheet; above
+  2x the densest sheet is scaled by nearest neighbour (at 3x, 1.5 pixels per 2x pixel).
+  No fractional factors and no smoothing.
+- Everything that depends on the character's size uses the scaled frame: the input
+  region (B-PIX-3, B-REN-4), the B-CHAR-5 anchor (the rest picture's opaque box times the
+  factor), the first-run position (B-CFG-3), MoveTo and GestureAt directions (R-MOVE-1,
+  R-GEST-1), the Agent balloon anchor and mouth point (B-BAL-3, R-BAL-5), the Office
+  balloon placement (B-OB-3, B-OB-4, B-GAL-1), the output pull (B-WL-4) and the `Width`
+  and `Height` properties. Drags stay 1:1 (R-UI-2). Balloons and the menu keep their size.
+- A change applies at once: the character keeps its B-CHAR-5 anchor and is pulled inside
+  its output (B-WL-4 order). Like a character switch it emits no `Move`; `Left`, `Top`,
+  `Width`, `Height` and `Scale` change. An open ask balloon is placed again, a drag goes on
+  from the new position, and a running slide keeps its target top-left.
+- Set by the config key `scale` (B-CFG-1), the Size submenu of the character menu and the
+  tray (B-MENU-1), `bentwire scale <n>` and the Agent1 property `Scale` (5.2). The config
+  and state values are clamped to 1..4; `Scale` rejects others with `InvalidArgs`.
+- Precedence, as for `character` (B-CHAR-4): the state file's `scale` if the user chose
+  it (`scale_chosen`: the menu, the tray, `bentwire scale` or a write of `Scale`), else the
+  config key, else 1. While the user never chose a factor, a changed config key applies at
+  SIGHUP. The state file records the factor its position was saved at; a start at another
+  factor keeps the bottom centre of that position.
+- Reason: the characters are small on today's screens; integer factors keep the pixel art
+  exact, and the vector actors' 2x sheets give real detail.
 
 **B-WL-7 Drag implementation.**
 - Drags use the implicit grab of the pressed button.
@@ -1234,6 +1273,14 @@ Nothing else in v1 needs the global pointer.
   flip and slide constraint adjustment (Agent clamps to the virtual screen).
 - `popup_done` closes it without a choice.
 - Drawn by bentwire, XP style. Keyboard: arrows, Enter, Esc and mnemonics.
+- The Size submenu (B-SCALE-1) is a second `xdg_popup`, a child of the menu popup without
+  a grab of its own, anchored at its parent item: right of the menu with its first item
+  level with that item, flipped to the left or slid when it does not fit. It opens when
+  the pointer is over its item or clicks it, and on Right, Enter or its mnemonic, which
+  also highlight its first item; then the keys work in the submenu. Another menu item
+  closes it, Left and Esc close it alone. It is destroyed before the menu, and
+  `popup_done` of either closes both. **bentwire decision.** Reason: the XP submenu
+  behaviour without its hover delay; nested popups are how xdg-shell builds submenus.
 
 **R-WIN-5 Focus.** The character and balloons never take focus or activate, except
 B-WL-8 (= agent-runtime R-WIN-5).
@@ -1386,6 +1433,7 @@ the acs-format parser:
 | `speaking_speed` | `1.0` (0.5 to 1.5) | Agent speed slider factor (R-UI-5) |
 | `idle` | `true` | initial IdleOn |
 | `double_click_ms` | `500` | B-UI-1 |
+| `scale` | `1` | B-SCALE-1 (1 to 4) |
 
 The daemon reads the config file at start and when it receives SIGHUP.
 
@@ -1394,6 +1442,8 @@ The daemon reads the config file at start and when it receives SIGHUP.
 - `chosen`: the user chose `character` (B-CHAR-4). A file without it (written by 0.1.1)
   counts as chosen unless `character` is absent or `bentwire-placeholder`;
 - `install_hint_shown`: B-CHAR-6 was shown (default false);
+- `scale`, the size factor `left` and `top` were saved at, and `scale_chosen`, the user
+  chose it (B-SCALE-1); a file without them counts as 1, not chosen;
 - written at most once per second after a change, and at exit.
 
 **B-CFG-3 First run.** **bentwire decision.**
@@ -1457,8 +1507,9 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
 - **B-REN-3 Menu metrics** (XP flat menu look): Tahoma em 11 px, item height 17,
   separator 9 (1 px #ACA899 line), 1 px #ACA899 border plus 2 px padding, white
   background, text at x = 21 with a 21 px right margin, minimum width 100, highlight
-  #316AC5 with white text; mnemonics are always underlined. Reason: B-WL-9 says "XP
-  style" without metrics.
+  #316AC5 with white text; mnemonics are always underlined; a checked choice has a
+  7 x 7 tick at x = 7, a submenu item a 4 x 7 arrow 13 px from the right edge (B-SCALE-1).
+  Reason: B-WL-9 says "XP style" without metrics.
 - **B-REN-4 HiDPI shape.** For a picture above 1x, a logical pixel belongs to the input
   region when any buffer pixel it covers has alpha > 0. Reason: B-WL-6 keeps logical
   sizes; for 1x pictures this equals B-PIX-3.
@@ -1708,7 +1759,9 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   (configure acked, margins, buffer attached, keyboard interactivity, balloons, menu).
   The character surface has `opaque`, the bounding box of the drawn picture's alpha
   shape, and the snapshot has `rest_opaque`, that box for the rest picture (B-SHOW-3) at
-  the current position (B-CHAR-5), both in global coordinates or null.
+  the current position and size factor (B-CHAR-5), both in global coordinates or null.
+  It also has `scale` (B-SCALE-1), and `menu` and `submenu` list their items with
+  `checked` (null for a plain item) or `submenu: true`; `Pointer` hits the submenu first.
   Reason: the spec names the members but not their arguments.
 - **A-DESK-4 Headless trace format (T-4).** One JSON object per line, each with `t` (fake
   ms): compositor requests as `{"req": "layer_surface" | "keyboard_interactivity" |
@@ -1717,7 +1770,8 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   null = broadcast), `{"type": "sound_start", "sound", "duration_ms"}`, `sound_stop`,
   `output_added`, `output_removed`, and `{"type": "call", "method", "args", "sender"}` for
 every Agent1/Character1 call the core answered, with `id` (request id) or `error`.
-`--dump-frames DIR` writes
+The submenu is a `popup` with `"surface": "submenu"` and `"parent": "menu"`, destroyed
+before the menu. `--dump-frames DIR` writes
   `<seq>-t<ms>-out<id>.png` per output whenever the drawn scene changes. Headless mode
   uses only the bundled fonts (A-FONT-1), opens no audio device and no tray item.
   Reason: the spec lists the contents, not the encoding.
@@ -1737,7 +1791,9 @@ every Agent1/Character1 call the core answered, with `id` (request id) or `error
   without one did
   not move the cursor (KWin's edge barrier holds it at the edge between two outputs, the
   layout edge holds it too), and counting them made the character run ahead of the cursor
-  by the barrier width after crossing to another output. A release keeps the last grab position. A fractional output scale is the current mode width
+  by the barrier width after crossing to another output. A release keeps the last grab position. A
+  pointer entering a menu popup counts as a motion there (sway sends no motion for a
+  pointer that stops where it entered). A fractional output scale is the current mode width
   over the xdg-output logical width (no fractional-scale protocol). The Agent and the
   Office balloon are separate subsurfaces when both are open, the Office one above. A
   menu opened without a real press serial (Test1) is shown without a grab. Reason:
@@ -1812,6 +1868,7 @@ every Agent1/Character1 call the core answered, with `id` (request id) or `error
 | `Quit` | `() -> ()` | B-RUN-1 |
 | property `Character` | `s`, read | current id, `""` if none |
 | property `Version` | `s`, read | daemon version |
+| property `Scale` | `u`, read and write | size factor 1 to 4 (B-SCALE-1); a write is the user's choice and is persisted; other values: `InvalidArgs` |
 
 ### 5.3 `org.bentwire.Character1`
 
@@ -1839,8 +1896,8 @@ Properties:
 | `Visible` | b | read | |
 | `Left` | i | read | top-left position |
 | `Top` | i | read | top-left position |
-| `Width` | u | read | display size |
-| `Height` | u | read | display size |
+| `Width` | u | read | display size times `Scale` (B-SCALE-1) |
+| `Height` | u | read | display size times `Scale` (B-SCALE-1) |
 | `IdleOn` | b | read and write | R-IDLE-4 |
 | `MoveCause` | u | read | last cause (B-SHOW-4) |
 | `VisibilityCause` | u | read | last cause (B-SHOW-4); 0 = never shown |
@@ -1913,6 +1970,7 @@ activation. If that also fails, it prints `bentwired is not running` and exits 1
 | `characters install classics` | local, then `ListCharacters` if the daemon runs | `installed bentwire-classics <version> in <dir>`, then `bentwired now has <n> characters` |
 | `select <id>` | `Select` | nothing; for `NoSuchCharacter`, hint lines on stderr |
 | `animations` | `AnimationNames` | one per line |
+| `scale [<n>]` | `Scale` (read; write with `n`, 1 to 4) | without `n`: the factor; with `n`: nothing |
 | `status` | properties | `character`, `visible`, `left`, `top`, `idle` as `key=value` lines |
 | `quit` | `Quit` | nothing |
 | `convert <source> <dest>` | local, no daemon | per character-format 10 |
