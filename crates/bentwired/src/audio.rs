@@ -213,9 +213,9 @@ impl Output for Device {
     }
 }
 
-/// The default device, else the first that opens (as rodio's `open_default_stream`).
-/// The error callback only records the error: rodio's default one prints every error,
-/// and a broken ALSA stream reports errors in a tight loop.
+/// PipeWire's ALSA device, else the default device, else the first that opens (as rodio's
+/// `open_default_stream`). The error callback only records the error: rodio's default one
+/// prints every error, and a broken ALSA stream reports errors in a tight loop.
 fn open_device(fault: Fault) -> Result<Box<dyn Output>, String> {
     let on_error = move |e: rodio::cpal::StreamError| {
         let mut f = fault.lock().unwrap();
@@ -226,23 +226,37 @@ fn open_device(fault: Fault) -> Result<Box<dyn Output>, String> {
         // A broken stream calls this in a loop until it is closed.
         std::thread::sleep(Duration::from_millis(20));
     };
-    let mut stream = OutputStreamBuilder::from_default_device()
-        .and_then(|b| b.with_error_callback(on_error.clone()).open_stream())
-        .or_else(|first| {
-            use rodio::cpal::traits::HostTrait;
-            let devices = rodio::cpal::default_host()
-                .output_devices()
-                .map_err(|_| first.to_string())?;
-            for d in devices {
-                if let Ok(s) = OutputStreamBuilder::from_device(d).and_then(|b| {
-                    b.with_error_callback(on_error.clone())
-                        .open_stream_or_fallback()
-                }) {
-                    return Ok(s);
-                }
+    use rodio::cpal::traits::{DeviceTrait, HostTrait};
+    let host = rodio::cpal::default_host();
+    // PipeWire's ALSA device first: without pipewire-alsa, "default" is the card itself,
+    // which PipeWire then cannot open while bentwire plays. Only when PipeWire runs:
+    // looking for the device opens the ALSA devices in turn, which logs noise.
+    let pipewire = std::env::var_os("XDG_RUNTIME_DIR")
+        .filter(|d| std::path::Path::new(d).join("pipewire-0").exists())
+        .and_then(|_| host.output_devices().ok())
+        .and_then(|mut ds| ds.find(|d| d.name().is_ok_and(|n| n == "pipewire")))
+        .and_then(|d| {
+            OutputStreamBuilder::from_device(d)
+                .and_then(|b| b.with_error_callback(on_error.clone()).open_stream())
+                .ok()
+        });
+    let mut stream = match pipewire {
+        Some(s) => Ok(s),
+        None => OutputStreamBuilder::from_default_device()
+            .and_then(|b| b.with_error_callback(on_error.clone()).open_stream()),
+    }
+    .or_else(|first| {
+        let devices = host.output_devices().map_err(|_| first.to_string())?;
+        for d in devices {
+            if let Ok(s) = OutputStreamBuilder::from_device(d).and_then(|b| {
+                b.with_error_callback(on_error.clone())
+                    .open_stream_or_fallback()
+            }) {
+                return Ok(s);
             }
-            Err(first.to_string())
-        })?;
+        }
+        Err(first.to_string())
+    })?;
     stream.log_on_drop(false);
     Ok(Box::new(Device {
         sink: Sink::connect_new(stream.mixer()),
