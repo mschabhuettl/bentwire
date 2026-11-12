@@ -119,9 +119,17 @@ fn run(args: args::Args) -> Result<(), String> {
     });
     event_loop
         .handle()
-        .insert_source(rx, |ev, _, app: &mut App| {
-            if let calloop::channel::Event::Msg(m) = ev {
-                app.handle_dbus(m);
+        .insert_source(rx, |ev, _, app: &mut App| match ev {
+            calloop::channel::Event::Msg(m) => app.handle_dbus(m),
+            // The session bus is gone (logout): save and exit as on SIGTERM.
+            calloop::channel::Event::Closed => {
+                log::info!("session bus closed");
+                app.event(Event::Call {
+                    token: u64::MAX,
+                    sender: String::new(),
+                    call: bentwire_core::api::Call::Quit,
+                });
+                app.quit = true;
             }
         })
         .map_err(|e| e.to_string())?;

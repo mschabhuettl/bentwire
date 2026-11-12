@@ -48,6 +48,18 @@ fn b_run_1_quit_and_sigterm_save_state_and_exit_0() {
 }
 
 #[test]
+fn b_run_1_session_bus_gone_saves_state_and_exits_0() {
+    let mut e = ready("run1bus");
+    let c = e.client();
+    c.call_id("MoveTo", &(10i32, 20i32, 0u32)).unwrap();
+    e.advance(1000);
+    e.kill_bus();
+    assert_eq!(e.wait_exit(10), Some(0));
+    let st = std::fs::read_to_string(e.dir.join("state/bentwire/state.toml")).unwrap();
+    assert!(st.contains("left = 10") && st.contains("top = 20"), "{st}");
+}
+
+#[test]
 fn b_q_1_reply_before_signal_and_b_q_2_unicast() {
     let e = ready("q1");
     let mut a = e.client();
