@@ -45,6 +45,9 @@ use wayland_client::{
 use wayland_protocols::wp::relative_pointer::zv1::client::zwp_relative_pointer_v1::ZwpRelativePointerV1;
 use wayland_protocols::wp::viewporter::client::{wp_viewport, wp_viewporter};
 use wayland_protocols::xdg::shell::client::xdg_positioner;
+use wayland_protocols_plasma::output_order::v1::client::kde_output_order_v1::{
+    self, KdeOutputOrderV1,
+};
 
 const BTN_LEFT: u32 = 0x110;
 const BTN_RIGHT: u32 = 0x111;
@@ -130,6 +133,45 @@ struct WlState {
     rel_pointer: Option<ZwpRelativePointerV1>,
     /// Global pointer position during a grab (B-WL-7, A-DESK-5).
     grab_pos: Option<GrabPos>,
+    /// B-CFG-3: output names from kde_output_order_v1, primary first (and the list being
+    /// received), and the output the compositor chose for an unbound layer surface.
+    order: Vec<String>,
+    order_pending: Vec<String>,
+    chosen: Option<u32>,
+    probe: Option<Probe>,
+}
+
+/// A 1x1 transparent layer surface without an output, mapped once at start to learn which
+/// output the compositor puts a new surface on (B-CFG-3).
+struct Probe {
+    layer: LayerSurface,
+    configured: bool,
+    buffer: Option<smithay_client_toolkit::shm::slot::Buffer>,
+}
+
+/// kde_output_order_v1 events.
+struct OrderData;
+
+impl Dispatch2<KdeOutputOrderV1, WlState> for OrderData {
+    fn event(
+        &self,
+        state: &mut WlState,
+        _: &KdeOutputOrderV1,
+        event: kde_output_order_v1::Event,
+        _: &Connection,
+        _: &QueueHandle<WlState>,
+    ) {
+        match event {
+            kde_output_order_v1::Event::Output { output_name } => {
+                state.order_pending.push(output_name)
+            }
+            kde_output_order_v1::Event::Done => {
+                state.order = std::mem::take(&mut state.order_pending);
+                state.outputs_dirty = true;
+            }
+            _ => {}
+        }
+    }
 }
 
 /// A wl_display.sync after a margin commit (B-WL-7).
@@ -239,11 +281,19 @@ impl Wayland {
             relative: RelativePointerState::bind(&globals, &qh),
             rel_pointer: None,
             grab_pos: None,
+            order: Vec::new(),
+            order_pending: Vec::new(),
+            chosen: None,
+            probe: None,
         };
+        let order: Option<KdeOutputOrderV1> = globals.bind(&qh, 1..=1, OrderData).ok();
         let mut queue = queue;
-        // Two roundtrips: globals, then output and seat details.
+        // Two roundtrips: globals, then output and seat details (and the output order).
         queue.roundtrip(&mut state).map_err(|e| e.to_string())?;
         queue.roundtrip(&mut state).map_err(|e| e.to_string())?;
+        if order.is_none() || state.order.is_empty() {
+            state.probe_output(&mut queue)?;
+        }
         Ok(Wayland { conn, queue, state })
     }
 
@@ -338,6 +388,31 @@ fn output_scale(mode: Option<(i32, i32)>, logical: Option<(i32, i32)>, integer: 
     }
 }
 
+/// B-CFG-3, B-WL-4: move the preferred output to the front of `v` (layout order otherwise):
+/// the first output of kde_output_order_v1 (the primary) that is present, else the output
+/// the compositor chose for an unbound surface, else none (the leftmost stays first).
+/// `names` maps output ids to wl_output names.
+fn preferred_first(
+    v: &mut Vec<OutputInfo>,
+    names: &[(u32, Option<String>)],
+    order: &[String],
+    chosen: Option<u32>,
+) {
+    let primary = order.iter().find_map(|n| {
+        names
+            .iter()
+            .find(|(id, name)| name.as_ref() == Some(n) && v.iter().any(|o| o.id == *id))
+            .map(|(id, _)| *id)
+    });
+    if let Some(i) = primary
+        .or(chosen)
+        .and_then(|id| v.iter().position(|o| o.id == id))
+    {
+        let o = v.remove(i);
+        v.insert(0, o);
+    }
+}
+
 fn button_code(b: u32) -> u32 {
     match b {
         BTN_LEFT => 1,
@@ -373,7 +448,60 @@ impl WlState {
             })
             .collect();
         v.sort_by_key(|o| (o.rect.x, o.rect.y, o.id));
+        let names: Vec<(u32, Option<String>)> = self
+            .output_state
+            .outputs()
+            .filter_map(|o| self.output_state.info(&o))
+            .map(|i| (i.id, i.name))
+            .collect();
+        preferred_first(&mut v, &names, &self.order, self.chosen);
         v
+    }
+
+    /// B-CFG-3 step 2: map a transparent 1x1 layer surface without an output and note the
+    /// output it enters, i.e. the one the compositor picks for new surfaces (the focused
+    /// one or the one under the pointer).
+    fn probe_output(&mut self, queue: &mut EventQueue<WlState>) -> Result<(), String> {
+        let surface = self.compositor.create_surface(&self.qh);
+        let layer = self.layer_shell.create_layer_surface(
+            &self.qh,
+            surface,
+            Layer::Top,
+            Some("bentwire"),
+            None,
+        );
+        layer.set_anchor(Anchor::TOP | Anchor::LEFT);
+        layer.set_size(1, 1);
+        layer.set_exclusive_zone(-1);
+        layer.set_keyboard_interactivity(KeyboardInteractivity::None);
+        set_input(&self.compositor, layer.wl_surface(), &[]);
+        layer.commit();
+        self.probe = Some(Probe {
+            layer,
+            configured: false,
+            buffer: None,
+        });
+        for _ in 0..4 {
+            queue.roundtrip(self).map_err(|e| e.to_string())?;
+            let Some(p) = &mut self.probe else { break };
+            if self.chosen.is_some() {
+                break;
+            }
+            if p.configured && p.buffer.is_none() {
+                let px = Buf {
+                    w: 1,
+                    h: 1,
+                    scale: 1,
+                    argb: vec![0; 4],
+                    input: Vec::new(),
+                };
+                p.buffer = attach(&mut self.pool, p.layer.wl_surface(), &px);
+                p.layer.commit();
+            }
+        }
+        log::debug!("compositor-chosen output: {:?}", self.chosen);
+        self.probe = None;
+        Ok(())
     }
 
     fn wl_output(&self, id: Option<u32>) -> Option<wl_output::WlOutput> {
@@ -758,9 +886,16 @@ impl CompositorHandler for WlState {
         &mut self,
         _: &Connection,
         _: &QueueHandle<Self>,
-        _: &wl_surface::WlSurface,
-        _: &wl_output::WlOutput,
+        s: &wl_surface::WlSurface,
+        o: &wl_output::WlOutput,
     ) {
+        if self
+            .probe
+            .as_ref()
+            .is_some_and(|p| p.layer.wl_surface() == s)
+        {
+            self.chosen = self.chosen.or(self.output_state.info(o).map(|i| i.id));
+        }
     }
     fn surface_leave(
         &mut self,
@@ -803,6 +938,11 @@ impl LayerShellHandler for WlState {
         _: LayerSurfaceConfigure,
         _: u32,
     ) {
+        if let Some(p) = &mut self.probe
+            && &p.layer == layer
+        {
+            p.configured = true;
+        }
         if let Some(c) = &mut self.ch
             && &c.layer == layer
             && !c.configured
@@ -1222,6 +1362,38 @@ mod tests {
             grab_motion((150.0, 120.0), None, (10.0, 20.0), (150, 100)),
             (160.0, 120.0)
         );
+    }
+
+    #[test]
+    fn b_cfg_3_first_output_primary_then_chosen_then_layout() {
+        let out = |id, x| OutputInfo {
+            id,
+            rect: Rect::new(x, 0, 1280, 720),
+            scale: 1.0,
+        };
+        let layout = vec![out(7, 0), out(5, 1280), out(9, 2560)];
+        let names = vec![
+            (7, Some("DP-1".to_string())),
+            (5, Some("HDMI-A-1".to_string())),
+            (9, None),
+        ];
+        let ids = |v: &[OutputInfo]| v.iter().map(|o| o.id).collect::<Vec<_>>();
+        let order = |o: &[&str], chosen| {
+            let mut v = layout.clone();
+            let o: Vec<String> = o.iter().map(|s| s.to_string()).collect();
+            preferred_first(&mut v, &names, &o, chosen);
+            ids(&v)
+        };
+        // 1. The KDE primary (first of kde_output_order_v1), over the compositor's choice.
+        assert_eq!(order(&["HDMI-A-1", "DP-1"], Some(9)), [5, 7, 9]);
+        // A primary that is not (or no longer) present: the next name in the order.
+        assert_eq!(order(&["Virtual-9", "HDMI-A-1"], None), [5, 7, 9]);
+        // 2. No order: the output the compositor chose for an unbound surface.
+        assert_eq!(order(&[], Some(9)), [9, 7, 5]);
+        assert_eq!(order(&["Gone-1"], Some(9)), [9, 7, 5]);
+        // 3. Neither: layout order, the leftmost first.
+        assert_eq!(order(&[], None), [7, 5, 9]);
+        assert_eq!(order(&[], Some(42)), [7, 5, 9]);
     }
 
     #[test]

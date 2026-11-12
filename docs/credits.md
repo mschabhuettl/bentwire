@@ -295,6 +295,7 @@ cargo metadata --format-version 1 \
 | wayland-protocols | 0.32.13 | MIT |
 | wayland-protocols-experimental | 20251230.0.3 | MIT |
 | wayland-protocols-misc | 0.3.12 | MIT |
+| wayland-protocols-plasma | 0.3.12 | MIT |
 | wayland-protocols-wlr | 0.3.12 | MIT |
 | wayland-scanner | 0.31.11 | MIT |
 | wayland-sys | 0.31.11 | MIT |
