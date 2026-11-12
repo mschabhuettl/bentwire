@@ -519,6 +519,7 @@ fn convert(o: &Opts) -> Result<(), Fail> {
         office_palette: o.value("--palette").map(Into::into),
         lang: o.value("--lang").map(Into::into),
         codepage: o.value("--codepage").map(Into::into),
+        palette: None,
     };
     let (src, dest) = (&o.positional[0], &o.positional[1]);
     bentwire_convert::convert_with(src.as_ref(), dest.as_ref(), &opts)

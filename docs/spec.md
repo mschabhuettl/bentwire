@@ -1585,6 +1585,19 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   them. A transparent index beyond the palette is an error. Reason: no sample has these
   cases; the agent-fixtures files do, and the rules keep packages valid and
   playback-equivalent.
+- **A-CONV-7 Palette from a sibling actor.** An ACT bitmap actor whose palette is in no
+  source file (its colour table is empty and it is not an Office actor) can take its
+  colours from a sibling actor that shows the same pictures in a known palette: a per-id
+  line `id palette-from sibling-id` in the pack's options. Pictures are the same when size
+  and transparency mask (index 10) are equal, the mask has transparent and opaque pixels,
+  and each side has one pixel content for it; at least 16 such pictures are needed. Each
+  index takes the sibling colour it covers most often (ties: lower sibling index); actors
+  naming the same sibling share one palette from all their pictures; unseen indices and
+  index 10 keep the sibling's entry. The result is the sibling's colours, not the lost
+  original palette. A real-data test checks that any two pack actors sharing pictures agree
+  in colour. Reason: two Greetings Workshop actors index a palette that no source carries;
+  the Office palette turns them into noise, while the Office variant of the same drawings
+  gives their colours.
 - **A-PACK-3 Helper actors.** A source whose every frame is fully transparent (the Bob helper
   ZVISIBLE.ACT, whose metafile draws nothing) is excluded from `classics` with that reason.
   Reason: a character without a visible picture has no use as a desktop character.

@@ -41,6 +41,7 @@ writing the spec itself are marked **bentwire decision** in its sections 3.1 to 
 | A-THEME-2 | How the OBALLOON.DLL bitmaps become the theme's strips and icons |
 | A-CONV-5 | Ids for file names with a parenthesised qualifier; identical sources converted once |
 | A-CONV-6 | Out-of-range indices in source data mean no layer, no sound or transparent |
+| A-CONV-7 | Bitmap actors without a known palette take their colours from a sibling actor with the same pictures |
 | A-PACK-3 | Fully transparent helper actors are excluded from `classics` |
 | A-LABEL-1 | Display names are labels "<name> (<product>)", product from the format or `pack.toml`, never empty |
 | W-RAST-1 | WMF geometry: mapping mode, pixel-centre coverage, pen widths |

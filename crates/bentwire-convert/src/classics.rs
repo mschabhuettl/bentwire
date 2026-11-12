@@ -6,7 +6,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use crate::{ConvertOptions, Error, convert_to_package_with, sha16};
+use crate::{ConvertOptions, Error, convert_to_package_with, sha16, sibling};
 
 /// Outcome per source.
 #[derive(Debug)]
@@ -80,8 +80,9 @@ fn id_for(path: &Path, stem: &str, data: &[u8]) -> Result<String, Error> {
     )))
 }
 
-/// Per-id converter options (A-CONV-3): `id lang codepage` per line, `#` comments. The pack
-/// script keeps them in `options.txt` of bentwire-classics.
+/// Per-id converter options, `#` comments. Lines `id lang codepage` (A-CONV-3) and
+/// `id palette-from sibling-id` (A-CONV-7). The pack script keeps them in `options.txt` of
+/// bentwire-classics.
 pub fn parse_overrides(text: &str) -> Vec<(String, String, String)> {
     text.lines()
         .map(str::trim)
@@ -93,28 +94,41 @@ pub fn parse_overrides(text: &str) -> Vec<(String, String, String)> {
         .collect()
 }
 
+/// The keyword of an A-CONV-7 line in [`parse_overrides`].
+pub const PALETTE_FROM: &str = "palette-from";
+
 fn options(
     id: &str,
     base: &ConvertOptions,
     overrides: &[(String, String, String)],
 ) -> ConvertOptions {
     let mut o = base.clone();
-    if let Some((_, lang, cp)) = overrides.iter().find(|(i, _, _)| i == id) {
+    if let Some((_, lang, cp)) = overrides
+        .iter()
+        .find(|(i, k, _)| i == id && k != PALETTE_FROM)
+    {
         o.lang = Some(lang.clone());
         o.codepage = Some(cp.clone());
     }
     o
 }
 
-/// Convert every source into `out/<id>.bwc`. Sources with identical bytes are converted once;
-/// two different sources with the same id are an error (A-ID-1).
-pub fn generate(
+/// One source to convert, with its id and options.
+#[derive(Debug)]
+pub struct Planned {
+    pub id: String,
+    pub path: PathBuf,
+    pub options: ConvertOptions,
+}
+
+/// Ids (A-ID-1, A-CONV-5) and options (A-CONV-3, A-CONV-7) for every source; duplicate
+/// sources and sources without an id come back as outcomes. Two different sources with the
+/// same id are an error.
+pub fn plan(
     sources: &[PathBuf],
-    out: &Path,
     base: &ConvertOptions,
     overrides: &[(String, String, String)],
-) -> Result<Vec<Outcome>, Error> {
-    std::fs::create_dir_all(out)?;
+) -> Result<(Vec<Outcome>, Vec<Planned>), Error> {
     let mut by_hash: BTreeMap<String, PathBuf> = BTreeMap::new();
     let mut res = Vec::new();
     // Pass 1: deduplicate by content and compute both id forms.
@@ -142,6 +156,7 @@ pub fn generate(
     }
     // Pass 2: the plain id unless another source has it too (A-CONV-5); collisions fail.
     let mut by_id: BTreeMap<String, PathBuf> = BTreeMap::new();
+    let mut planned = Vec::new();
     for (p, plain, qualified) in &cands {
         let shared = cands.iter().filter(|c| &c.1 == plain).count() > 1;
         let id = if shared {
@@ -157,8 +172,68 @@ pub fn generate(
             )));
         }
         by_id.insert(id.clone(), p.clone());
-        let p = p.clone();
-        match convert_to_package_with(&p, &options(&id, base, overrides)) {
+        planned.push(Planned {
+            options: options(&id, base, overrides),
+            id,
+            path: p.clone(),
+        });
+    }
+    // A-CONV-7: actors that name the same sibling share one palette derived from it.
+    let mut groups: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
+    for (i, pl) in planned.iter().enumerate() {
+        for (id, k, sib) in overrides {
+            if *id == pl.id && k == PALETTE_FROM {
+                groups.entry(sib).or_default().push(i);
+            }
+        }
+    }
+    let act = |p: &Path| -> Result<agent_formats::act::ActFile, Error> {
+        agent_formats::act::parse(&std::fs::read(p)?)
+            .map_err(|e| Error::Source(format!("{}: {e}", p.display())))
+    };
+    for (sib, members) in groups {
+        let s = planned
+            .iter()
+            .find(|p| p.id == sib)
+            .ok_or_else(|| Error::Source(format!("{PALETTE_FROM}: no source has id {sib}")))?;
+        let sib_palette = match s.options.palette {
+            Some(p) => p,
+            None => crate::read_office_palette(s.options.office_palette.as_deref().ok_or_else(
+                || Error::Source(format!("{PALETTE_FROM} {sib}: no Office palette source")),
+            )?)?,
+        };
+        let sib_act = act(&s.path)?;
+        let targets = members
+            .iter()
+            .map(|&i| act(&planned[i].path))
+            .collect::<Result<Vec<_>, _>>()?;
+        let lists: Vec<_> = targets.iter().map(sibling::bitmaps).collect();
+        let (palette, _) =
+            sibling::derive_palette(&sibling::bitmaps(&sib_act), &sib_palette, &lists)
+                .map_err(|e| Error::Source(format!("{PALETTE_FROM} {sib}: {e}")))?;
+        for i in members {
+            planned[i].options.palette = Some(palette);
+        }
+    }
+    Ok((res, planned))
+}
+
+/// Convert every source into `out/<id>.bwc` ([`plan`] gives ids and options).
+pub fn generate(
+    sources: &[PathBuf],
+    out: &Path,
+    base: &ConvertOptions,
+    overrides: &[(String, String, String)],
+) -> Result<Vec<Outcome>, Error> {
+    std::fs::create_dir_all(out)?;
+    let (mut res, planned) = plan(sources, base, overrides)?;
+    for Planned {
+        id,
+        path: p,
+        options: opts,
+    } in planned
+    {
+        match convert_to_package_with(&p, &opts) {
             Err(e) => res.push(Outcome::Excluded {
                 path: p.clone(),
                 reason: e.to_string(),

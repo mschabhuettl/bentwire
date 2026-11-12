@@ -7,6 +7,7 @@ pub mod build;
 pub mod classics;
 mod lcid_table;
 pub mod placeholder;
+pub mod sibling;
 pub mod sound;
 pub mod theme;
 pub mod wmf;
@@ -47,6 +48,8 @@ pub struct ConvertOptions {
     /// Codepage label (WHATWG, e.g. `shift_jis`) for ACT item names and v1 strings; default
     /// `windows-1252`.
     pub codepage: Option<String>,
+    /// The palette of ACT bitmap actors instead of the Office palette (A-CONV-7).
+    pub palette: Option<[[u8; 3]; 256]>,
 }
 
 /// Read the 256-entry Office palette from an Office ACS file or MSO97.DLL.
@@ -157,13 +160,16 @@ pub fn convert_to_package_with(source: &Path, opts: &ConvertOptions) -> Result<P
             };
             return act::convert_act(&act_file, &pics, &o, &file, &sha);
         }
-        let pal_path = opts.office_palette.as_deref().ok_or_else(|| {
-            Error::Source(
-                "ACT bitmap actor: an Office palette source is needed (an Office ACS or MSO97.DLL)"
-                    .into(),
-            )
-        })?;
-        let pal = read_office_palette(pal_path)?;
+        let pal = match opts.palette {
+            Some(p) => p,
+            None => read_office_palette(opts.office_palette.as_deref().ok_or_else(|| {
+                Error::Source(
+                    "ACT bitmap actor: an Office palette source is needed (an Office ACS or \
+                     MSO97.DLL)"
+                        .into(),
+                )
+            })?)?,
+        };
         return act::convert_act(&act_file, &act::Pictures::Bitmaps(&pal), &o, &file, &sha);
     }
     Err(Error::Unsupported(format!(
