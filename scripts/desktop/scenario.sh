@@ -315,6 +315,16 @@ kwin) check "3x surface at (268,144) (B-SCALE-1)" grep -Eq "^bentwired 268 144 9
 esac
 check "bentwire scale 1" "$BIN/bentwire" scale 1
 check "back at (300,200) in 1x" wait_for 5 snap 's["backend"]["character"]["size"] == [32, 32] and (s["left"], s["top"]) == (300, 200)'
+ptr press 2 316 216
+ptr release 2 316 216
+check "menu open again" wait_for 5 snap 's["backend"]["menu"] is not None and s["backend"]["menu"]["buffer_attached"]'
+read -r MX MY < <(item_xy menu "&Size")
+ptr motion 0 "$MX" "$MY"
+check "submenu open again" wait_for 5 snap 's["backend"]["submenu"] is not None and s["backend"]["submenu"]["buffer_attached"]'
+ptr press 1 900 600
+ptr release 1 900 600
+check "a click elsewhere closes both (popup_done or Test1)" wait_for 5 snap 's["backend"]["menu"] is None and s["backend"]["submenu"] is None and s["menu"] is None'
+check "the daemon still draws the character" snap 's["backend"]["character"]["buffer_attached"]'
 
 echo "2. play"
 check "play Wave --wait" "$BIN/bentwire" play Wave --wait

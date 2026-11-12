@@ -3266,3 +3266,63 @@ fn b_scale_1_size_menu_german() {
     key(&mut t, Key::Char('4'));
     assert_eq!(t.core.properties().scale, 4);
 }
+
+#[test]
+fn b_scale_1_change_during_a_drag_onto_another_output_is_not_pulled_back() {
+    let mut t = T::with(
+        vec![sized("a", 100, 100, None)],
+        Some(scale_state(500, 500, 1, true)),
+        vec![],
+    );
+    let mut o2 = output(1000, 1080);
+    o2.id = 2;
+    o2.rect.x = 1920;
+    t.ev(Event::Outputs(vec![output(1920, 1080), o2]));
+    t.advance(1000);
+    t.press(PointerKind::Press, Surface::Character, 1, 550, 550);
+    t.press(PointerKind::Motion, Surface::Character, 1, 2550, 550);
+    assert_eq!(t.pos(), (2500, 500));
+    let out = t.core.scene().character.unwrap().output;
+    t.call(Call::SetScale(2)).unwrap();
+    // Bottom centre (2550, 600) kept, not pulled onto the drag's first output.
+    assert_eq!(t.pos(), (2450, 400));
+    assert_eq!(t.core.scene().character.unwrap().output, out);
+    t.press(PointerKind::Motion, Surface::Character, 1, 2560, 550);
+    assert_eq!(t.pos(), (2460, 400));
+    t.press(PointerKind::Release, Surface::Character, 1, 2560, 550);
+    assert_eq!(t.core.scene().character.unwrap().output, Some(2));
+}
+
+#[test]
+fn b_scale_1_without_outputs_keeps_the_bottom_centre_unclamped() {
+    let mut t = T::with(
+        vec![sized("a", 100, 100, None)],
+        Some(scale_state(500, 500, 1, true)),
+        vec![],
+    );
+    t.advance(1000);
+    t.ev(Event::Outputs(vec![]));
+    t.req(Call::MoveTo {
+        x: 3000,
+        y: 500,
+        speed: 0,
+    });
+    t.advance(t.now + 1000);
+    assert_eq!(t.pos(), (3000, 500));
+    t.call(Call::SetScale(2)).unwrap();
+    assert_eq!(t.pos(), (3000 + 50 - 100, 500 + 100 - 200));
+}
+
+#[test]
+fn b_scale_1_open_menu_shows_the_new_check_mark() {
+    let mut t = T::visible(sized("a", 100, 100, None));
+    t.press(PointerKind::Press, Surface::Character, 2, 510, 520);
+    t.press(PointerKind::Release, Surface::Character, 2, 510, 520);
+    t.call(Call::SetScale(3)).unwrap();
+    let m = t.core.scene().menu.expect("menu stays open");
+    let checked: Vec<_> = size_items(&m.entries).into_iter().map(|i| i.1).collect();
+    assert_eq!(
+        checked,
+        vec![Some(false), Some(false), Some(true), Some(false)]
+    );
+}

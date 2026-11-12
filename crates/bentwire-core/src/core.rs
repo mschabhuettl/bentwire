@@ -580,7 +580,8 @@ impl Core {
 
     /// Applies factor `n` live: the character keeps its bottom centre (B-CHAR-5 anchor)
     /// and is pulled inside its output; no `Move` is emitted. A drag in progress keeps
-    /// following the pointer from the new position.
+    /// following the pointer from the new position, unclamped and on its output (B-WL-4
+    /// chooses the output at the drag end).
     fn set_scale(&mut self, n: u32) {
         let old = self.scale;
         if n == old {
@@ -591,7 +592,7 @@ impl Core {
             return;
         };
         let (model, from) = (c.model.clone(), (c.x, c.y));
-        let m = self.output_rect();
+        let m = (!self.dragging && !self.outputs.is_empty()).then(|| self.output_rect());
         self.scale = n;
         let (x, y) = self.rescaled_in(&model, from, old, m);
         self.set_position(x, y);
@@ -599,7 +600,15 @@ impl Core {
             p.left = p.left.saturating_add(x.saturating_sub(from.0));
             p.top = p.top.saturating_add(y.saturating_sub(from.1));
         }
-        self.update_output();
+        if !self.dragging {
+            self.update_output();
+        }
+        // An open menu shows the new check mark.
+        if let Some(e) = self.menu.as_ref().map(|m| self.menu_entries(m.from_tray))
+            && let Some(m) = &mut self.menu
+        {
+            m.scene.entries = e;
+        }
         self.mark_dirty();
         self.replace_ask();
     }
@@ -609,8 +618,7 @@ impl Core {
     fn rescaled(&self, model: &CharacterModel, at: (i32, i32), from: u32) -> (i32, i32) {
         let (w, h) = geometry::size(model, from);
         let fr = Rect::new(at.0, at.1, w as i32, h as i32);
-        let m =
-            geometry::output_for(fr, &self.outputs).map_or(Rect::new(0, 0, 1024, 768), |o| o.rect);
+        let m = geometry::output_for(fr, &self.outputs).map(|o| o.rect);
         self.rescaled_in(model, at, from, m)
     }
 
@@ -619,16 +627,19 @@ impl Core {
         model: &CharacterModel,
         at: (i32, i32),
         from: u32,
-        m: Rect,
+        m: Option<Rect>,
     ) -> (i32, i32) {
         let (fx, fy) = geometry::foot(model, from);
         let foot = (at.0.saturating_add(fx), at.1.saturating_add(fy));
-        geometry::stand_at(
-            foot,
-            geometry::foot(model, self.scale),
-            geometry::size(model, self.scale),
-            m,
-        )
+        let new_foot = geometry::foot(model, self.scale);
+        match m {
+            Some(m) => geometry::stand_at(foot, new_foot, geometry::size(model, self.scale), m),
+            // No output to pull into (none known yet, or during a drag).
+            None => (
+                foot.0.saturating_sub(new_foot.0),
+                foot.1.saturating_sub(new_foot.1),
+            ),
+        }
     }
 
     // ----- method calls -----

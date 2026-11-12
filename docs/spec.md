@@ -1239,8 +1239,10 @@ Nothing else in v1 needs the global pointer.
   and `Height` properties. Drags stay 1:1 (R-UI-2). Balloons and the menu keep their size.
 - A change applies at once: the character keeps its B-CHAR-5 anchor and is pulled inside
   its output (B-WL-4 order). Like a character switch it emits no `Move`; `Left`, `Top`,
-  `Width`, `Height` and `Scale` change. An open ask balloon is placed again, a drag goes on
-  from the new position, and a running slide keeps its target top-left.
+  `Width`, `Height` and `Scale` change. An open ask balloon is placed again and an open
+  menu shows the new check mark. During a drag the frame is not pulled and keeps its
+  output (B-WL-4 chooses it at the drag end), and the drag goes on from the new position.
+  Without any output the frame is not pulled. A running slide keeps its target top-left.
 - Set by the config key `scale` (B-CFG-1), the Size submenu of the character menu and the
   tray (B-MENU-1), `bentwire scale <n>` and the Agent1 property `Scale` (5.2). The config
   and state values are clamped to 1..4; `Scale` rejects others with `InvalidArgs`.
@@ -1770,8 +1772,9 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   null = broadcast), `{"type": "sound_start", "sound", "duration_ms"}`, `sound_stop`,
   `output_added`, `output_removed`, and `{"type": "call", "method", "args", "sender"}` for
 every Agent1/Character1 call the core answered, with `id` (request id) or `error`.
-The submenu is a `popup` with `"surface": "submenu"` and `"parent": "menu"`, destroyed
-before the menu. `--dump-frames DIR` writes
+The submenu is a `popup` with `"surface": "submenu"` and `"parent": "menu"`, with the
+anchor rectangle, anchor, gravity and offset the Wayland backend asks for, destroyed before
+the menu. `--dump-frames DIR` writes
   `<seq>-t<ms>-out<id>.png` per output whenever the drawn scene changes. Headless mode
   uses only the bundled fonts (A-FONT-1), opens no audio device and no tray item.
   Reason: the spec lists the contents, not the encoding.

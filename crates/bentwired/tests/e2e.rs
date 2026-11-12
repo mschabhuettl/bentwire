@@ -1753,4 +1753,12 @@ fn b_scale_1_size_submenu_through_test1_and_trace() {
             "destroy menu"
         ]
     );
+    let popup = t
+        .lines()
+        .map(|l| serde_json::from_str::<serde_json::Value>(l).unwrap())
+        .find(|l| l["req"] == "popup" && l["surface"] == "submenu")
+        .unwrap();
+    // Anchored at Size's row across the menu, first items level (3 = border + padding).
+    assert_eq!(popup["anchor_rect"][2], m["w"]);
+    assert_eq!(popup["offset"], json!([0, -3]));
 }

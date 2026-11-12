@@ -340,11 +340,21 @@ pub fn requests(
         && prev.submenu.as_ref() != Some(s)
     {
         if prev.submenu.is_none() {
+            // As the Wayland backend asks: the parent item's row across the menu, to its
+            // right, first items level.
+            let (m, a) = (
+                next.menu.as_ref(),
+                s.anchor.unwrap_or(Rect::new(0, 0, 1, 1)),
+            );
+            let (mx, my, mw) = m.map_or((0, 0, 0), |m| (m.x, m.y, m.buf.w as i32));
             out.push(json!({
                 "req": "popup",
                 "surface": "submenu",
                 "parent": "menu",
-                "anchor_rect": s.anchor.map(|a| [a.x, a.y, a.w, a.h]),
+                "anchor_rect": [0, a.y, mw, a.h],
+                "anchor": "top_right",
+                "gravity": "bottom_right",
+                "offset": [s.x - mx - mw, s.y - my - a.y],
                 "size": [s.buf.w, s.buf.h],
                 "constraint_adjustment": "flip_x|slide_x|slide_y",
             }));

@@ -115,9 +115,10 @@ struct WlState {
     ch: Option<CharSurf>,
     /// Agent balloon (0) and Office balloon (1).
     balloons: [Option<SubSurf>; 2],
-    menu: Option<MenuSurf>,
-    /// The open submenu, a popup of `menu` (B-SCALE-1 Size).
+    /// The open submenu, a popup of `menu` (B-SCALE-1 Size). Declared before `menu`, so
+    /// it is dropped first (nested popups go in reverse order).
     submenu: Option<MenuSurf>,
+    menu: Option<MenuSurf>,
     /// The latest scene from the app; re-applied after configures.
     desired: Rendered,
     events: Vec<Event>,
@@ -1090,14 +1091,20 @@ impl PopupHandler for WlState {
     }
     fn done(&mut self, _: &Connection, _: &QueueHandle<Self>, popup: &Popup) {
         // B-WL-9: popup_done (of the menu or its submenu) closes the menu without a choice.
-        if [&self.menu, &self.submenu]
-            .into_iter()
-            .flatten()
-            .any(|m| m.popup.wl_surface() == popup.wl_surface())
-        {
+        // SCTK holds `popup` alive during this call, so only that popup and its children go
+        // here: for the submenu, the menu follows when the scene without it is applied.
+        let is = |m: &Option<MenuSurf>| {
+            m.as_ref()
+                .is_some_and(|m| m.popup.wl_surface() == popup.wl_surface())
+        };
+        if is(&self.submenu) {
+            self.submenu = None;
+        } else if is(&self.menu) {
             self.destroy_menu();
-            self.events.push(Event::Menu(MenuInput::Dismiss));
+        } else {
+            return;
         }
+        self.events.push(Event::Menu(MenuInput::Dismiss));
     }
 }
 
