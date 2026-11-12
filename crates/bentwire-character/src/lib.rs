@@ -9,6 +9,7 @@
 pub mod audio;
 pub mod dump;
 pub mod image;
+pub mod label;
 pub mod model;
 pub mod parse;
 pub mod validate;
