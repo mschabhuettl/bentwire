@@ -270,6 +270,52 @@ fi
 $TEST Key s Escape >/dev/null
 check "Esc closes the menu" wait_for 5 snap 's["backend"]["menu"] is None'
 
+echo "1c. Size submenu (B-SCALE-1): a popup of the menu; 3x keeps the bottom centre"
+"$BIN/bentwire" moveto 300 200 --speed 0 --wait >/dev/null
+sleep 0.6
+# ptr <kind> <button> <x> <y>: the real pointer where there is one (the menu then has a
+# grab, which the submenu popup must live with), else Test1.
+ptr() {
+    if [ "$COMP" = sway ] && [ -x "$BIN/examples/vptr" ]; then
+        case "$1" in motion) vp "move $3 $4" ;; *) vp "move $3 $4" "$1 $2" ;; esac
+    elif [ "$COMP" = kwin ] && [ -p "$T/kwptr" ]; then
+        case "$1" in motion) echo "move $3 $4" >&8 ;; *) printf 'move %s %s\n%s %s\n' "$3" "$4" "$1" "$2" >&8 ;; esac
+        sleep 0.3
+    else
+        $TEST Pointer suii "$1" "$2" "$3" "$4" >/dev/null
+    fi
+}
+item_xy() { # item_xy menu|submenu <label>: centre of a menu item
+    snapshot_json | python3 -I -c '
+import sys, json
+i = [i for i in json.load(sys.stdin)[sys.argv[1]] if i.get("label") == sys.argv[2]][0]
+print(i["x"] + i["w"] // 2, i["y"] + i["h"] // 2)' "$1" "$2"
+}
+ptr press 2 316 216
+ptr release 2 316 216
+check "menu open" wait_for 5 snap 's["backend"]["menu"] is not None and s["backend"]["menu"]["buffer_attached"]'
+read -r MX MY < <(item_xy menu "&Size")
+ptr motion 0 "$MX" "$MY"
+check "submenu popup configured with a buffer" wait_for 5 snap 's["backend"]["submenu"] is not None and s["backend"]["submenu"]["configured"] and s["backend"]["submenu"]["buffer_attached"]'
+check "1x is checked" snap '[i["checked"] for i in s["submenu"]] == [True, False, False, False]'
+sleep 0.3
+shot size-menu
+read -r SX SY < <(item_xy submenu "&3x")
+ptr motion 0 "$SX" "$SY"
+ptr press 1 "$SX" "$SY"
+ptr release 1 "$SX" "$SY"
+check "3x chosen in the submenu" wait_for 5 sh -c "test \"\$(\"$BIN/bentwire\" scale)\" = 3"
+check "menu and submenu closed" wait_for 5 snap 's["backend"]["menu"] is None and s["backend"]["submenu"] is None'
+check "96 x 96 surface with the bottom centre kept" wait_for 5 snap 's["backend"]["character"]["size"] == [96, 96] and s["backend"]["character"]["buffer_attached"] and (s["left"], s["top"]) == (268, 144)'
+sleep 0.5
+shot size3
+case "$COMP" in
+sway) check "3x square on screen (B-SCALE-1)" python3 -I "$REPO/scripts/desktop/bbox.py" "$T/$SHOT-size3.ppm" --expect 280,156,352,228 ;;
+kwin) check "3x surface at (268,144) (B-SCALE-1)" grep -Eq "^bentwired 268 144 96 96 false$" "$T/$SHOT-size3.geom" ;;
+esac
+check "bentwire scale 1" "$BIN/bentwire" scale 1
+check "back at (300,200) in 1x" wait_for 5 snap 's["backend"]["character"]["size"] == [32, 32] and (s["left"], s["top"]) == (300, 200)'
+
 echo "2. play"
 check "play Wave --wait" "$BIN/bentwire" play Wave --wait
 
@@ -321,6 +367,20 @@ if [ "$TRAY" = 1 ]; then
     MENU=$(prop Menu || true)
     check "dbusmenu has _Hide, _Options..., _Choose Assistant..." sh -c "busctl --user call '$SNI' '$MENU' com.canonical.dbusmenu GetLayout iias 0 10 0 \
         | grep -q '\"_Hide\"' && busctl --user call '$SNI' '$MENU' com.canonical.dbusmenu GetLayout iias 0 10 0 | grep -q '_Choose Assistant'"
+    size_menu() { busctl --user --json=short call "$SNI" "$MENU" com.canonical.dbusmenu GetLayout iias 0 10 0 | python3 -I -c '
+import json, sys
+def walk(n):
+    i, props, kids = n
+    if props.get("label", {}).get("data") == "_Size":
+        return [(k["data"][1]["label"]["data"], k["data"][1].get("toggle-type", {}).get("data"),
+                 k["data"][1].get("toggle-state", {}).get("data")) for k in kids]
+    for k in kids:
+        r = walk(k["data"])
+        if r is not None:
+            return r
+print(walk(json.load(sys.stdin)["data"][1]))'; }
+    check "dbusmenu has the _Size submenu, _1x checked as a radio item (B-SCALE-1)" test \
+        "$(size_menu)" = "[('_1x', 'radio', 1), ('_2x', 'radio', 0), ('_3x', 'radio', 0), ('_4x', 'radio', 0)]"
     busctl --user call "$SNI" "$SNIPATH" org.kde.StatusNotifierItem Activate ii 7 9 >/dev/null
     check "Activate emits Click(1, 0, 7, 9, true)" wait_for 5 grep -q 'member=Click' "$T/signals.log"
 else

@@ -1279,7 +1279,17 @@ impl PointerHandler for WlState {
             };
             match (&ev.kind, kind) {
                 (PointerEventKind::Enter { .. }, _) => {
-                    self.pointer_surface = Some(ev.surface.clone())
+                    self.pointer_surface = Some(ev.surface.clone());
+                    // On a menu the entry position counts as a motion: sway sends none
+                    // for a pointer that stops where it entered.
+                    let i = self.menu_item(kind, local);
+                    match kind {
+                        SurfKind::Menu => self.events.push(Event::Menu(MenuInput::Hover(i))),
+                        SurfKind::Submenu => {
+                            self.events.push(Event::Menu(MenuInput::SubmenuHover(i)))
+                        }
+                        SurfKind::Core(_) => {}
+                    }
                 }
                 (PointerEventKind::Leave { .. }, SurfKind::Core(s)) => {
                     self.pointer_surface = None;
