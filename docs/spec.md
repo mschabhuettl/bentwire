@@ -1160,8 +1160,8 @@ windows above the top layer. KWin verification: section 6, item K2.
   output after a drag or slide ends. Never during a drag, because recreating would break
   the implicit pointer grab.
 - On an output change (added, removed or resized), the frame is pulled inside M of the
-  output holding its centre, or else the first output: right and bottom edges first, then
-  left and top. Then `Move(x, y, 4)` is emitted (= R-WIN-4).
+  output holding its centre, or else the first output (as B-CFG-3 chooses it): right and
+  bottom edges first, then left and top. Then `Move(x, y, 4)` is emitted (= R-WIN-4).
 
 **B-WL-5 No global pointer.** Wayland reports pointer positions only on bentwire's own
 surfaces. Consequences:
@@ -1361,7 +1361,14 @@ The daemon reads the config file at start and when it receives SIGHUP.
 
 **B-CFG-3 First run.** **bentwire decision.**
 - Position: right edge 48 px and bottom edge 96 px inside the first output (clears a
-  typical panel).
+  typical panel). The first output is, in this order: (1) the primary output, the first
+  entry of `kde_output_order_v1` when the compositor offers it (KDE Plasma); (2) else the
+  output the compositor puts a layer surface without an output on (usually the focused
+  one or the one under the pointer; the backend learns it at start by mapping a
+  transparent 1x1 surface once, B-WL-5 gives no pointer position); (3) else the leftmost
+  output (then topmost). A remembered position (B-CFG-2) wins. Reason: on a
+  multi-monitor desktop the character should first appear on the screen the user works
+  on, not on whichever output comes first in the layout.
 - Visible.
 - At start, a visible character is shown with an animated Show (cause 4).
 
@@ -1670,9 +1677,14 @@ every Agent1/Character1 call the core answered, with `id` (request id) or `error
   delivered, as under a nested KWin, or no manager), wl_pointer motion is used: the
   surface-local position plus the applied position, which compensates margins not yet
   applied. Press position and delta sum are kept apart from the reported position and
-  absolute motion never feeds the sum, because the protocol does not order wl_pointer
-  motion and relative motion: once a relative event has arrived, the position is press
-  plus sum, whatever absolute motion came before. A release keeps the last grab position. A fractional output scale is the current mode width
+  absolute motion never feeds the sum: once a relative event has counted, the position is
+  press plus sum, whatever absolute motion came before. Relative deltas count only when
+  their wl_pointer frame also carries a wl_pointer.motion (a second wl_pointer object
+  marks the frame ends, SCTK reports no frame without wl_pointer events); deltas in frames
+  without one did
+  not move the cursor (KWin's edge barrier holds it at the edge between two outputs, the
+  layout edge holds it too), and counting them made the character run ahead of the cursor
+  by the barrier width after crossing to another output. A release keeps the last grab position. A fractional output scale is the current mode width
   over the xdg-output logical width (no fractional-scale protocol). The Agent and the
   Office balloon are separate subsurfaces when both are open, the Office one above. A
   menu opened without a real press serial (Test1) is shown without a grab. Reason:

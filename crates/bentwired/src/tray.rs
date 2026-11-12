@@ -160,6 +160,14 @@ impl Tray {
     }
 }
 
+/// Stop ksni's service before its handle goes: ksni 0.3.7 panics ("all futures in select!
+/// were completed") when the handle is dropped after its bus connection has ended.
+impl Drop for Tray {
+    fn drop(&mut self) {
+        self.handle.shutdown().wait();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

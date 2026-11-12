@@ -5,11 +5,12 @@
 #
 # usage: scripts/desktop/scenario.sh sway|kwin [BIN_DIR]
 #   sway: WLR_BACKENDS=headless sway, screenshots with grim (pixels are checked).
-#   kwin: kwin_wayland --virtual; KWin offers no screenshot without an OpenGL render
-#         node, so geometry is checked through KWin scripting (workspace.windowList).
+#   kwin: kwin_wayland --virtual, two outputs, the right one primary; KWin offers no
+#         screenshot without an OpenGL render node, so geometry is checked through KWin
+#         scripting (workspace.windowList).
 # Needs: dbus-run-session, python3, and sway+grim or kwin_wayland + busctl. Build first:
 #   cargo build -p bentwired -p bentwire && cargo build -p bentwired --examples
-# (the `vptr` example drives a real pointer under sway).
+# (the `vptr` and `kwptr` examples drive a real pointer under sway and KWin).
 # Exit status 0 = all checks passed. Artefacts (logs, screenshots, signal log) are kept
 # in the printed directory on failure or with BENTWIRE_SCENARIO_KEEP=1.
 set -euo pipefail
@@ -72,7 +73,16 @@ sway)
 kwin)
     export XDG_CONFIG_HOME=$T/home/cfg QT_LOGGING_RULES="kwin_scripting.debug=true;js.debug=true"
     mkdir -p "$XDG_CONFIG_HOME"
-    KWIN_COMPOSE=Q kwin_wayland --virtual --socket kw0 --width $W --height $H \
+    # Two outputs side by side, the right one primary (first in kde_output_order_v1).
+    cat >"$XDG_CONFIG_HOME/kwinoutputconfig.json" <<EOF
+[{"name": "outputs", "data": [{"connectorName": "Virtual-0"}, {"connectorName": "Virtual-1"}]},
+ {"name": "setups", "data": [{"lidClosed": false, "outputs": [
+   {"enabled": true, "outputIndex": 0, "position": {"x": 0, "y": 0}, "priority": 1},
+   {"enabled": true, "outputIndex": 1, "position": {"x": $W, "y": 0}, "priority": 0}]}]}]
+EOF
+    # The permission override lets the kwptr example use org_kde_kwin_fake_input.
+    KWIN_WAYLAND_NO_PERMISSION_CHECKS=1 KWIN_COMPOSE=Q kwin_wayland --virtual --output-count 2 \
+        --socket kw0 --width $W --height $H \
         --no-lockscreen --no-global-shortcuts >"$T/compositor.log" 2>&1 &
     PIDS+=($!)
     wait_for 15 test -S "$XDG_RUNTIME_DIR/kw0" || { echo "kwin did not start"; exit 1; }
@@ -176,13 +186,16 @@ check "show --wait succeeds" "$BIN/bentwire" show --wait
 check "surface configured and buffer attached" wait_for 5 mapped
 X=$(status left)
 Y=$(status top)
-check "first-run position (B-CFG-3)" test "$X,$Y" = "$((W - 48 - 32)),$((H - 96 - 32))"
+# KWin: the primary output is the right one, at x = W (B-CFG-3).
+PX=0
+[ "$COMP" = kwin ] && PX=$W
+check "first-run position on the primary output (B-CFG-3)" test "$X,$Y" = "$((PX + W - 48 - 32)),$((H - 96 - 32))"
 check "layer surface keyboard_interactivity none" snap 's["backend"]["character"]["keyboard_interactivity"] == "none"'
 sleep 0.5
 shot show
 check "character on screen at ($X,$Y)" shown_at "$X" "$Y"
 
-echo "1a. real pointer (sway: zwlr_virtual_pointer_v1)"
+echo "1a. real pointer (sway: zwlr_virtual_pointer_v1, KWin: org_kde_kwin_fake_input)"
 if [ "$COMP" = sway ] && [ -x "$BIN/examples/vptr" ]; then
     vp() { printf '%s\n' "$@" >&7; sleep 0.3; }
     CX=$((X + 16)) CY=$((Y + 16))
@@ -198,7 +211,7 @@ sys.exit(0 if re.search(r"member=Click\n\s*uint32 1\n\s*uint32 0\n\s*int32 " + s
     check "click on a transparent pixel goes through (B-WL-6, K5)" test "$(grep -c 'member=Click' "$T/signals.log")" = "$N"
     sleep 0.6
     STEPS=("move $CX $CY" "press 1")
-    for i in 1 2 3 4 5 6 7 8 9 10; do STEPS+=("move $((CX - 5 * i)) $((CY - 3 * i))" "sleep 30"); done
+    for i in 1 2 3 4 5 6 7 8 9 10; do STEPS+=("movenf $((CX - 5 * i + 2)) $((CY - 3 * i + 1))" "move $((CX - 5 * i)) $((CY - 3 * i))" "sleep 30"); done
     STEPS+=("release 1")
     vp "${STEPS[@]}"
     check "drag of (-50, -30) moves the character 1:1 (R-UI-2, B-WL-7, K6)" wait_for 5 sh -c "\"$BIN/bentwire\" status | grep -qx 'left=$((X - 50))' && \"$BIN/bentwire\" status | grep -qx 'top=$((Y - 30))'"
@@ -208,8 +221,41 @@ sys.exit(0 if re.search(r"member=Click\n\s*uint32 1\n\s*uint32 0\n\s*int32 " + s
     check "right click opens the menu with a grab (B-WL-9)" wait_for 5 snap 's["backend"]["menu"] is not None and s["backend"]["menu"]["buffer_attached"]'
     vp "move 20 20" "press 1" "release 1"
     check "outside click closes it via popup_done (K3)" wait_for 5 snap 's["backend"]["menu"] is None and s["menu"] is None'
+elif [ "$COMP" = kwin ] && [ -x "$BIN/examples/kwptr" ]; then
+    # Drag from the primary (right) output onto the left one with relative motion, as a
+    # mouse does. KWin's edge barrier holds the cursor at the edge while relative events
+    # go on; the character must stay under the cursor (B-WL-7, A-DESK-5).
+    X=$((W + 100))
+    "$BIN/bentwire" moveto "$X" "$Y" --speed 0 --wait >/dev/null
+    sleep 0.6
+    CX=$((X + 16)) CY=$((Y + 16))
+    mkfifo "$T/kwptr"
+    "$BIN/examples/kwptr" <"$T/kwptr" >"$T/kwptr.log" 2>&1 &
+    PIDS+=($!)
+    exec 8>"$T/kwptr"
+    {
+        echo "move $CX $CY"; echo "sleep 200"; echo "press 1"; echo "sleep 100"
+        for _ in $(seq 150); do echo "rel -8 0"; echo "sleep 8"; done
+        echo "sleep 200"; echo "mark dragged"
+    } >&8
+    wait_for 15 grep -q dragged "$T/kwptr.log" || true
+    echo 'print("BWCURSOR " + workspace.cursorPos.x + " " + workspace.cursorPos.y);' >"$T/cursor.js"
+    id=$(busctl --user call org.kde.KWin /Scripting org.kde.kwin.Scripting loadScript ss "$T/cursor.js" bwcursor | awk '{print $2}')
+    busctl --user call org.kde.KWin "/Scripting/Script$id" org.kde.kwin.Script run >/dev/null
+    wait_for 5 grep -q BWCURSOR "$T/compositor.log" || true
+    busctl --user call org.kde.KWin /Scripting org.kde.kwin.Scripting unloadScript s bwcursor >/dev/null || true
+    read -r CUX CUY < <(sed -n 's/.*BWCURSOR //p' "$T/compositor.log" | tail -1) || true
+    echo "release 1" >&8
+    check "cursor crossed onto the left output" test "${CUX%.*}" -lt "$W"
+    check "drag across outputs keeps the character under the cursor (B-WL-7)" wait_for 5 sh -c "
+        L=\$(\"$BIN/bentwire\" status | sed -n 's/^left=//p'); D=\$(( ${CUX%.*} - 16 - L ));
+        [ \$D -ge -8 ] && [ \$D -le 8 ] && \"$BIN/bentwire\" status | grep -qx 'top=$Y'"
+    check "dropped surface recreated on the left output (B-WL-4)" wait_for 5 snap 's["backend"]["character"]["output"] == [o for o in s["outputs"] if o["x"] == 0][0]["id"] and s["backend"]["character"]["buffer_attached"]'
+    X=200
+    "$BIN/bentwire" moveto "$X" "$Y" --speed 0 --wait >/dev/null
+    sleep 0.6
 else
-    echo "  NOT RUN real pointer checks (sway only; build with: cargo build -p bentwired --examples)"
+    echo "  NOT RUN real pointer checks (build with: cargo build -p bentwired --examples)"
 fi
 
 echo "1b. context menu (xdg_popup on the layer surface)"
@@ -344,6 +390,23 @@ sleep 0.3
 check "signal order" python3 -I "$REPO/scripts/desktop/signals.py" "$T/signals.log" \
     Shown RequestStart RequestComplete BalloonShown BalloonShown AskComplete RequestComplete \
     Move RequestComplete Hidden RequestComplete
+
+echo "8. session bus loss (a second daemon with a tray on its own bus)"
+dbus-daemon --session --fork --print-address=3 --print-pid=4 3>"$T/bus2.addr" 4>"$T/bus2.pid"
+BUS2=$(cat "$T/bus2.addr")
+DBUS_SESSION_BUS_ADDRESS=$BUS2 XDG_STATE_HOME=$T/home/state2 "$BIN/bentwired" --no-audio \
+    --characters "$FIXTURES" >"$T/bentwired2.log" 2>&1 &
+BW2=$!
+PIDS+=($BW2)
+check "second daemon up" wait_for 10 busctl --address="$BUS2" status org.bentwire.Agent
+sleep 0.5
+kill "$(cat "$T/bus2.pid")"
+check "exits within 2 s when its bus goes away" wait_for 2 sh -c "! kill -0 $BW2"
+kill -9 "$BW2" 2>/dev/null || true
+RC2=0
+wait "$BW2" || RC2=$?
+check "exit status 0" test "$RC2" = 0
+check "no panic (ksni tray shut down first)" sh -c "! grep -q panicked '$T/bentwired2.log'"
 
 if [ "$FAILS" -eq 0 ]; then
     echo "scenario $COMP: all checks passed"

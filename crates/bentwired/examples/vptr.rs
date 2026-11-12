@@ -1,6 +1,7 @@
 //! Test helper for the desktop scenario: a zwlr_virtual_pointer_v1 client that drives a
 //! real compositor pointer (sway headless). Reads commands from stdin, one per line:
 //!   move X Y        absolute position in the output layout
+//!   movenf X Y      the same without a wl_pointer frame (two moves in one frame)
 //!   press B         B = 1 left, 2 right
 //!   release B
 //!   sleep MS
@@ -86,6 +87,10 @@ fn main() {
             }
             ["sleep", ms] => {
                 std::thread::sleep(std::time::Duration::from_millis(ms.parse().unwrap()));
+                continue;
+            }
+            ["movenf", x, y] => {
+                p.motion_absolute(now(), x.parse().unwrap(), y.parse().unwrap(), w, h);
                 continue;
             }
             [] => continue,
