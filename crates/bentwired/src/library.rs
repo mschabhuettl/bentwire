@@ -3,6 +3,7 @@
 
 use crate::discovery::Entry;
 use bentwire_character::Character;
+use bentwire_character::label::{PackLabels, label_info};
 use bentwire_core::api::{CatalogEntry, CharacterLoader, Picture};
 use bentwire_core::model::{CharacterModel, InfoEntry};
 use bentwire_render::canvas::RgbaImage;
@@ -20,20 +21,31 @@ pub struct Library {
 pub type Shared = Rc<RefCell<Library>>;
 
 impl Library {
+    /// Names are display labels (A-LABEL-1).
     pub fn catalog(&self) -> Vec<CatalogEntry> {
         self.entries
             .iter()
-            .map(|e| CatalogEntry {
-                id: e.id.clone(),
-                info: e
+            .map(|e| {
+                let pack = PackLabels::for_character(&e.path).unwrap_or_else(|err| {
+                    log::warn!("{err}");
+                    PackLabels::default()
+                });
+                let info: Vec<_> = e
                     .info
                     .iter()
-                    .map(|i| InfoEntry {
-                        lang: i.lang.clone(),
-                        name: i.name.clone(),
-                        description: i.description.clone(),
-                    })
-                    .collect(),
+                    .map(|i| (i.lang.clone(), i.name.clone(), i.description.clone()))
+                    .collect();
+                CatalogEntry {
+                    id: e.id.clone(),
+                    info: label_info(&e.id, &info, e.format.as_deref(), &pack)
+                        .into_iter()
+                        .map(|(lang, name, description)| InfoEntry {
+                            lang,
+                            name,
+                            description,
+                        })
+                        .collect(),
+                }
             })
             .collect()
     }
@@ -259,6 +271,34 @@ mod tests {
         );
         assert!(n > 0, "no characters found");
         assert!(failures.is_empty(), "{failures:#?}");
+    }
+
+    /// A-LABEL-1: every character under $BENTWIRE_PACKS has a non-empty display label,
+    /// unique across all packs, in both UI languages (as listed, in the gallery and tray).
+    #[test]
+    #[ignore = "needs BENTWIRE_PACKS=<characters dir>"]
+    fn a_label_1_every_pack_label_is_non_empty_and_unique() {
+        use bentwire_core::api::Lang;
+        let Some(dir) = std::env::var_os("BENTWIRE_PACKS") else {
+            panic!("NOT RUN: set BENTWIRE_PACKS to a characters/ directory with packs");
+        };
+        let lib = Library {
+            entries: crate::discovery::discover(&[PathBuf::from(dir)]),
+            loaded: HashMap::new(),
+        };
+        let catalog = lib.catalog();
+        assert!(!catalog.is_empty(), "no characters found");
+        for lang in [Lang::En, Lang::De] {
+            let mut seen: HashMap<String, &str> = HashMap::new();
+            for c in &catalog {
+                let name = bentwire_core::l10n::display_names(&c.info, lang).0;
+                assert!(!name.is_empty(), "{}: empty label ({lang:?})", c.id);
+                if let Some(other) = seen.insert(name.clone(), &c.id) {
+                    panic!("{other} and {} share the label {name:?} ({lang:?})", c.id);
+                }
+            }
+        }
+        eprintln!("{} characters, labels non-empty and unique", catalog.len());
     }
 
     fn copy_dir(from: &Path, to: &Path) {

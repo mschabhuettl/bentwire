@@ -11,6 +11,8 @@ pub struct Entry {
     pub id: String,
     pub path: PathBuf,
     pub info: Vec<Info>,
+    /// `source.format`, for the display label (A-LABEL-1).
+    pub format: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, Deserialize, PartialEq)]
@@ -27,6 +29,9 @@ struct CheapManifest {
     family: String,
     #[serde(default)]
     character: CheapCharacter,
+    /// `[source]` is free form (character-format); only a string `format` is used.
+    #[serde(default)]
+    source: toml::Table,
 }
 
 #[derive(Deserialize, Default)]
@@ -159,13 +164,19 @@ fn check(path: &Path) -> Option<Entry> {
         if m.family != "agent" && m.family != "office97" {
             return Err(format!("unknown family {:?}", m.family));
         }
-        Ok(m.character.info)
+        let format = m
+            .source
+            .get("format")
+            .and_then(|f| f.as_str())
+            .map(String::from);
+        Ok((m.character.info, format))
     });
     match res {
-        Ok(info) => Some(Entry {
+        Ok((info, format)) => Some(Entry {
             id: entry_id(path),
             path: path.to_path_buf(),
             info,
+            format,
         }),
         Err(e) => {
             log::warn!("skipping character {}: {e}", path.display());
