@@ -320,6 +320,12 @@ impl Env {
         String::try_from(self.prop(AGENT, AGENT_IF, "Character")).unwrap()
     }
 
+    /// The session bus goes away (logout).
+    pub fn kill_bus(&mut self) {
+        let _ = self.bus.kill();
+        let _ = self.bus.wait();
+    }
+
     /// Wait for the daemon to exit; returns its status code.
     pub fn wait_exit(&mut self, secs: u64) -> Option<i32> {
         let d = self.daemon.as_mut()?;
