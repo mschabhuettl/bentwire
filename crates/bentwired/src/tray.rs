@@ -3,7 +3,7 @@
 
 use bentwire_core::api::{MenuAction, MenuEntry, TrayInput, TrayScene};
 use ksni::blocking::{Handle, TrayMethods};
-use ksni::menu::StandardItem;
+use ksni::menu::{RadioGroup, RadioItem, StandardItem, SubMenu};
 
 pub struct BwTray {
     tx: calloop::channel::Sender<TrayInput>,
@@ -97,24 +97,78 @@ impl ksni::Tray for BwTray {
         let _ = self.tx.send(TrayInput::SecondaryActivate { x, y });
     }
     fn menu(&self) -> Vec<ksni::MenuItem<Self>> {
-        self.menu
-            .iter()
-            .map(|e| match e {
-                MenuEntry::Separator => ksni::MenuItem::Separator,
-                MenuEntry::Item { label, action } => {
-                    let action: MenuAction = *action;
+        menu_items(&self.menu)
+    }
+}
+
+/// dbusmenu items; a run of choice items (`checked: Some`) becomes one radio group.
+fn menu_items(entries: &[MenuEntry]) -> Vec<ksni::MenuItem<BwTray>> {
+    let label = |l: &str| dbusmenu_label(&l.replace('\0', ""));
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < entries.len() {
+        match &entries[i] {
+            MenuEntry::Separator => out.push(ksni::MenuItem::Separator),
+            MenuEntry::Submenu { label: l, entries } => out.push(
+                SubMenu {
+                    label: label(l),
+                    submenu: menu_items(entries),
+                    ..Default::default()
+                }
+                .into(),
+            ),
+            MenuEntry::Item {
+                checked: Some(_), ..
+            } => {
+                let mut options = Vec::new();
+                let (mut actions, mut selected) = (Vec::new(), 0);
+                while let Some(MenuEntry::Item {
+                    label: l,
+                    action,
+                    checked: Some(c),
+                }) = entries.get(i)
+                {
+                    if *c {
+                        selected = options.len();
+                    }
+                    options.push(RadioItem {
+                        label: label(l),
+                        ..Default::default()
+                    });
+                    actions.push(*action);
+                    i += 1;
+                }
+                out.push(
+                    RadioGroup {
+                        selected,
+                        select: Box::new(move |t: &mut BwTray, n: usize| {
+                            let _ = t.tx.send(TrayInput::Menu(actions[n]));
+                        }),
+                        options,
+                    }
+                    .into(),
+                );
+                continue;
+            }
+            MenuEntry::Item {
+                label: l, action, ..
+            } => {
+                let action: MenuAction = *action;
+                out.push(
                     StandardItem {
-                        label: dbusmenu_label(&label.replace('\0', "")),
+                        label: label(l),
                         activate: Box::new(move |t: &mut BwTray| {
                             let _ = t.tx.send(TrayInput::Menu(action));
                         }),
                         ..Default::default()
                     }
-                    .into()
-                }
-            })
-            .collect()
+                    .into(),
+                );
+            }
+        }
+        i += 1;
     }
+    out
 }
 
 pub struct Tray {
@@ -183,5 +237,36 @@ mod tests {
         let i = sni_icon(1, 1, &[1, 2, 3, 4]);
         assert_eq!(i.data, vec![4, 1, 2, 3]);
         assert_eq!(own_icon().data.len(), 32 * 32 * 4);
+    }
+
+    #[test]
+    fn b_scale_1_tray_size_submenu_is_a_radio_group() {
+        let item = |n: u32| MenuEntry::Item {
+            label: format!("&{n}x"),
+            action: MenuAction::Scale(n),
+            checked: Some(n == 3),
+        };
+        let entries = vec![
+            MenuEntry::Item {
+                label: "&Hide".into(),
+                action: MenuAction::Hide,
+                checked: None,
+            },
+            MenuEntry::Submenu {
+                label: "&Size".into(),
+                entries: (1..=4).map(item).collect(),
+            },
+        ];
+        let items = menu_items(&entries);
+        assert!(matches!(&items[0], ksni::MenuItem::Standard(s) if s.label == "_Hide"));
+        let ksni::MenuItem::SubMenu(sub) = &items[1] else {
+            panic!("{items:?}");
+        };
+        assert_eq!(sub.label, "_Size");
+        let [ksni::MenuItem::RadioGroup(g)] = sub.submenu.as_slice() else {
+            panic!("{sub:?}");
+        };
+        let labels: Vec<&str> = g.options.iter().map(|o| o.label.as_str()).collect();
+        assert_eq!((labels, g.selected), (vec!["_1x", "_2x", "_3x", "_4x"], 2));
     }
 }

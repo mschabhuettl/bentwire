@@ -7,7 +7,7 @@ use bentwire_core::api::{MenuEntry, OutputInfo, Scene, Surface as CoreSurface};
 use bentwire_render::balloon::{self, agent_balloon_region, office_balloon_region, window_canvas};
 use bentwire_render::canvas::{Rect, Region, RgbaImage};
 use bentwire_render::font::Fonts;
-use bentwire_render::menu::{MenuGeometry, draw_menu, menu_layout};
+use bentwire_render::menu::{MenuGeometry, draw_menu, menu_layout, submenu_scene};
 use bentwire_render::picture::picture_buffer;
 use bentwire_render::theme::Theme;
 use serde_json::{Value, json};
@@ -55,6 +55,8 @@ pub struct MenuSurface {
     pub buf: Buf,
     pub geometry: MenuGeometry,
     pub entries: Vec<MenuEntry>,
+    /// A submenu: its parent item, relative to the parent menu (B-WL-9 positioner).
+    pub anchor: Option<Rect>,
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]
@@ -63,6 +65,8 @@ pub struct Rendered {
     /// Agent balloon (index 0) and Office balloon (index 1, stacked above).
     pub balloons: [Option<BalloonSurface>; 2],
     pub menu: Option<MenuSurface>,
+    /// The open submenu (B-SCALE-1 Size), a popup of the menu.
+    pub submenu: Option<MenuSurface>,
     pub keyboard: bool,
 }
 
@@ -145,12 +149,12 @@ pub fn render(scene: &Scene, lib: &Library, fonts: &Fonts, theme: Option<&Theme>
         balloon::draw_agent_balloon(&mut c, k, fonts, b);
         r.balloons[0] = Some(mk_balloon(false, b.window, agent_balloon_region(b), c));
     }
-    if let Some(m) = &scene.menu {
+    let menu = |m: &bentwire_core::api::MenuScene, anchor: Option<Rect>| {
         let g = menu_layout(fonts, &m.entries);
         let mut c = bentwire_render::canvas::Canvas::new(g.width as u32 * k, g.height as u32 * k);
         c.origin = (m.x * k as i32, m.y * k as i32);
         draw_menu(&mut c, k, fonts, m);
-        r.menu = Some(MenuSurface {
+        MenuSurface {
             x: m.x,
             y: m.y,
             buf: Buf {
@@ -162,7 +166,14 @@ pub fn render(scene: &Scene, lib: &Library, fonts: &Fonts, theme: Option<&Theme>
             },
             geometry: g,
             entries: m.entries.clone(),
-        });
+            anchor,
+        }
+    };
+    if let Some(m) = &scene.menu {
+        let main = menu(m, None);
+        let anchor = m.open.and_then(|i| main.geometry.items.get(i).copied());
+        r.submenu = submenu_scene(fonts, m).map(|s| menu(&s, anchor));
+        r.menu = Some(main);
     }
     r
 }
@@ -171,10 +182,16 @@ pub fn render(scene: &Scene, lib: &Library, fonts: &Fonts, theme: Option<&Theme>
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Hit {
     Menu(Option<usize>),
+    Submenu(Option<usize>),
     Surface(CoreSurface),
 }
 
 pub fn hit(r: &Rendered, x: i32, y: i32) -> Option<Hit> {
+    if let Some(m) = &r.submenu
+        && Rect::new(m.x, m.y, m.buf.w as i32, m.buf.h as i32).contains(x, y)
+    {
+        return Some(Hit::Submenu(m.geometry.hit(&m.entries, x - m.x, y - m.y)));
+    }
     if let Some(m) = &r.menu
         && Rect::new(m.x, m.y, m.buf.w as i32, m.buf.h as i32).contains(x, y)
     {
@@ -297,6 +314,10 @@ pub fn requests(
             _ => {}
         }
     }
+    // Nested popups go in reverse order of creation (xdg_popup.destroy).
+    if prev.submenu.is_some() && next.submenu.is_none() {
+        out.push(json!({"req": "destroy", "surface": "submenu"}));
+    }
     match (&prev.menu, &next.menu) {
         (Some(_), None) => out.push(json!({"req": "destroy", "surface": "menu"})),
         (p, Some(m)) if p.as_ref() != Some(m) => {
@@ -314,6 +335,21 @@ pub fn requests(
             out.push(buffer_req("menu", &m.buf, false));
         }
         _ => {}
+    }
+    if let Some(s) = &next.submenu
+        && prev.submenu.as_ref() != Some(s)
+    {
+        if prev.submenu.is_none() {
+            out.push(json!({
+                "req": "popup",
+                "surface": "submenu",
+                "parent": "menu",
+                "anchor_rect": s.anchor.map(|a| [a.x, a.y, a.w, a.h]),
+                "size": [s.buf.w, s.buf.h],
+                "constraint_adjustment": "flip_x|slide_x|slide_y",
+            }));
+        }
+        out.push(buffer_req("submenu", &s.buf, false));
     }
     out
 }

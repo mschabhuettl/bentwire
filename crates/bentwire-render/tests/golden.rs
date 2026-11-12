@@ -13,7 +13,7 @@ use bentwire_core::api::{
 use bentwire_render::balloon::{draw_agent_balloon, draw_office_balloon, window_canvas};
 use bentwire_render::canvas::{Canvas, RgbaImage};
 use bentwire_render::font::Fonts;
-use bentwire_render::menu::{draw_menu, menu_layout};
+use bentwire_render::menu::{draw_menu, menu_layout, submenu_scene};
 use bentwire_render::scene::compose_output;
 use bentwire_render::theme::load_png;
 use bentwire_render::{art, core_font};
@@ -481,6 +481,7 @@ fn menu_entries(labels: [&str; 4]) -> Vec<MenuEntry> {
     let item = |l: &str, action| MenuEntry::Item {
         label: l.into(),
         action,
+        checked: None,
     };
     vec![
         item(labels[0], MenuAction::Hide),
@@ -499,9 +500,49 @@ fn menu_image(f: &Fonts, entries: Vec<MenuEntry>, highlighted: Option<usize>, k:
         y: 0,
         entries,
         highlighted,
+        open: None,
+        open_highlighted: None,
     };
     draw_menu(&mut c, k, f, &s);
     c.to_rgba()
+}
+
+/// B-SCALE-1: the menu with its Size submenu open (2x checked, 3x highlighted), side by
+/// side as placed by `submenu_scene`.
+fn size_menu_image(f: &Fonts, k: u32) -> RgbaImage {
+    let mut entries = menu_entries(["&Hide", "&Options...", "&Choose Assistant...", "&Animate!"]);
+    entries.push(MenuEntry::Submenu {
+        label: "&Size".into(),
+        entries: (1..=4)
+            .map(|n| MenuEntry::Item {
+                label: format!("&{n}x"),
+                action: MenuAction::Scale(n),
+                checked: Some(n == 2),
+            })
+            .collect(),
+    });
+    let s = MenuScene {
+        x: 0,
+        y: 0,
+        entries,
+        highlighted: Some(5),
+        open: Some(5),
+        open_highlighted: Some(2),
+    };
+    let sub = submenu_scene(f, &s).unwrap();
+    let (g, gs) = (menu_layout(f, &s.entries), menu_layout(f, &sub.entries));
+    let (w, h) = (sub.x + gs.width, (sub.y + gs.height).max(g.height));
+    let mut c = Canvas::new(w as u32 * k, h as u32 * k);
+    draw_menu(&mut c, k, f, &s);
+    draw_menu(&mut c, k, f, &sub);
+    c.to_rgba()
+}
+
+#[test]
+fn b_scale_1_size_submenu_golden() {
+    let f = Fonts::bundled();
+    check("menu-size-en", &size_menu_image(&f, 1));
+    check("menu-size-en-2x", &size_menu_image(&f, 2));
 }
 
 #[test]
@@ -577,6 +618,8 @@ fn t_4_headless_scene_golden() {
             y: 170,
             entries: entries.clone(),
             highlighted: Some(0),
+            open: None,
+            open_highlighted: None,
         }),
         tray: TrayScene {
             icon_character: None,

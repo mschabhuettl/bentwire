@@ -2335,6 +2335,7 @@ impl Core {
         let item = |s, a| MenuEntry::Item {
             label: l10n::menu_string(self.lang, s).into(),
             action: a,
+            checked: None,
         };
         if self.ch.is_none() {
             return Vec::new();
@@ -2351,6 +2352,18 @@ impl Core {
         if !self.animate.is_empty() {
             v.push(item(MenuString::Animate, MenuAction::Animate));
         }
+        // B-SCALE-1: the factors, the current one checked.
+        v.push(MenuEntry::Submenu {
+            label: l10n::menu_string(self.lang, MenuString::Size).into(),
+            entries: SCALES
+                .iter()
+                .map(|&n| MenuEntry::Item {
+                    label: format!("&{n}x"),
+                    action: MenuAction::Scale(n),
+                    checked: Some(n == self.scale),
+                })
+                .collect(),
+        });
         v
     }
 
@@ -2362,6 +2375,8 @@ impl Core {
                 y,
                 entries,
                 highlighted: None,
+                open: None,
+                open_highlighted: None,
             },
             from_tray,
         });
@@ -2369,64 +2384,120 @@ impl Core {
 
     fn menu_input(&mut self, m: MenuInput) {
         let Some(menu) = &mut self.menu else { return };
+        let s = &mut menu.scene;
         match m {
-            MenuInput::Hover(h) => menu.scene.highlighted = h,
+            // Hovering a submenu item opens it, another item closes it; between items
+            // (on the way to the submenu) it stays open with its item highlighted.
+            MenuInput::Hover(h) => match h {
+                Some(i) if submenu(&s.entries, i).is_some() => {
+                    if s.open != Some(i) {
+                        s.open = Some(i);
+                        s.open_highlighted = None;
+                    }
+                    s.highlighted = Some(i);
+                }
+                Some(i) => {
+                    s.highlighted = Some(i);
+                    s.open = None;
+                    s.open_highlighted = None;
+                }
+                None => s.highlighted = s.open,
+            },
+            MenuInput::SubmenuHover(h) => {
+                if s.open.is_some() {
+                    s.open_highlighted = h;
+                    s.highlighted = s.open;
+                }
+            }
             MenuInput::Dismiss => self.menu = None,
             MenuInput::Activate(i) => {
+                if submenu(&s.entries, i).is_some() {
+                    s.open = Some(i);
+                    s.highlighted = Some(i);
+                    return;
+                }
                 let menu = self.menu.take().unwrap();
                 if let Some(MenuEntry::Item { action, .. }) = menu.scene.entries.get(i) {
                     self.menu_action(*action, menu.from_tray);
                 }
             }
+            MenuInput::SubmenuActivate(i) => {
+                let action =
+                    s.open
+                        .and_then(|o| submenu(&s.entries, o))
+                        .and_then(|e| match e.get(i) {
+                            Some(MenuEntry::Item { action, .. }) => Some(*action),
+                            _ => None,
+                        });
+                if let Some(a) = action {
+                    let from_tray = self.menu.take().unwrap().from_tray;
+                    self.menu_action(a, from_tray);
+                }
+            }
         }
     }
 
+    /// B-WL-9 keys. The open submenu has the keyboard once one of its items is
+    /// highlighted (Right, Enter or the mnemonic of its parent item); Left and Escape give
+    /// it back to the parent menu.
     fn menu_key(&mut self, key: Key) {
         let Some(menu) = &mut self.menu else { return };
-        let items: Vec<usize> = menu
-            .scene
-            .entries
-            .iter()
-            .enumerate()
-            .filter(|(_, e)| matches!(e, MenuEntry::Item { .. }))
-            .map(|(i, _)| i)
-            .collect();
-        if items.is_empty() {
+        let s = &mut menu.scene;
+        if let (Some(sub), Some(_)) = (
+            s.open.and_then(|o| submenu(&s.entries, o)),
+            s.open_highlighted,
+        ) {
+            let sub = sub.to_vec();
+            match key {
+                Key::Escape | Key::Left => {
+                    s.open = None;
+                    s.open_highlighted = None;
+                }
+                Key::Down | Key::Up => {
+                    s.open_highlighted = menu_step(&sub, s.open_highlighted, key == Key::Down)
+                }
+                Key::Enter => {
+                    if let Some(h) = s.open_highlighted {
+                        self.menu_input(MenuInput::SubmenuActivate(h));
+                    }
+                }
+                Key::Char(c) => {
+                    if let Some(i) = menu_mnemonic(&sub, c) {
+                        self.menu_input(MenuInput::SubmenuActivate(i));
+                    }
+                }
+                _ => {}
+            }
+            return;
+        }
+        if menu_step(&s.entries, None, true).is_none() {
             self.menu = None;
             return;
         }
-        let pos = menu
-            .scene
-            .highlighted
-            .and_then(|h| items.iter().position(|&i| i == h));
+        let open_sub = |s: &mut MenuScene, i: usize| {
+            s.highlighted = Some(i);
+            s.open = Some(i);
+            s.open_highlighted = submenu(&s.entries, i).and_then(|e| menu_step(e, None, true));
+        };
         match key {
+            Key::Escape if s.open.is_some() => s.open = None,
             Key::Escape => self.menu = None,
-            Key::Down => {
-                let n = pos.map_or(0, |p| (p + 1) % items.len());
-                menu.scene.highlighted = Some(items[n]);
+            Key::Left => s.open = None,
+            Key::Down | Key::Up => {
+                s.highlighted = menu_step(&s.entries, s.highlighted, key == Key::Down);
+                s.open = None;
+                s.open_highlighted = None;
             }
-            Key::Up => {
-                let n = pos.map_or(items.len() - 1, |p| (p + items.len() - 1) % items.len());
-                menu.scene.highlighted = Some(items[n]);
-            }
-            Key::Enter => {
-                if let Some(h) = menu.scene.highlighted {
-                    self.menu_input(MenuInput::Activate(h));
-                }
-            }
-            Key::Char(c) => {
-                let c = c.to_lowercase().next().unwrap_or(c);
-                let hit = items
-                    .iter()
-                    .copied()
-                    .find(|&i| match &menu.scene.entries[i] {
-                        MenuEntry::Item { label, .. } => office::mnemonic(label).2 == Some(c),
-                        _ => false,
-                    });
-                if let Some(i) = hit {
-                    self.menu_input(MenuInput::Activate(i));
-                }
-            }
+            Key::Enter | Key::Right => match s.highlighted {
+                Some(h) if submenu(&s.entries, h).is_some() => open_sub(s, h),
+                Some(h) if key == Key::Enter => self.menu_input(MenuInput::Activate(h)),
+                _ => {}
+            },
+            Key::Char(c) => match menu_mnemonic(&s.entries, c) {
+                Some(i) if submenu(&s.entries, i).is_some() => open_sub(s, i),
+                Some(i) => self.menu_input(MenuInput::Activate(i)),
+                None => {}
+            },
             _ => {}
         }
     }
@@ -2445,6 +2516,11 @@ impl Core {
                 }
             }
             MenuAction::Animate => self.animate_next(),
+            MenuAction::Scale(n) => {
+                if SCALES.contains(&n) {
+                    self.choose_scale(n);
+                }
+            }
         }
     }
 
@@ -2718,4 +2794,47 @@ fn clamp_scale(n: u32) -> u32 {
 fn frame_rect(c: &Char, scale: u32) -> Rect {
     let (w, h) = geometry::size(&c.model, scale);
     Rect::new(c.x, c.y, w as i32, h as i32)
+}
+
+/// The entries of the submenu at `i`, if entry `i` is one.
+fn submenu(entries: &[MenuEntry], i: usize) -> Option<&[MenuEntry]> {
+    match entries.get(i) {
+        Some(MenuEntry::Submenu { entries, .. }) => Some(entries),
+        _ => None,
+    }
+}
+
+/// The selectable entry (not a separator) after (`down`) or before `cur`, wrapping; from
+/// none, the first or the last.
+fn menu_step(entries: &[MenuEntry], cur: Option<usize>, down: bool) -> Option<usize> {
+    let items: Vec<usize> = entries
+        .iter()
+        .enumerate()
+        .filter(|(_, e)| !matches!(e, MenuEntry::Separator))
+        .map(|(i, _)| i)
+        .collect();
+    let n = items.len();
+    if n == 0 {
+        return None;
+    }
+    let pos = cur.and_then(|h| items.iter().position(|&i| i == h));
+    Some(
+        items[match (pos, down) {
+            (Some(p), true) => (p + 1) % n,
+            (Some(p), false) => (p + n - 1) % n,
+            (None, true) => 0,
+            (None, false) => n - 1,
+        }],
+    )
+}
+
+/// The entry whose `&` mnemonic is `c` (ignoring case).
+fn menu_mnemonic(entries: &[MenuEntry], c: char) -> Option<usize> {
+    let c = c.to_lowercase().next().unwrap_or(c);
+    entries.iter().position(|e| match e {
+        MenuEntry::Item { label, .. } | MenuEntry::Submenu { label, .. } => {
+            office::mnemonic(label).2 == Some(c)
+        }
+        MenuEntry::Separator => false,
+    })
 }

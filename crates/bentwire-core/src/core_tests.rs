@@ -1827,7 +1827,7 @@ fn b_menu_1_r_ui_3_b_menu_2_b_menu_3() {
         .entries
         .iter()
         .map(|e| match e {
-            MenuEntry::Item { label, .. } => label.clone(),
+            MenuEntry::Item { label, .. } | MenuEntry::Submenu { label, .. } => label.clone(),
             MenuEntry::Separator => "-".into(),
         })
         .collect();
@@ -1838,7 +1838,8 @@ fn b_menu_1_r_ui_3_b_menu_2_b_menu_3() {
             "-",
             "&Options...",
             "&Choose Assistant...",
-            "&Animate!"
+            "&Animate!",
+            "&Size"
         ]
     );
     // Options... opens the config file after the menu closes.
@@ -1880,7 +1881,7 @@ fn b_menu_1_r_ui_3_b_menu_2_b_menu_3() {
     let mut t = T::visible(m);
     t.press(PointerKind::Press, Surface::Character, 2, 501, 501);
     t.press(PointerKind::Release, Surface::Character, 2, 501, 501);
-    assert_eq!(t.core.scene().menu.unwrap().entries.len(), 4);
+    assert_eq!(t.core.scene().menu.unwrap().entries.len(), 5);
 }
 
 #[test]
@@ -1909,7 +1910,8 @@ fn b_ui_4_user_hide() {
         tray,
         vec![MenuEntry::Item {
             label: "&Show".into(),
-            action: MenuAction::Show
+            action: MenuAction::Show,
+            checked: None,
         }]
     );
     t.ev(Event::Tray(TrayInput::Menu(MenuAction::Show)));
@@ -3155,4 +3157,112 @@ fn b_scale_1_switch_and_output_change_use_the_factor() {
     // B-WL-4 pulls the 2x frame inside a smaller output.
     t.ev(Event::Outputs(vec![output(600, 600)]));
     assert_eq!(t.pos(), (600 - 100, 600 - 300));
+}
+
+fn size_items(entries: &[MenuEntry]) -> Vec<(String, Option<bool>)> {
+    match entries.last() {
+        Some(MenuEntry::Submenu { entries, .. }) => entries
+            .iter()
+            .map(|e| match e {
+                MenuEntry::Item { label, checked, .. } => (label.clone(), *checked),
+                e => panic!("{e:?}"),
+            })
+            .collect(),
+        e => panic!("{e:?}"),
+    }
+}
+
+#[test]
+fn b_scale_1_size_submenu_pointer_keys_and_tray() {
+    let mut t = T::visible(sized("a", 100, 100, None));
+    let right_click = |t: &mut T| {
+        t.press(PointerKind::Press, Surface::Character, 2, 510, 520);
+        t.press(PointerKind::Release, Surface::Character, 2, 510, 520);
+        t.core.scene().menu.unwrap()
+    };
+    let m = right_click(&mut t);
+    let size = m.entries.len() - 1;
+    assert!(matches!(&m.entries[size], MenuEntry::Submenu { label, .. } if label == "&Size"));
+    let items = size_items(&m.entries);
+    assert_eq!(
+        items,
+        vec![
+            ("&1x".to_string(), Some(true)),
+            ("&2x".to_string(), Some(false)),
+            ("&3x".to_string(), Some(false)),
+            ("&4x".to_string(), Some(false)),
+        ]
+    );
+    // Pointer: hovering Size opens it, the submenu item runs, the menu closes.
+    t.ev(Event::Menu(MenuInput::Hover(Some(size))));
+    let m = t.core.scene().menu.unwrap();
+    assert_eq!((m.open, m.open_highlighted), (Some(size), None));
+    // Between items the submenu stays open; another item closes it.
+    t.ev(Event::Menu(MenuInput::Hover(None)));
+    assert_eq!(t.core.scene().menu.unwrap().open, Some(size));
+    t.ev(Event::Menu(MenuInput::Hover(Some(0))));
+    assert_eq!(t.core.scene().menu.unwrap().open, None);
+    // A click on Size opens it too and keeps the menu.
+    t.ev(Event::Menu(MenuInput::Activate(size)));
+    t.ev(Event::Menu(MenuInput::SubmenuHover(Some(2))));
+    let m = t.core.scene().menu.unwrap();
+    assert_eq!(
+        (m.highlighted, m.open, m.open_highlighted),
+        (Some(size), Some(size), Some(2))
+    );
+    t.ev(Event::Menu(MenuInput::SubmenuActivate(2)));
+    assert!(t.core.scene().menu.is_none());
+    assert_eq!(t.core.properties().scale, 3);
+    t.advance(t.now + 1000);
+    assert_eq!(
+        persisted(&t).map(|s| (s.scale, s.scale_chosen)),
+        Some((3, true))
+    );
+    // Keys: the mnemonic opens Size on its first item; Down, Enter.
+    let m = right_click(&mut t);
+    assert_eq!(size_items(&m.entries)[2].1, Some(true));
+    key(&mut t, Key::Char('S'));
+    let m = t.core.scene().menu.unwrap();
+    assert_eq!((m.open, m.open_highlighted), (Some(size), Some(0)));
+    key(&mut t, Key::Down);
+    assert_eq!(t.core.scene().menu.unwrap().open_highlighted, Some(1));
+    // Escape (or Left) closes only the submenu; Right opens it again.
+    key(&mut t, Key::Escape);
+    let m = t.core.scene().menu.unwrap();
+    assert_eq!((m.highlighted, m.open), (Some(size), None));
+    key(&mut t, Key::Right);
+    key(&mut t, Key::Up);
+    assert_eq!(t.core.scene().menu.unwrap().open_highlighted, Some(3));
+    key(&mut t, Key::Left);
+    assert_eq!(t.core.scene().menu.unwrap().open, None);
+    key(&mut t, Key::Enter);
+    key(&mut t, Key::Char('2'));
+    assert!(t.core.scene().menu.is_none());
+    assert_eq!(t.core.properties().scale, 2);
+    // Tray: the same submenu; a choice from it.
+    assert_eq!(size_items(&t.core.scene().tray.menu)[1].1, Some(true));
+    t.ev(Event::Tray(TrayInput::Menu(MenuAction::Scale(4))));
+    assert_eq!(t.core.properties().scale, 4);
+    t.ev(Event::Tray(TrayInput::Menu(MenuAction::Scale(9))));
+    assert_eq!(t.core.properties().scale, 4);
+}
+
+#[test]
+fn b_scale_1_size_menu_german() {
+    let cfg = Config {
+        language: LanguageSetting::De,
+        ..Config::default()
+    };
+    let mut t = T::with_config(vec![sized("a", 100, 100, None)], None, vec![], cfg);
+    t.advance(1000);
+    let (x, y) = t.pos();
+    t.press(PointerKind::Press, Surface::Character, 2, x + 1, y + 1);
+    t.press(PointerKind::Release, Surface::Character, 2, x + 1, y + 1);
+    let m = t.core.scene().menu.unwrap();
+    assert!(
+        matches!(m.entries.last(), Some(MenuEntry::Submenu { label, .. }) if label == "&Größe")
+    );
+    key(&mut t, Key::Char('g'));
+    key(&mut t, Key::Char('4'));
+    assert_eq!(t.core.properties().scale, 4);
 }

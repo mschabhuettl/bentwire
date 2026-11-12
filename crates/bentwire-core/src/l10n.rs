@@ -29,6 +29,8 @@ pub enum MenuString {
     Options,
     ChooseAssistant,
     Animate,
+    /// B-SCALE-1.
+    Size,
 }
 
 pub fn menu_string(lang: Lang, s: MenuString) -> &'static str {
@@ -44,6 +46,8 @@ pub fn menu_string(lang: Lang, s: MenuString) -> &'static str {
         (Lang::De, ChooseAssistant) => "Assistenten &wählen...",
         (Lang::En, Animate) => "&Animate!",
         (Lang::De, Animate) => "A&nimation!",
+        (Lang::En, Size) => "&Size",
+        (Lang::De, Size) => "&Größe",
     }
 }
 
@@ -244,6 +248,8 @@ mod tests {
         assert_eq!(menu_string(Lang::En, MenuString::Animate), "&Animate!");
         assert_eq!(menu_string(Lang::De, MenuString::Animate), "A&nimation!");
         assert_eq!(menu_string(Lang::De, MenuString::Show), "&Einblenden");
+        assert_eq!(menu_string(Lang::En, MenuString::Size), "&Size");
+        assert_eq!(menu_string(Lang::De, MenuString::Size), "&Größe");
     }
 
     #[test]

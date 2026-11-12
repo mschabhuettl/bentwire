@@ -259,6 +259,10 @@ pub enum MenuInput {
     Hover(Option<usize>),
     /// Item `i` was clicked.
     Activate(usize),
+    /// The pointer is over item `Some(i)` of the open submenu, or over none of its items.
+    SubmenuHover(Option<usize>),
+    /// Item `i` of the open submenu was clicked.
+    SubmenuActivate(usize),
     /// `popup_done` or an outside click: close without a choice.
     Dismiss,
 }
@@ -653,6 +657,8 @@ pub enum MenuAction {
     Options,
     ChooseAssistant,
     Animate,
+    /// A factor of the Size submenu (B-SCALE-1).
+    Scale(u32),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -661,6 +667,13 @@ pub enum MenuEntry {
     Item {
         label: String,
         action: MenuAction,
+        /// `Some(checked)`: one choice of a set (a radio item), `None`: a plain item.
+        checked: Option<bool>,
+    },
+    /// An item that opens a submenu (the Size menu, B-SCALE-1).
+    Submenu {
+        label: String,
+        entries: Vec<MenuEntry>,
     },
     Separator,
 }
@@ -672,6 +685,11 @@ pub struct MenuScene {
     pub y: i32,
     pub entries: Vec<MenuEntry>,
     pub highlighted: Option<usize>,
+    /// The open submenu: the index of its [`MenuEntry::Submenu`] entry. The renderer
+    /// places it next to that entry.
+    pub open: Option<usize>,
+    /// The highlighted item of the open submenu; while one is, keys go to the submenu.
+    pub open_highlighted: Option<usize>,
 }
 
 /// Tray item model (B-TRAY-1).

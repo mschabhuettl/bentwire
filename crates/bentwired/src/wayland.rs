@@ -116,6 +116,8 @@ struct WlState {
     /// Agent balloon (0) and Office balloon (1).
     balloons: [Option<SubSurf>; 2],
     menu: Option<MenuSurf>,
+    /// The open submenu, a popup of `menu` (B-SCALE-1 Size).
+    submenu: Option<MenuSurf>,
     /// The latest scene from the app; re-applied after configures.
     desired: Rendered,
     events: Vec<Event>,
@@ -299,6 +301,7 @@ impl Wayland {
             ch: None,
             balloons: [None, None],
             menu: None,
+            submenu: None,
             desired: Rendered::default(),
             events: Vec::new(),
             outputs_dirty: true,
@@ -388,6 +391,10 @@ impl Backend for Wayland {
                 "buffer_attached": b.attached.is_some(),
             })).collect::<Vec<_>>(),
             "menu": s.menu.as_ref().map(|m| json!({
+                "configured": m.configured,
+                "buffer_attached": m.attached.is_some(),
+            })),
+            "submenu": s.submenu.as_ref().map(|m| json!({
                 "configured": m.configured,
                 "buffer_attached": m.attached.is_some(),
             })),
@@ -544,7 +551,9 @@ impl WlState {
             .find(|o| self.output_state.info(o).is_some_and(|i| i.id == id))
     }
 
+    /// The submenu first: nested popups are destroyed in reverse order (xdg_popup).
     fn destroy_menu(&mut self) {
+        self.submenu = None;
         self.menu = None;
     }
 
@@ -787,19 +796,63 @@ impl WlState {
             return;
         }
         let m = self.menu.as_mut().expect("checked");
-        m.geometry = want.geometry.clone();
-        m.entries = want.entries.clone();
-        m.pos = (want.x, want.y);
-        if !m.configured || m.attached.as_ref() == Some(&want.buf) {
+        update_menu(m, &want, &mut self.pool);
+        self.apply_submenu();
+    }
+
+    /// The open submenu: a popup of the menu, next to its parent item (flipped to the left
+    /// side when it does not fit), without a grab of its own (the menu holds it). Created
+    /// once the menu is mapped, as xdg_popup requires of a parent.
+    fn apply_submenu(&mut self) {
+        let Some(want) = self.desired.submenu.clone() else {
+            self.submenu = None;
+            return;
+        };
+        if let Some(s) = &mut self.submenu {
+            update_menu(s, &want, &mut self.pool);
             return;
         }
-        let wl = m.popup.wl_surface().clone();
-        if let Some(b) = attach(&mut self.pool, &wl, &want.buf) {
-            wl.set_buffer_scale(want.buf.scale as i32);
-            m.buffer = Some(b);
-            m.attached = Some(want.buf.clone());
-            wl.commit();
-        }
+        let Some(parent) = self.menu.as_ref().filter(|m| m.attached.is_some()) else {
+            return;
+        };
+        let Ok(pos) = XdgPositioner::new(&self.xdg) else {
+            return;
+        };
+        let a = want
+            .anchor
+            .unwrap_or(bentwire_render::canvas::Rect::new(0, 0, 1, 1));
+        let width = parent.geometry.width;
+        pos.set_size(want.buf.w as i32, want.buf.h as i32);
+        pos.set_anchor_rect(0, a.y, width, a.h);
+        pos.set_anchor(xdg_positioner::Anchor::TopRight);
+        pos.set_gravity(xdg_positioner::Gravity::BottomRight);
+        pos.set_offset(want.x - parent.pos.0 - width, want.y - parent.pos.1 - a.y);
+        pos.set_constraint_adjustment(
+            xdg_positioner::ConstraintAdjustment::FlipX
+                | xdg_positioner::ConstraintAdjustment::SlideX
+                | xdg_positioner::ConstraintAdjustment::SlideY,
+        );
+        let surface = self.compositor.create_surface(&self.qh);
+        let Ok(popup) = Popup::from_surface(
+            Some(parent.popup.xdg_surface()),
+            &pos,
+            &self.qh,
+            surface,
+            &self.xdg,
+        ) else {
+            log::warn!("submenu: popup creation failed");
+            return;
+        };
+        popup.wl_surface().commit();
+        self.submenu = Some(MenuSurf {
+            popup,
+            configured: false,
+            pos: (want.x, want.y),
+            buffer: None,
+            attached: None,
+            geometry: want.geometry.clone(),
+            entries: want.entries.clone(),
+        });
     }
 
     /// Global logical origin of a surface of ours, and which core surface it is.
@@ -829,11 +882,19 @@ impl WlState {
         {
             return Some((SurfKind::Menu, (0, 0)));
         }
+        if let Some(m) = &self.submenu
+            && m.popup.wl_surface() == s
+        {
+            return Some((SurfKind::Submenu, (0, 0)));
+        }
         None
     }
 
-    fn menu_item(&self, local: (f64, f64)) -> Option<usize> {
-        let m = self.menu.as_ref()?;
+    fn menu_item(&self, kind: SurfKind, local: (f64, f64)) -> Option<usize> {
+        let m = match kind {
+            SurfKind::Submenu => self.submenu.as_ref()?,
+            _ => self.menu.as_ref()?,
+        };
         m.geometry.hit(&m.entries, local.0 as i32, local.1 as i32)
     }
 }
@@ -842,6 +903,24 @@ impl WlState {
 enum SurfKind {
     Core(CoreSurface),
     Menu,
+    Submenu,
+}
+
+/// Keep a menu popup's model current and attach its buffer once configured.
+fn update_menu(m: &mut MenuSurf, want: &crate::present::MenuSurface, pool: &mut SlotPool) {
+    m.geometry = want.geometry.clone();
+    m.entries = want.entries.clone();
+    m.pos = (want.x, want.y);
+    if !m.configured || m.attached.as_ref() == Some(&want.buf) {
+        return;
+    }
+    let wl = m.popup.wl_surface().clone();
+    if let Some(b) = attach(pool, &wl, &want.buf) {
+        wl.set_buffer_scale(want.buf.scale as i32);
+        m.buffer = Some(b);
+        m.attached = Some(want.buf.clone());
+        wl.commit();
+    }
 }
 
 /// Copy a buffer into the pool and attach it (premultiplied ARGB8888, B-WL-6).
@@ -995,26 +1074,28 @@ impl PopupHandler for WlState {
         popup: &Popup,
         _: PopupConfigure,
     ) {
-        if let Some(m) = &mut self.menu
-            && m.popup.wl_surface() == popup.wl_surface()
-        {
-            m.configured = true;
-            m.attached = None;
-            if let Some(c) = &self.ch {
-                let wl = c.layer.wl_surface().clone();
-                let at = c.applied;
-                self.apply_menu(&wl, at);
+        let mut ours = false;
+        for m in [&mut self.menu, &mut self.submenu].into_iter().flatten() {
+            if m.popup.wl_surface() == popup.wl_surface() {
+                m.configured = true;
+                m.attached = None;
+                ours = true;
             }
+        }
+        if ours && let Some(c) = &self.ch {
+            let wl = c.layer.wl_surface().clone();
+            let at = c.applied;
+            self.apply_menu(&wl, at);
         }
     }
     fn done(&mut self, _: &Connection, _: &QueueHandle<Self>, popup: &Popup) {
-        // B-WL-9: popup_done closes the menu without a choice.
-        if self
-            .menu
-            .as_ref()
-            .is_some_and(|m| m.popup.wl_surface() == popup.wl_surface())
+        // B-WL-9: popup_done (of the menu or its submenu) closes the menu without a choice.
+        if [&self.menu, &self.submenu]
+            .into_iter()
+            .flatten()
+            .any(|m| m.popup.wl_surface() == popup.wl_surface())
         {
-            self.menu = None;
+            self.destroy_menu();
             self.events.push(Event::Menu(MenuInput::Dismiss));
         }
     }
@@ -1208,8 +1289,12 @@ impl PointerHandler for WlState {
                     }
                 }
                 (PointerEventKind::Motion { .. }, SurfKind::Menu) => {
-                    let i = self.menu_item(local);
+                    let i = self.menu_item(kind, local);
                     self.events.push(Event::Menu(MenuInput::Hover(i)));
+                }
+                (PointerEventKind::Motion { .. }, SurfKind::Submenu) => {
+                    let i = self.menu_item(kind, local);
+                    self.events.push(Event::Menu(MenuInput::SubmenuHover(i)));
                 }
                 (PointerEventKind::Motion { .. }, SurfKind::Core(s)) => {
                     let b = self.grab.as_ref().map(|g| g.1).unwrap_or(0);
@@ -1237,8 +1322,13 @@ impl PointerHandler for WlState {
                         .push(core(PointerKind::Release, b, s, self.modifiers));
                 }
                 (PointerEventKind::Release { .. }, SurfKind::Menu) => {
-                    if let Some(i) = self.menu_item(local) {
+                    if let Some(i) = self.menu_item(kind, local) {
                         self.events.push(Event::Menu(MenuInput::Activate(i)));
+                    }
+                }
+                (PointerEventKind::Release { .. }, SurfKind::Submenu) => {
+                    if let Some(i) = self.menu_item(kind, local) {
+                        self.events.push(Event::Menu(MenuInput::SubmenuActivate(i)));
                     }
                 }
                 _ => {}

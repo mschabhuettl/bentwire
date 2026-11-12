@@ -1672,3 +1672,85 @@ fn b_scale_1_cli_dbus_round_trip_and_persistence() {
     let s2 = e.snapshot();
     assert_eq!((&s2["left"], &s2["top"]), (&s["left"], &s["top"]));
 }
+
+#[test]
+fn b_scale_1_size_submenu_through_test1_and_trace() {
+    let mut e = Env::new("scalemenu");
+    let trace = e.dir.join("trace.jsonl");
+    e.start(&["--trace", trace.to_str().unwrap()]);
+    e.advance(1000);
+    let c = surface(&e.snapshot(), "character");
+    let o = &c["opaque"];
+    let (x, y) = (
+        (int(&o["x"]) + int(&o["w"]) / 2) as i32,
+        (int(&o["y"]) + int(&o["h"]) / 2) as i32,
+    );
+    e.click(2, x, y);
+    let s = e.snapshot();
+    let size = s["menu"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|i| i["label"] == "&Size")
+        .unwrap_or_else(|| panic!("no Size in {s}"))
+        .clone();
+    assert_eq!(size["submenu"], true);
+    let (sx, sy) = ((int(&size["x"]) + 5) as i32, (int(&size["y"]) + 5) as i32);
+    e.pointer("motion", 0, sx, sy);
+    let s = e.snapshot();
+    let sub = s["submenu"].as_array().unwrap().clone();
+    let labels: Vec<_> = sub
+        .iter()
+        .map(|i| (i["label"].clone(), i["checked"].clone()))
+        .collect();
+    assert_eq!(
+        labels,
+        vec![
+            (json!("&1x"), json!(true)),
+            (json!("&2x"), json!(false)),
+            (json!("&3x"), json!(false)),
+            (json!("&4x"), json!(false)),
+        ]
+    );
+    // Right of the menu, its first item level with Size.
+    let m = surface(&s, "menu");
+    assert_eq!(
+        int(&surface(&s, "submenu")["x"]),
+        int(&m["x"]) + int(&m["w"])
+    );
+    assert_eq!(int(&sub[0]["y"]), int(&size["y"]));
+    let (tx, ty) = (
+        (int(&sub[2]["x"]) + 5) as i32,
+        (int(&sub[2]["y"]) + 5) as i32,
+    );
+    e.pointer("motion", 0, tx, ty);
+    e.click(1, tx, ty);
+    e.advance(10);
+    let s = e.snapshot();
+    assert!(s["menu"].is_null() && s["submenu"].is_null(), "{s}");
+    assert_eq!(scale_of(&e), 3);
+    // The trace: the submenu popup is a child of the menu and is destroyed first.
+    let t = std::fs::read_to_string(&trace).unwrap();
+    let reqs: Vec<String> = t
+        .lines()
+        .map(|l| serde_json::from_str::<serde_json::Value>(l).unwrap())
+        .filter(|l| l["surface"] == "menu" || l["surface"] == "submenu")
+        .filter(|l| l["req"] == "popup" || l["req"] == "destroy")
+        .map(|l| {
+            format!(
+                "{} {}",
+                l["req"].as_str().unwrap(),
+                l["surface"].as_str().unwrap()
+            )
+        })
+        .collect();
+    assert_eq!(
+        reqs,
+        [
+            "popup menu",
+            "popup submenu",
+            "destroy submenu",
+            "destroy menu"
+        ]
+    );
+}

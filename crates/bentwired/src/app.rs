@@ -249,7 +249,9 @@ impl App {
             PointerKind::Press => {
                 let h = present::hit(&self.rendered, x, y);
                 self.menu_serial += 1;
-                if self.rendered.menu.is_some() && !matches!(h, Some(Hit::Menu(_))) {
+                if self.rendered.menu.is_some()
+                    && !matches!(h, Some(Hit::Menu(_) | Hit::Submenu(_)))
+                {
                     // A press outside the grabbed popup: popup_done.
                     return self.event(Event::Menu(MenuInput::Dismiss));
                 }
@@ -257,8 +259,8 @@ impl App {
                 h
             }
             PointerKind::Release => self.grab.take().map(|g| match g {
-                Hit::Menu(_) => match present::hit(&self.rendered, x, y) {
-                    Some(Hit::Menu(i)) => Hit::Menu(i),
+                Hit::Menu(_) | Hit::Submenu(_) => match present::hit(&self.rendered, x, y) {
+                    Some(h @ (Hit::Menu(_) | Hit::Submenu(_))) => h,
                     _ => Hit::Menu(None),
                 },
                 other => other,
@@ -273,6 +275,15 @@ impl App {
                     }
                 }
                 PointerKind::Motion => self.event(Event::Menu(MenuInput::Hover(i))),
+                _ => {}
+            },
+            Some(Hit::Submenu(i)) => match kind {
+                PointerKind::Release => {
+                    if let Some(i) = i {
+                        self.event(Event::Menu(MenuInput::SubmenuActivate(i)))
+                    }
+                }
+                PointerKind::Motion => self.event(Event::Menu(MenuInput::SubmenuHover(i))),
                 _ => {}
             },
             Some(Hit::Surface(surface)) => self.event(Event::Pointer(PointerEvent {
@@ -320,11 +331,13 @@ impl App {
                 "mapped": true}),
             );
         }
-        if let Some(m) = &r.menu {
-            surfaces.push(
-                json!({"kind": "menu", "x": m.x, "y": m.y, "w": m.buf.w, "h": m.buf.h,
-                "mapped": true}),
-            );
+        for (kind, m) in [("menu", &r.menu), ("submenu", &r.submenu)] {
+            if let Some(m) = m {
+                surfaces.push(
+                    json!({"kind": kind, "x": m.x, "y": m.y, "w": m.buf.w, "h": m.buf.h,
+                    "mapped": true}),
+                );
+            }
         }
         let office = s.office_balloon.as_ref().map(|b| {
             json!({
@@ -336,18 +349,25 @@ impl App {
                     "checked": x.checked})).collect::<Vec<_>>(),
             })
         });
-        let menu = r.menu.as_ref().map(|m| {
+        let items = |m: &present::MenuSurface| {
             m.entries
                 .iter()
                 .zip(&m.geometry.items)
                 .map(|(e, q)| match e {
-                    api::MenuEntry::Item { label, .. } => {
-                        json!({"label": label, "x": m.x + q.x, "y": m.y + q.y, "w": q.w, "h": q.h})
+                    api::MenuEntry::Item { label, checked, .. } => {
+                        json!({"label": label, "x": m.x + q.x, "y": m.y + q.y, "w": q.w, "h": q.h,
+                            "checked": checked})
+                    }
+                    api::MenuEntry::Submenu { label, .. } => {
+                        json!({"label": label, "x": m.x + q.x, "y": m.y + q.y, "w": q.w, "h": q.h,
+                            "submenu": true})
                     }
                     api::MenuEntry::Separator => json!({"separator": true}),
                 })
                 .collect::<Vec<_>>()
-        });
+        };
+        let menu = r.menu.as_ref().map(items);
+        let submenu = r.submenu.as_ref().map(items);
         let p = self.core.properties();
         // B-CHAR-5: the opaque box of the rest picture at the current position and size
         // factor (B-SCALE-1), through the renderer's alpha shape (B-PIX-3).
@@ -378,6 +398,7 @@ impl App {
             "office_balloon": office,
             "agent_balloon_lines": s.agent_balloon.as_ref().map(|b| b.lines.clone()),
             "menu": menu,
+            "submenu": submenu,
             "tray": {"title": s.tray.title, "tooltip": s.tray.tooltip},
             "backend": self.backend.snapshot(),
             "outputs": self.outputs.iter().map(|o| json!({"id": o.id, "x": o.rect.x,
