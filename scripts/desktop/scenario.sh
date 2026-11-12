@@ -211,7 +211,7 @@ sys.exit(0 if re.search(r"member=Click\n\s*uint32 1\n\s*uint32 0\n\s*int32 " + s
     check "click on a transparent pixel goes through (B-WL-6, K5)" test "$(grep -c 'member=Click' "$T/signals.log")" = "$N"
     sleep 0.6
     STEPS=("move $CX $CY" "press 1")
-    for i in 1 2 3 4 5 6 7 8 9 10; do STEPS+=("move $((CX - 5 * i)) $((CY - 3 * i))" "sleep 30"); done
+    for i in 1 2 3 4 5 6 7 8 9 10; do STEPS+=("movenf $((CX - 5 * i + 2)) $((CY - 3 * i + 1))" "move $((CX - 5 * i)) $((CY - 3 * i))" "sleep 30"); done
     STEPS+=("release 1")
     vp "${STEPS[@]}"
     check "drag of (-50, -30) moves the character 1:1 (R-UI-2, B-WL-7, K6)" wait_for 5 sh -c "\"$BIN/bentwire\" status | grep -qx 'left=$((X - 50))' && \"$BIN/bentwire\" status | grep -qx 'top=$((Y - 30))'"

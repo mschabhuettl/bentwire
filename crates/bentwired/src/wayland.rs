@@ -131,6 +131,10 @@ struct WlState {
     grab: Option<(wl_surface::WlSurface, u32)>,
     relative: RelativePointerState,
     rel_pointer: Option<ZwpRelativePointerV1>,
+    /// A second wl_pointer that only marks frame boundaries (SCTK hides frames without
+    /// wl_pointer events), and whether the current frame has a wl_pointer.motion.
+    frame_watch: Option<wl_pointer::WlPointer>,
+    frame_motion: bool,
     /// Global pointer position during a grab (B-WL-7, A-DESK-5).
     grab_pos: Option<GrabPos>,
     /// B-CFG-3: output names from kde_output_order_v1, primary first (and the list being
@@ -193,6 +197,33 @@ impl Dispatch2<wayland_client::protocol::wl_callback::WlCallback, WlState> for S
             && c.generation == self.generation
         {
             c.applied = self.pos;
+        }
+    }
+}
+
+/// The frame-watching wl_pointer (B-WL-7): it sees the same events as SCTK's pointer, in
+/// the same order, and only notes whether a frame carried a motion.
+struct FrameWatch;
+
+impl Dispatch2<wl_pointer::WlPointer, WlState> for FrameWatch {
+    fn event(
+        &self,
+        state: &mut WlState,
+        _: &wl_pointer::WlPointer,
+        event: wl_pointer::Event,
+        _: &Connection,
+        _: &QueueHandle<WlState>,
+    ) {
+        match event {
+            wl_pointer::Event::Motion { .. } => state.frame_motion = true,
+            wl_pointer::Event::Frame => {
+                if !std::mem::take(&mut state.frame_motion)
+                    && let Some(g) = &mut state.grab_pos
+                {
+                    g.frame_without_motion();
+                }
+            }
+            _ => {}
         }
     }
 }
@@ -280,6 +311,8 @@ impl Wayland {
             grab: None,
             relative: RelativePointerState::bind(&globals, &qh),
             rel_pointer: None,
+            frame_watch: None,
+            frame_motion: false,
             grab_pos: None,
             order: Vec::new(),
             order_pending: Vec::new(),
@@ -1011,6 +1044,8 @@ impl SeatHandler for WlState {
                 self.rel_pointer = self.relative.get_relative_pointer(p, qh).ok();
                 if self.rel_pointer.is_none() {
                     log::info!("no zwp_relative_pointer_manager_v1: drags use absolute motion");
+                } else {
+                    self.frame_watch = Some(seat.get_pointer(qh, FrameWatch));
                 }
             }
         }
@@ -1032,6 +1067,9 @@ impl SeatHandler for WlState {
         {
             if let Some(r) = self.rel_pointer.take() {
                 r.destroy();
+            }
+            if let Some(w) = self.frame_watch.take() {
+                w.release();
             }
             self.grab_pos = None;
             p.release();
@@ -1217,7 +1255,7 @@ struct GrabPos {
     press: (f64, f64),
     /// Sum of relative deltas; `None` until the first counted relative event of the grab.
     delta: Option<(f64, f64)>,
-    /// The last relative delta, counted only when a wl_pointer.motion follows in its frame.
+    /// Relative deltas of the current frame, counted when its wl_pointer.motion arrives.
     pending: Option<(f64, f64)>,
     /// Last reported global position (a release reuses it).
     pos: (f64, f64),
@@ -1233,11 +1271,17 @@ impl GrabPos {
         }
     }
 
-    /// A relative event. One still pending came in a frame without wl_pointer.motion: the
-    /// compositor held the cursor (KWin's edge barrier between outputs, the layout edge),
-    /// so that delta did not move the pointer and is dropped.
     fn relative(&mut self, d: (f64, f64)) {
-        self.pending = Some(d);
+        let p = self.pending.get_or_insert((0.0, 0.0));
+        p.0 += d.0;
+        p.1 += d.1;
+    }
+
+    /// The end of a frame without wl_pointer.motion: the compositor held the cursor (KWin's
+    /// edge barrier between outputs, the layout edge), so its deltas did not move the
+    /// pointer and are dropped.
+    fn frame_without_motion(&mut self) {
+        self.pending = None;
     }
 
     fn motion(&mut self, local: (f64, f64), applied: (i32, i32)) -> (f64, f64) {
@@ -1407,6 +1451,10 @@ mod tests {
         g.relative((10.0, 0.0));
         assert_eq!(g.motion((110.0, 20.0), (150, 100)), (210.0, 120.0));
         assert_eq!(g.pos, (210.0, 120.0));
+        // Two moves in one frame (SCTK merges their motions into one): both deltas count.
+        g.relative((-20.0, -10.0));
+        g.relative((-30.0, -20.0));
+        assert_eq!(g.motion((60.0, 0.0), (150, 100)), (160.0, 90.0));
         // Before any relative event, absolute motion maps with the applied origin.
         let mut g = GrabPos::new((150.0, 120.0));
         assert_eq!(g.motion((60.0, 20.0), (100, 100)), (160.0, 120.0));
@@ -1422,6 +1470,7 @@ mod tests {
         assert_eq!(g.motion((20.0, 16.0), (1254, 300)), (1274.0, 316.0));
         for _ in 0..25 {
             g.relative((4.0, 0.0));
+            g.frame_without_motion();
         }
         // The cursor crosses: one delta with its motion.
         g.relative((4.0, 0.0));

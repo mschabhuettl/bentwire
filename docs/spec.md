@@ -1665,8 +1665,10 @@ every Agent1/Character1 call the core answered, with `id` (request id) or `error
   surface-local position plus the applied position, which compensates margins not yet
   applied. Press position and delta sum are kept apart from the reported position and
   absolute motion never feeds the sum: once a relative event has counted, the position is
-  press plus sum, whatever absolute motion came before. A relative delta counts only when
-  its wl_pointer frame also carries a wl_pointer.motion: deltas in frames without one did
+  press plus sum, whatever absolute motion came before. Relative deltas count only when
+  their wl_pointer frame also carries a wl_pointer.motion (a second wl_pointer object
+  marks the frame ends, SCTK reports no frame without wl_pointer events); deltas in frames
+  without one did
   not move the cursor (KWin's edge barrier holds it at the edge between two outputs, the
   layout edge holds it too), and counting them made the character run ahead of the cursor
   by the barrier width after crossing to another output. A release keeps the last grab position. A fractional output scale is the current mode width
