@@ -1250,12 +1250,12 @@ impl PointerHandler for WlState {
             };
             let local = ev.position;
             let mut pos = (origin.0 as f64 + local.0, origin.1 as f64 + local.1);
-            // B-WL-7, A-DESK-5: during a grab the position follows relative-pointer deltas
-            // when the compositor sends them, else absolute motion. A release reuses the
-            // last grab position (it carries no new coordinates).
+            // B-WL-7, A-DESK-5: during a grab the position is the motion's, with the origin
+            // that relative-pointer deltas point to when the compositor sends them. A
+            // release reuses the last grab position (it carries no new coordinates).
             match &ev.kind {
                 PointerEventKind::Press { .. } if matches!(kind, SurfKind::Core(_)) => {
-                    self.grab_pos = Some(GrabPos::new(pos));
+                    self.grab_pos = Some(GrabPos::new(pos, origin));
                 }
                 PointerEventKind::Motion { .. } => {
                     if let (Some(g), Some(_)) = (&mut self.grab_pos, &self.grab) {
@@ -1360,6 +1360,8 @@ impl PointerHandler for WlState {
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct GrabPos {
     press: (f64, f64),
+    /// Surface origin at the press.
+    origin: (i32, i32),
     /// Sum of relative deltas; `None` until the first counted relative event of the grab.
     delta: Option<(f64, f64)>,
     /// Relative deltas of the current frame, counted when its wl_pointer.motion arrives.
@@ -1369,9 +1371,10 @@ struct GrabPos {
 }
 
 impl GrabPos {
-    fn new(press: (f64, f64)) -> Self {
+    fn new(press: (f64, f64), origin: (i32, i32)) -> Self {
         Self {
             press,
+            origin,
             delta: None,
             pending: None,
             pos: press,
@@ -1397,27 +1400,34 @@ impl GrabPos {
             s.0 += d.0;
             s.1 += d.1;
         }
-        self.pos = grab_motion(self.press, self.delta, local, applied);
+        self.pos = grab_motion(self.press, self.origin, self.delta, local, applied);
         self.pos
     }
 }
 
-/// B-WL-7: global position for a motion during a grab. With relative-pointer events
-/// since the press, the press position plus their sum is used and the motion's own
-/// coordinates are ignored: sway reports surface-local positions relative to the
-/// press-time surface position. Without them (KWin nested, no manager) the absolute
-/// motion maps with the applied origin, which compensates margins the compositor has not
-/// applied yet.
+/// B-WL-7: global position for a motion during a grab. The motion's own position is the
+/// cursor, but compositors map it with different origins while the surface moves under the
+/// grab: KWin with the applied one (which compensates margins it has not applied yet),
+/// sway with the press-time one. Without relative-pointer events since the press (KWin
+/// nested, no manager) the applied origin is used. With them, the origin whose position
+/// lies nearer the press position plus the deltas: the two differ by the distance the
+/// surface has moved, while the deltas overstate the motion by up to a frame's delta each
+/// time the compositor holds the cursor for part of a frame (KWin's edge barrier, the
+/// layout edge).
 fn grab_motion(
     press: (f64, f64),
+    origin: (i32, i32),
     delta: Option<(f64, f64)>,
     local: (f64, f64),
     applied: (i32, i32),
 ) -> (f64, f64) {
-    match delta {
-        Some(d) => (press.0 + d.0, press.1 + d.1),
-        None => (applied.0 as f64 + local.0, applied.1 as f64 + local.1),
-    }
+    let at = |o: (i32, i32)| (o.0 as f64 + local.0, o.1 as f64 + local.1);
+    let Some(d) = delta else {
+        return at(applied);
+    };
+    let off = |q: (f64, f64)| (q.0 - press.0 - d.0).powi(2) + (q.1 - press.1 - d.1).powi(2);
+    let (a, p) = (at(applied), at(origin));
+    if off(p) < off(a) { p } else { a }
 }
 
 /// Required by XdgShell::bind; bentwired creates no toplevel windows.
@@ -1498,19 +1508,26 @@ mod tests {
     fn b_wl_7_grab_motion_relative_and_absolute() {
         // Relative mode, sway quirk: press at global (150, 120) on a surface at (100, 100),
         // drag by +50 px while the margin moves to 150: sway reports local 100 (relative to
-        // the press-time origin) with applied 150. The deltas give 200, not 250.
+        // the press-time origin) with applied 150. The deltas pick the press-time origin:
+        // 200, not 250.
         assert_eq!(
-            grab_motion((150.0, 120.0), Some((50.0, 0.0)), (100.0, 20.0), (150, 100)),
+            grab_motion(
+                (150.0, 120.0),
+                (100, 100),
+                Some((50.0, 0.0)),
+                (100.0, 20.0),
+                (150, 100)
+            ),
             (200.0, 120.0)
         );
         // Absolute mode, margin pending: pointer at global 160 seen before the margin move
         // was applied (applied 100, local 60) and after it (applied 150, local 10).
         assert_eq!(
-            grab_motion((150.0, 120.0), None, (60.0, 20.0), (100, 100)),
+            grab_motion((150.0, 120.0), (100, 100), None, (60.0, 20.0), (100, 100)),
             (160.0, 120.0)
         );
         assert_eq!(
-            grab_motion((150.0, 120.0), None, (10.0, 20.0), (150, 100)),
+            grab_motion((150.0, 120.0), (100, 100), None, (10.0, 20.0), (150, 100)),
             (160.0, 120.0)
         );
     }
@@ -1549,10 +1566,10 @@ mod tests {
 
     #[test]
     fn b_wl_7_relative_delta_counts_with_its_motion() {
-        // Press at (150, 120). SCTK delivers a frame's wl_pointer.motion after the frame's
-        // relative event (whatever order the compositor sends them in): the delta counts
-        // once, and the motion's own coordinates are ignored (sway quirk).
-        let mut g = GrabPos::new((150.0, 120.0));
+        // Press at (150, 120) on a surface at (100, 100). SCTK delivers a frame's
+        // wl_pointer.motion after the frame's relative event (whatever order the compositor
+        // sends them in): the delta counts once and picks the press-time origin (sway).
+        let mut g = GrabPos::new((150.0, 120.0), (100, 100));
         g.relative((50.0, 0.0));
         assert_eq!(g.motion((100.0, 20.0), (100, 100)), (200.0, 120.0));
         g.relative((10.0, 0.0));
@@ -1561,9 +1578,9 @@ mod tests {
         // Two moves in one frame (SCTK merges their motions into one): both deltas count.
         g.relative((-20.0, -10.0));
         g.relative((-30.0, -20.0));
-        assert_eq!(g.motion((60.0, 0.0), (150, 100)), (160.0, 90.0));
+        assert_eq!(g.motion((60.0, -10.0), (150, 100)), (160.0, 90.0));
         // Before any relative event, absolute motion maps with the applied origin.
-        let mut g = GrabPos::new((150.0, 120.0));
+        let mut g = GrabPos::new((150.0, 120.0), (100, 100));
         assert_eq!(g.motion((60.0, 20.0), (100, 100)), (160.0, 120.0));
     }
 
@@ -1572,7 +1589,7 @@ mod tests {
         // KWin's edge barrier: at the edge between two outputs the cursor stops while
         // relative events go on, with no wl_pointer.motion in their frames. The character
         // must not run ahead of the cursor, so those deltas are dropped.
-        let mut g = GrabPos::new((1270.0, 316.0));
+        let mut g = GrabPos::new((1270.0, 316.0), (1254, 300));
         g.relative((4.0, 0.0));
         assert_eq!(g.motion((20.0, 16.0), (1254, 300)), (1274.0, 316.0));
         for _ in 0..25 {
@@ -1583,5 +1600,44 @@ mod tests {
         g.relative((4.0, 0.0));
         assert_eq!(g.motion((24.0, 16.0), (1254, 300)), (1278.0, 316.0));
         assert_eq!(g.pos, (1278.0, 316.0));
+    }
+
+    #[test]
+    fn b_wl_7_partly_held_frames_follow_the_cursor() {
+        // Measured under KWin (#42): drag left by 16 px per frame from (1140, 316) across
+        // the output edge at x 1024; applied lags one frame. The frame that reaches the
+        // edge moves the cursor 4 px and the one that leaves it 8 px, both with a delta of
+        // -16. The character stays under the cursor, not 20 px ahead.
+        let mut g = GrabPos::new((1140.0, 316.0), (1124, 300));
+        for k in 1..=7 {
+            g.relative((-16.0, 0.0));
+            let applied = (1124 - 16 * (k - 1), 300);
+            let cursor = 1140.0 - 16.0 * k as f64;
+            assert_eq!(g.motion((0.0, 16.0), applied), (cursor, 316.0));
+        }
+        g.relative((-16.0, 0.0));
+        assert_eq!(g.motion((12.0, 16.0), (1012, 300)), (1024.0, 316.0));
+        for _ in 0..6 {
+            g.relative((-16.0, 0.0));
+            g.frame_without_motion();
+        }
+        g.relative((-16.0, 0.0));
+        assert_eq!(g.motion((8.0, 16.0), (1008, 300)), (1016.0, 316.0));
+        g.relative((-16.0, 0.0));
+        assert_eq!(g.motion((0.0, 16.0), (1000, 300)), (1000.0, 316.0));
+        // Measured under sway: drag left by 8 px per frame from (116, 316) into the layout
+        // edge; local positions are relative to the press-time origin. The last frame moves
+        // the cursor 4 px to x 0, with a delta of -8.
+        let mut g = GrabPos::new((116.0, 316.0), (100, 300));
+        for k in 1..=14 {
+            g.relative((-8.0, 0.0));
+            let local = (16.0 - 8.0 * k as f64, 16.0);
+            assert_eq!(
+                g.motion(local, (108 - 8 * k, 300)),
+                (116.0 - 8.0 * k as f64, 316.0)
+            );
+        }
+        g.relative((-8.0, 0.0));
+        assert_eq!(g.motion((-100.0, 16.0), (-12, 300)), (0.0, 316.0));
     }
 }
