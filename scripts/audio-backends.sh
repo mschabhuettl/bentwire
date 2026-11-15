@@ -28,8 +28,14 @@ rms = (sum(x * x for x in a) / n) ** 0.5 / 32768 if n else 0.0
 w = 1102  # 50 ms at 22050 Hz
 win = max(((sum(x * x for x in a[j:j + w]) / w) ** 0.5 / 32768
            for j in range(0, max(n - w, 0) + 1, w // 2)), default=0.0) if n >= w else rms
+# Bursts: runs of loud 50 ms windows after at least 100 ms of quiet.
+bursts, quiet = 0, 4
+for j in range(0, max(n - w, 0) + 1, w // 2):
+    loud = (sum(x * x for x in a[j:j + w]) / w) ** 0.5 / 32768 > 0.01
+    bursts += loud and quiet >= 4
+    quiet = 0 if loud else quiet + 1
 print(f"  {sys.argv[2]}: {n} samples, peak {peak:.4f}, RMS {rms:.5f}, "
-      f"loudest 50 ms RMS {win:.4f} -> {'SOUND' if peak >= 0.01 else 'SILENT'}")
+      f"loudest 50 ms RMS {win:.4f}, {bursts} bursts -> {'SOUND' if peak >= 0.01 else 'SILENT'}")
 PY
 }
 
@@ -95,7 +101,16 @@ EOF
     for _ in $(seq 100); do busctl --user status org.bentwire.Agent >/dev/null 2>&1 && break; sleep 0.1; done
     /b/bentwire show --wait >/dev/null
     for _ in 1 2 3; do /b/bentwire play Show --wait >/dev/null; sleep 0.3; done
-    sleep 1.5 # LINGER: the ALSA file device is complete once the stream is closed
+    streams() { # bentwire's playback streams at the server (grep -c exits 1 on a count of 0)
+        case $s in
+        pulse | pipewire-pulse) pactl list sink-inputs | grep -c 'application.name = "bentwire"' || [ $? = 1 ] ;;
+        pipewire) pw-dump | grep -c '"application.name": "bentwire"' || [ $? = 1 ] ;;
+        alsa) echo n/a ;;
+        esac
+    }
+    echo "streams after the last sound: $(streams), 1.5 s later:" >/out/streams.txt
+    sleep 1.5 # LINGER; the ALSA file device is complete once the stream is closed
+    streams >>/out/streams.txt
     unrec /out/daemon.wav
     /b/bentwire quit
     sleep 0.5
@@ -142,6 +157,7 @@ case ${1:-} in
             echo "  container failed"
         stats "$out/$s/control.wav" "control tone"
         stats "$out/$s/daemon.wav" "bentwired   "
+        echo "  $(tr '\n' ' ' <"$out/$s/streams.txt" 2>/dev/null)"
         echo "  daemon log: $(grep -c 'ALSA lib' "$out/$s/daemon.log" 2>/dev/null || true) 'ALSA lib' lines"
         grep -E 'audio|sound' "$out/$s/daemon.log" | sed 's/^\[[^]]*\] */    /' | head -8 || true
     done

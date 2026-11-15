@@ -119,7 +119,7 @@ It produces these outputs:
 
 Backends:
 - the Wayland backend;
-- the audio backend (rodio);
+- the audio backend (PulseAudio protocol, PipeWire, or ALSA through rodio; A-DESK-7);
 - the D-Bus backend (zbus);
 - the tray backend (ksni);
 - a headless backend for tests (section 6).
@@ -1806,6 +1806,25 @@ the menu. `--dump-frames DIR` writes
   SIGHUP keeps the previous config (logged). SIGTERM and SIGINT run the core's `Quit`
   (which saves the state) and exit 0. The tray's dbusmenu labels turn the `&` mnemonic
   into dbusmenu's `_`. Reason: robustness; dbusmenu has its own mnemonic syntax.
+- **A-DESK-7 Audio output.** Sounds play on an audio thread that opens an output per
+  sound and closes it 1 s after the sound drained, on an error, or on stop; the daemon's
+  thread never waits on a device for more than 500 ms per sound, or 200 ms at exit. Each
+  open tries, in order:
+  - the PulseAudio protocol, when `$PULSE_SERVER` is set or
+    `$XDG_RUNTIME_DIR/pulse/native` exists (PulseAudio, or PipeWire with
+    pipewire-pulse), through `libpulse-simple.so.0`;
+  - PipeWire's own protocol, when `$XDG_RUNTIME_DIR/pipewire-0` exists, through
+    `libpipewire-0.3.so.0`;
+  - ALSA's default device through rodio. The device list is read only when the default
+    device fails, and once until a device opens again.
+
+  A socket that refuses the connection, or a missing client library, moves on to the next
+  backend. The libraries are loaded at run time and are not package dependencies. The
+  daemon logs the backend in use when it changes (`audio: pulse`, `audio: pipewire`,
+  `audio: alsa <device>`) and a backend's failure once until it works again. A sound
+  that replaces another one starts within about 50 ms (the stream's buffer). Reason:
+  without pipewire-alsa or pulseaudio-alsa, ALSA's default device is the card, which the
+  running sound server holds.
 - **A-ACT-1 ACT parser strictness.** `agent_formats::act` reads only the first pack item
   (every sample has one; MSO97 also takes the first). Beyond the runtime's checks
   (act-format 4) it rejects: payload index entries that share a blob unless they are
