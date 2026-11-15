@@ -997,6 +997,45 @@ pub struct Placed {
     pub candidate: Candidate,
 }
 
+/// B-GAL-1: one body size for every gallery candidate: the widest landscape shape
+/// (R-OB-31) of `models`, and at that width the tallest layout.
+pub fn common_size(models: &[AskModel], cx: &Ctx) -> (i32, i32) {
+    let w = models
+        .iter()
+        .map(|a| sizes(a, cx).0[0].0)
+        .max()
+        .unwrap_or(0);
+    let h = models
+        .iter()
+        .map(|a| layout(a, w - 12, cx, &Interaction::default()).content_h + 12)
+        .max()
+        .unwrap_or(0);
+    (w, h)
+}
+
+/// Layout for a body `w` wide; with `fixed`, at least that body height, the button row
+/// moved to the bottom of the body (B-GAL-1).
+fn layout_in(
+    a: &AskModel,
+    w: i32,
+    cx: &Ctx,
+    it: &Interaction,
+    fixed: Option<(i32, i32)>,
+) -> Layout {
+    let mut lay = layout(a, w - 12, cx, it);
+    if let Some((_, h)) = fixed {
+        let dy = h - 12 - lay.content_h;
+        if dy > 0 {
+            for b in &mut lay.scene.buttons {
+                b.rect.y += dy;
+            }
+            lay.content_h += dy;
+            lay.scene.content.h = lay.content_h;
+        }
+    }
+    lay
+}
+
 /// B-OB-1..4: size, lay out and place. `character` is the frame rect, `m` the output.
 /// `Err` = BalloonTooBig.
 pub fn place(
@@ -1006,10 +1045,24 @@ pub fn place(
     m: Rect,
     cx: &Ctx,
 ) -> Result<Placed, TooBig> {
+    place_sized(a, it, character, m, cx, None)
+}
+
+/// [`place`] with the body size `fixed` instead of the R-OB-31 shapes (B-GAL-1; the
+/// height grows if the text needs more).
+pub fn place_sized(
+    a: &AskModel,
+    it: &Interaction,
+    character: Rect,
+    m: Rect,
+    cx: &Ctx,
+    fixed: Option<(i32, i32)>,
+) -> Result<Placed, TooBig> {
     let (shapes, (min_w, min_h)) = sizes(a, cx);
     if min_w + 16 > m.w || min_h > m.h {
         return Err(TooBig);
     }
+    let shapes = fixed.map_or(shapes, |f| [f, f]);
     let c = intersect(character, m);
     let c = if c.w == 0 || c.h == 0 {
         // Character fully off its output: anchor at the bottom-right corner (R-OB-17).
@@ -1020,7 +1073,7 @@ pub fn place(
     let order = candidate_order(c, m);
     let mut best: Option<(i64, Candidate, Layout)> = None;
     for &(w, _) in &shapes {
-        let lay = layout(a, w - 12, cx, it);
+        let lay = layout_in(a, w, cx, it, fixed);
         let h = lay.content_h + 12;
         for &k in &order {
             let (win, _) = candidate_rects(k, c, w, h);
@@ -1083,12 +1136,12 @@ fn assemble(k: Candidate, lay: Layout, body: Rect, win: Rect, c: Rect, mv: (i32,
 
 /// B-GAL-1: the balloon kept at its place for a new character, if it still fits next to
 /// it. `old` is the body of placement `k`, `character` the new frame, `visible` the new
-/// character's opaque rest box (or its frame). The new body (sized for the new text) keeps
-/// the corner at the tail: bottom-left or bottom-right above the character, top-left or
-/// top-right beside it. It is kept when its window is inside the output, the body does not
-/// cover `visible`, it still overlaps the frame along the other axis, and its tail-side
-/// edge is at most 16 px (the tail length) farther from the frame than a new placement
-/// would put it. `None`: place again.
+/// character's opaque rest box (or its frame), `fixed` the gallery's common body size. The
+/// new body keeps the corner at the tail: bottom-left or bottom-right above the character,
+/// top-left or top-right beside it (with the common size it is the old body unless the
+/// text needs more height). It is kept when its window is inside the output, the body does
+/// not cover `visible` and it still overlaps the frame along the other axis, however far
+/// the new character is from it. `None`: place again.
 #[allow(clippy::too_many_arguments)]
 pub fn place_kept(
     a: &AskModel,
@@ -1099,18 +1152,19 @@ pub fn place_kept(
     visible: Rect,
     m: Rect,
     cx: &Ctx,
+    fixed: Option<(i32, i32)>,
 ) -> Option<Placed> {
     use Candidate::*;
     let c = intersect(character, m);
     if c.w == 0 || c.h == 0 {
         return None;
     }
-    let (shapes, _) = sizes(a, cx);
+    let shapes = fixed.map_or_else(|| sizes(a, cx).0, |f| [f, f]);
     for &(sw, _) in &shapes {
-        let lay = layout(a, sw - 12, cx, it);
+        let lay = layout_in(a, sw, cx, it, fixed);
         let (w, h) = (lay.content_w + 12, lay.content_h + 12);
-        // Body, window, distance beyond a new placement's, overlap along the other axis.
-        let (body, win, extra, overlap) = match k {
+        // Body, window, overlap along the other axis.
+        let (body, win, overlap) = match k {
             AboveLeftAligned | AboveRightAligned => {
                 let x = if k == AboveLeftAligned {
                     old.x
@@ -1119,27 +1173,23 @@ pub fn place_kept(
                 };
                 let b = Rect::new(x, old.bottom() - h, w, h);
                 let o = b.x < c.right() && b.right() > c.x;
-                (b, Rect::new(b.x, b.y, w, h + 16), (c.y - 4) - b.bottom(), o)
+                (b, Rect::new(b.x, b.y, w, h + 16), o)
             }
             BesideRight | BesideLeft => {
-                let (b, win, extra) = if k == BesideRight {
+                let (b, win) = if k == BesideRight {
                     let b = Rect::new(old.x, old.y, w, h);
-                    (
-                        b,
-                        Rect::new(b.x - 16, b.y, w + 16, h),
-                        b.x - (c.right() + 4),
-                    )
+                    (b, Rect::new(b.x - 16, b.y, w + 16, h))
                 } else {
                     let b = Rect::new(old.right() - w, old.y, w, h);
-                    (b, Rect::new(b.x, b.y, w + 16, h), (c.x - 4) - b.right())
+                    (b, Rect::new(b.x, b.y, w + 16, h))
                 };
                 let o = b.y < c.bottom() && b.bottom() > c.y;
-                (b, win, extra, o)
+                (b, win, o)
             }
         };
         let i = intersect(body, visible);
         let covers = i.w > 0 && i.h > 0;
-        if score(win, m) == 0 && !covers && overlap && extra <= 16 {
+        if score(win, m) == 0 && !covers && overlap {
             return Some(assemble(k, lay, body, win, c, (0, 0)));
         }
     }

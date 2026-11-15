@@ -88,6 +88,7 @@ impl CharacterLoader for Loader {
                 .map(|c| CatalogEntry {
                     id: c.id.clone(),
                     info: c.info.clone(),
+                    display: c.display,
                 })
                 .collect(),
         )
@@ -153,6 +154,7 @@ impl T {
             .map(|c| CatalogEntry {
                 id: c.id.clone(),
                 info: c.info.clone(),
+                display: c.display,
             })
             .collect();
         let map = chars
@@ -520,10 +522,12 @@ fn b_char_1_rescan_on_use_and_b_char_4_default_when_not_chosen() {
         CatalogEntry {
             id: "bentwire-placeholder".into(),
             info: vec![],
+            display: (100, 100),
         },
         CatalogEntry {
             id: "clippit".into(),
             info: vec![],
+            display: (100, 100),
         },
     ]));
     assert_eq!(t.core.properties().character, "clippit");
@@ -1727,10 +1731,12 @@ fn b_char_5_invalid_character() {
         CatalogEntry {
             id: "a".into(),
             info: vec![],
+            display: (100, 100),
         },
         CatalogEntry {
             id: "broken".into(),
             info: vec![],
+            display: (100, 100),
         },
     ]));
     assert_eq!(
@@ -2649,45 +2655,44 @@ fn b_char_5_new_character_keeps_the_bottom_centre() {
 }
 
 #[test]
-fn b_gal_1_balloon_stays_while_it_fits_next_to_the_new_character() {
-    // All stand on (550, 600). b's frame top is 8 px lower than a's: the balloon stays.
-    // c's frame is 20 px taller, but its top 30 px are transparent: the balloon does not
-    // cover it and stays. d's frame top is 60 px lower: more than the 16 px tail farther
-    // than a new placement, so it is placed again.
+fn b_gal_1_balloon_and_buttons_stay_while_browsing() {
+    // All stand on (550, 600). The envelope of the catalog is 100 x 120 (c), so the
+    // balloon is placed once above y 480, for every candidate. d's description is long: the
+    // common body size is the one d needs, and the buttons sit at its bottom for all.
+    let mut d = sized("d", 100, 40, None);
+    d.info[0].description = "A long description that needs more lines than the others. ".repeat(4);
     let chars = vec![
         sized("a", 100, 100, None),
         sized("b", 96, 92, None),
         sized("c", 100, 120, Some((0, 30, 100, 120))),
-        sized("d", 100, 40, None),
+        d,
     ];
-    let mut t = T::with(
-        chars,
-        Some(StateFile {
-            character: "a".into(),
-            left: 500,
-            top: 500,
-            visible: true,
-            chosen: true,
-            ..Default::default()
-        }),
-        vec![],
-    );
+    let st = StateFile {
+        character: "a".into(),
+        left: 500,
+        top: 500,
+        visible: true,
+        chosen: true,
+        ..Default::default()
+    };
+    let mut t = T::with(chars.clone(), Some(st.clone()), vec![]);
     t.advance(1000);
     open_gallery(&mut t);
-    let body = |t: &T| t.core.scene().office_balloon.unwrap().body;
-    let b0 = body(&t);
-    assert_eq!(b0.bottom(), 500 - 4, "above the character");
+    let scene = |t: &T| t.core.scene().office_balloon.unwrap();
+    let rects = |t: &T| -> Vec<Rect> { scene(t).buttons.iter().map(|b| b.rect).collect() };
+    let b0 = scene(&t).body;
+    let r0 = rects(&t);
+    assert_eq!(b0.bottom(), 600 - 120 - 4, "above the envelope");
     let next = |t: &mut T, id: &str, pos: (i32, i32)| {
         key(t, Key::Char('n'));
         assert_eq!(t.core.properties().character, id);
         assert_eq!(t.pos(), pos);
     };
     next(&mut t, "b", (502, 508));
-    let b1 = body(&t);
-    assert_eq!((b1.x, b1.bottom()), (b0.x, b0.bottom()), "kept for b");
+    assert_eq!((scene(&t).body, rects(&t)), (b0, r0.clone()), "kept for b");
     // Focus and hover changes keep it there.
     key(&mut t, Key::Tab);
-    let ok = t.core.scene().office_balloon.unwrap().buttons[2].rect;
+    let ok = r0[2];
     t.press(
         PointerKind::Motion,
         Surface::OfficeBalloon,
@@ -2695,15 +2700,32 @@ fn b_gal_1_balloon_stays_while_it_fits_next_to_the_new_character() {
         ok.x + 1,
         ok.y + 1,
     );
-    assert_eq!(body(&t), b1, "kept after Tab and hover");
+    assert_eq!(scene(&t).body, b0, "kept after Tab and hover");
     next(&mut t, "c", (500, 480));
-    let b2 = body(&t);
-    assert_eq!((b2.x, b2.bottom()), (b0.x, b0.bottom()), "kept for c");
+    assert_eq!((scene(&t).body, rects(&t)), (b0, r0.clone()), "kept for c");
     next(&mut t, "d", (500, 560));
-    assert_eq!(body(&t).bottom(), 560 - 4, "placed again for d");
-    // Back to c: the balloon above d would cover c's opaque top (y 510), so placed again.
-    key(&mut t, Key::Char('b'));
-    assert_eq!(body(&t).bottom(), 480 - 4);
+    assert_eq!((scene(&t).body, rects(&t)), (b0, r0.clone()), "kept for d");
+    // d's text fills the body down to the buttons; a's leaves room above them.
+    let last = |t: &T| scene(t).text.last().unwrap().y;
+    assert!(last(&t) + 13 > r0[0].y - 20, "d needs the full height");
+    for id in ["c", "b", "a"] {
+        key(&mut t, Key::Char('b'));
+        assert_eq!(t.core.properties().character, id);
+        assert_eq!(
+            (scene(&t).body, rects(&t)),
+            (b0, r0.clone()),
+            "kept for {id}"
+        );
+    }
+    assert!(last(&t) + 13 < r0[0].y - 20, "a leaves room");
+    // A candidate too tall for an envelope above it: placed next to the character itself.
+    let mut chars = chars;
+    chars.push(sized("e", 100, 1000, None));
+    let mut t = T::with(chars, Some(st), vec![]);
+    t.advance(1000);
+    open_gallery(&mut t);
+    assert_eq!(scene(&t).body.bottom(), 500 - 4, "above a, not B-OB-4");
+    assert_eq!(t.pos(), (500, 500));
 }
 
 #[test]

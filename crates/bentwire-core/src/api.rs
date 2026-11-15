@@ -64,6 +64,8 @@ pub trait CharacterLoader {
 pub struct CatalogEntry {
     pub id: String,
     pub info: Vec<InfoEntry>,
+    /// `character.display` (default: the canvas), for the gallery balloon (B-GAL-1).
+    pub display: (u32, u32),
 }
 
 /// B-L10N-1 config value.

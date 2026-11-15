@@ -19,6 +19,8 @@ pub struct Entry {
     pub info: Vec<Info>,
     /// `source.format`, for the display label (A-LABEL-1).
     pub format: Option<String>,
+    /// `character.display`, default the canvas (B-GAL-1).
+    pub display: (u32, u32),
 }
 
 #[derive(Debug, Clone, Default, Deserialize, PartialEq)]
@@ -44,6 +46,8 @@ struct CheapManifest {
 struct CheapCharacter {
     #[serde(default)]
     info: Vec<Info>,
+    canvas: Option<(u32, u32)>,
+    display: Option<(u32, u32)>,
 }
 
 /// Search roots in order (A-PACK-1): `--characters`, config `character_paths`,
@@ -199,14 +203,17 @@ fn check(path: &Path) -> Option<Entry> {
             .get("format")
             .and_then(|f| f.as_str())
             .map(String::from);
-        Ok((m.character.info, format))
+        let c = m.character;
+        let display = c.display.or(c.canvas).unwrap_or((0, 0));
+        Ok((c.info, format, display))
     });
     match res {
-        Ok((info, format)) => Some(Entry {
+        Ok((info, format, display)) => Some(Entry {
             id: entry_id(path),
             path: path.to_path_buf(),
             info,
             format,
+            display,
         }),
         Err(e) => {
             log::warn!("skipping character {}: {e}", path.display());

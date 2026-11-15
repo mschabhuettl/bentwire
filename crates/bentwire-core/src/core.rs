@@ -160,6 +160,8 @@ struct OpenAsk {
 struct Gallery {
     original: String,
     index: usize,
+    /// B-GAL-1: the body size shared by all candidates (`None`: too big for the output).
+    size: Option<(i32, i32)>,
 }
 
 struct Press {
@@ -1571,7 +1573,13 @@ impl Core {
         let c = self.ch.as_ref().expect("character");
         let m = self.output_rect();
         let cx = office::Ctx::new(self.metrics.as_ref(), m.w);
-        office::place(&a.model, &a.it, frame_rect(c, self.scale), m, &cx)
+        let fixed = self.gallery_size(a);
+        office::place_sized(&a.model, &a.it, frame_rect(c, self.scale), m, &cx, fixed)
+    }
+
+    /// B-GAL-1: the common body size when `a` is the gallery balloon.
+    fn gallery_size(&self, a: &OpenAsk) -> Option<(i32, i32)> {
+        self.gallery.as_ref().filter(|_| a.id == 0)?.size
     }
 
     fn apply_placement(&mut self, p: office::Placed) {
@@ -1717,7 +1725,9 @@ impl Core {
         self.gallery = Some(Gallery {
             original: id,
             index,
+            size: None,
         });
+        self.gallery.as_mut().unwrap().size = self.common_gallery_size();
         let model = self.gallery_model();
         let focus = model.initial_focus();
         self.ask = Some(OpenAsk {
@@ -1733,21 +1743,65 @@ impl Core {
             hidden: false,
         });
         let a = self.ask.as_ref().unwrap();
-        if let Ok(p) = self.place_ask(a) {
+        if let Some(p) = self
+            .place_gallery_envelope(a)
+            .or_else(|| self.place_ask(a).ok())
+        {
             self.apply_placement(p);
         }
     }
 
+    /// B-GAL-1: the gallery balloon is placed once, next to the envelope of all candidates:
+    /// the widest and the tallest frame of the catalog at the size factor, its bottom centre
+    /// on the current character's foot (B-CHAR-5), inside the output. `None` when the
+    /// tallest frame does not fit above the foot or the placement needs B-OB-4 (the
+    /// balloon is then placed next to the character itself).
+    fn place_gallery_envelope(&self, a: &OpenAsk) -> Option<office::Placed> {
+        let c = self.ch.as_ref()?;
+        let m = self.output_rect();
+        let (fx, fy) = geometry::foot(&c.model, self.scale);
+        let (cw, ch) = geometry::size(&c.model, self.scale);
+        let k = self.scale;
+        let sizes = || self.catalog.iter().map(|e| e.display);
+        let w = sizes().map(|d| d.0.saturating_mul(k)).fold(cw, u32::max);
+        let h = sizes().map(|d| d.1.saturating_mul(k)).fold(ch, u32::max);
+        let at = (c.x.saturating_add(fx), c.y.saturating_add(fy));
+        let (x, y) = geometry::stand_at(at, (w as i32 / 2, h as i32), (w, h), m);
+        if y != at.1.saturating_sub(h as i32) {
+            // No room above the foot for the tallest frame.
+            return None;
+        }
+        let env = Rect::new(x, y, w as i32, h as i32);
+        let cx = office::Ctx::new(self.metrics.as_ref(), m.w);
+        let p = office::place_sized(&a.model, &a.it, env, m, &cx, self.gallery_size(a)).ok()?;
+        (p.move_by == (0, 0)).then_some(p)
+    }
+
     fn gallery_model(&self) -> AskModel {
-        let g = self.gallery.as_ref().expect("gallery");
+        self.gallery_model_at(self.gallery.as_ref().expect("gallery").index)
+    }
+
+    /// B-GAL-1: one body size for every candidate, so the buttons stay in place while
+    /// browsing; `None` when it does not fit the output.
+    fn common_gallery_size(&self) -> Option<(i32, i32)> {
+        let m = self.output_rect();
+        let cx = office::Ctx::new(self.metrics.as_ref(), m.w);
+        let models: Vec<AskModel> = (0..self.catalog.len())
+            .map(|i| self.gallery_model_at(i))
+            .collect();
+        let (w, h) = office::common_size(&models, &cx);
+        (w + 16 <= m.w && h + 16 <= m.h).then_some((w, h))
+    }
+
+    fn gallery_model_at(&self, index: usize) -> AskModel {
         let (name, desc) = self
             .catalog
-            .get(g.index)
+            .get(index)
             .map(|e| l10n::display_names(&e.info, self.lang))
             .unwrap_or_default();
         let caps = l10n::gallery_captions(self.lang);
         let n = self.catalog.len();
-        let enabled = [g.index > 0, g.index + 1 < n, true, true];
+        let enabled = [index > 0, index + 1 < n, true, true];
         AskModel {
             heading: name,
             text: office::markup(&desc),
@@ -1833,7 +1887,8 @@ impl Core {
         });
         let m = self.output_rect();
         let cx = office::Ctx::new(self.metrics.as_ref(), m.w);
-        match office::place_kept(&a.model, &a.it, k, sc.body, fr, visible, m, &cx) {
+        let fixed = self.gallery_size(a);
+        match office::place_kept(&a.model, &a.it, k, sc.body, fr, visible, m, &cx, fixed) {
             Some(p) => {
                 self.apply_placement(p);
                 true
@@ -1880,8 +1935,10 @@ impl Core {
                 .catalog
                 .iter()
                 .position(|e| Some(&e.id) == cur.as_ref());
+            let size = self.common_gallery_size();
             if let Some(g) = &mut self.gallery {
                 g.index = i.unwrap_or(0);
+                g.size = size;
             }
             let model = self.gallery_model();
             if let Some(a) = self.ask.as_mut().filter(|a| a.id == 0) {
