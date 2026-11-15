@@ -89,11 +89,17 @@ done
 
 # nf_session <shell> <prev> <command line>...: like session, with the not-found handler
 # opted in, the integration sourced twice, and with prev=1 an earlier handler defined first
+# (prev=2: the same handler autoloaded from $fpath, zsh only)
 nf_session() {
     local sh=$1 prev=$2 name=command_not_found_handle lines=()
     shift 2
     [ "$sh" = zsh ] && name=command_not_found_handler
     [ "$prev" = 1 ] && lines+=("$name() { echo \"previous handler: \$1\"; return 127; }")
+    if [ "$prev" = 2 ]; then
+        mkdir -p "$BW_DIR/fpath"
+        printf '%s\n' 'echo "previous handler: $1"' 'return 127' >"$BW_DIR/fpath/$name"
+        lines+=("fpath=($BW_DIR/fpath \$fpath)" "autoload -Uz $name")
+    fi
     lines+=("export BENTWIRE_SHELL_NOT_FOUND=1" ". $INTEGRATION" ". $INTEGRATION" "$@" exit)
     case $sh in
         bash) printf '%s\n' "${lines[@]}" | bash --norc --noprofile -i >"$BW_DIR/$sh.out" 2>&1 ;;
@@ -132,6 +138,16 @@ for sh in bash zsh; do
     bw_check "its status is kept" grep -q '^rc=127$' "$BW_DIR/$sh.out"
     bw_check "no message of our own" bash -c "! grep -q 'command not found' '$BW_DIR/$sh.out'"
 done
+
+if command -v zsh >/dev/null; then
+    echo "zsh: command not found chains to an autoloaded earlier handler"
+    : >"$BW_LOG"
+    nf_session zsh 2 'nosuch_bw_e; echo "rc=$?"'
+    bw_wait 10 bw_has "$(nf_say nosuch_bw_e)"
+    bw_check "says which command is missing" bw_has "$(nf_say nosuch_bw_e)"
+    bw_check "the earlier handler ran" grep -q 'previous handler: nosuch_bw_e$' "$BW_DIR/zsh.out"
+    bw_check "its status is kept" grep -q '^rc=127$' "$BW_DIR/zsh.out"
+fi
 
 echo "bash: the user's PROMPT_COMMAND still sees the exit status"
 printf '%s\n' "PROMPT_COMMAND='echo rc=\$? >>$BW_DIR/pc.log'" ". $INTEGRATION" true false '(exit 7)' exit |

@@ -232,7 +232,13 @@ _bw_not_found() { # <command> [args...]
 }
 
 if [ "${BENTWIRE_SHELL_NOT_FOUND:-}" = 1 ]; then
-    if [ -n "${ZSH_VERSION:-}" ]; then _bw_nf_name=command_not_found_handler; else _bw_nf_name=command_not_found_handle; fi
+    if [ -n "${ZSH_VERSION:-}" ]; then
+        _bw_nf_name=command_not_found_handler
+        # an autoloaded handler is only a stub until loaded: load it before it is copied
+        declare -f "$_bw_nf_name" >/dev/null 2>&1 && autoload +X "$_bw_nf_name" 2>/dev/null
+    else
+        _bw_nf_name=command_not_found_handle
+    fi
     _bw_def=$(declare -f "$_bw_nf_name" 2>/dev/null)
     case $_bw_def in
         *_bw_not_found*) ;; # sourced again: already installed, never chain to ourselves
