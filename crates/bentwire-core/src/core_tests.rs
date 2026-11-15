@@ -2823,14 +2823,76 @@ fn b_gal_1_balloon_and_buttons_stay_while_browsing() {
         );
     }
     assert!(last(&t) + 13 < r0[0].y - 20, "a leaves room");
-    // A candidate too tall for an envelope above it: placed next to the character itself.
+    // A candidate too tall for room above: the envelope is pulled inside the output
+    // (500, 0, 100 x 1000) and the balloon goes beside it, for every candidate.
     let mut chars = chars;
     chars.push(sized("e", 100, 1000, None));
     let mut t = T::with(chars, Some(st), vec![]);
     t.advance(1000);
     open_gallery(&mut t);
-    assert_eq!(scene(&t).body.bottom(), 500 - 4, "above a, not B-OB-4");
+    let b0 = scene(&t).body;
+    assert_eq!(
+        (b0.x, b0.y),
+        (600 + 4, 0),
+        "beside the envelope, not B-OB-4"
+    );
     assert_eq!(t.pos(), (500, 500));
+    for (k, id) in [('n', "b"), ('n', "c"), ('n', "d"), ('n', "e"), ('b', "d")] {
+        key(&mut t, Key::Char(k));
+        assert_eq!(t.core.properties().character, id);
+        assert_eq!(scene(&t).body, b0, "kept for {id}");
+    }
+}
+
+#[test]
+fn b_gal_1_balloon_stays_next_to_the_envelope() {
+    // a stands on (550, 600). The envelope is w's frame, 900 x 100 (1800 x 200 at size 2,
+    // pulled to x 0), far wider than the body, and n is narrow: the balloon stays at the
+    // envelope's corner for every candidate, opens there again, and after a size change it
+    // is placed once next to the new envelope and stays there.
+    let chars = vec![
+        sized("a", 100, 100, None),
+        sized("n", 20, 40, None),
+        sized("w", 900, 100, None),
+    ];
+    let st = StateFile {
+        character: "a".into(),
+        left: 500,
+        top: 500,
+        visible: true,
+        chosen: true,
+        ..Default::default()
+    };
+    let mut t = T::with(chars, Some(st), vec![]);
+    t.advance(1000);
+    let body = |t: &T| t.core.scene().office_balloon.unwrap().body;
+    let walk = |t: &mut T, b0: Rect| {
+        for (k, id) in [('n', "n"), ('n', "w"), ('b', "n"), ('b', "a")] {
+            key(t, Key::Char(k));
+            assert_eq!(t.core.properties().character, id);
+            assert_eq!(body(t), b0, "kept for {id}");
+        }
+    };
+    open_gallery(&mut t);
+    let b0 = body(&t);
+    assert_eq!(
+        (b0.x, b0.bottom()),
+        (100, 600 - 100 - 4),
+        "above the envelope"
+    );
+    walk(&mut t, b0);
+    key(&mut t, Key::Escape);
+    t.advance(t.now + 1000);
+    open_gallery(&mut t);
+    assert_eq!(body(&t), b0, "opens at the same place");
+    t.call(Call::SetScale(2)).unwrap();
+    let b1 = body(&t);
+    assert_eq!(
+        (b1.x, b1.bottom()),
+        (0, 600 - 200 - 4),
+        "above the new envelope"
+    );
+    walk(&mut t, b1);
 }
 
 /// B-GAL-1: a candidate with ExtraData shows one of its intro phrases instead of the

@@ -1135,13 +1135,14 @@ fn assemble(k: Candidate, lay: Layout, body: Rect, win: Rect, c: Rect, mv: (i32,
 }
 
 /// B-GAL-1: the balloon kept at its place for a new character, if it still fits next to
-/// it. `old` is the body of placement `k`, `character` the new frame, `visible` the new
-/// character's opaque rest box (or its frame), `fixed` the gallery's common body size. The
-/// new body keeps the corner at the tail: bottom-left or bottom-right above the character,
-/// top-left or top-right beside it (with the common size it is the old body unless the
-/// text needs more height). It is kept when its window is inside the output, the body does
-/// not cover `visible` and it still overlaps the frame along the other axis, however far
-/// the new character is from it. `None`: place again.
+/// it. `old` is the body of placement `k`, `character` the envelope of all candidates at
+/// the new character's foot, `visible` the new character's opaque rest box (or its frame),
+/// `fixed` the gallery's common body size. The new body keeps the corner at the tail:
+/// bottom-left or bottom-right above the envelope, top-left or top-right beside it (with
+/// the common size it is the old body unless the text needs more height). It is kept when
+/// its window is inside the output, the body does not cover `visible` and it still overlaps
+/// the envelope along the other axis, however far the new character is from it. `None`:
+/// place again.
 #[allow(clippy::too_many_arguments)]
 pub fn place_kept(
     a: &AskModel,

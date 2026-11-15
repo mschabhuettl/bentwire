@@ -1585,6 +1585,12 @@ impl Core {
     }
 
     fn place_ask(&self, a: &OpenAsk) -> Result<office::Placed, office::TooBig> {
+        // B-GAL-1: the gallery balloon goes next to the envelope whenever it is placed.
+        if a.id == 0
+            && let Some(p) = self.place_gallery_envelope(a)
+        {
+            return Ok(p);
+        }
         let c = self.ch.as_ref().expect("character");
         let m = self.output_rect();
         let cx = office::Ctx::new(self.metrics.as_ref(), m.w);
@@ -1782,23 +1788,15 @@ impl Core {
             candidate: None,
             hidden: false,
         });
-        let a = self.ask.as_ref().unwrap();
-        if let Some(p) = self
-            .place_gallery_envelope(a)
-            .or_else(|| self.place_ask(a).ok())
-        {
+        if let Ok(p) = self.place_ask(self.ask.as_ref().unwrap()) {
             self.apply_placement(p);
         }
     }
 
-    /// B-GAL-1: the gallery balloon is placed once, next to the envelope of all candidates:
-    /// the widest and the tallest frame of the catalog at the size factor, its bottom centre
-    /// on the current character's foot (B-CHAR-5), inside the output. `None` when the
-    /// tallest frame does not fit above the foot or the placement needs B-OB-4 (the
-    /// balloon is then placed next to the character itself).
-    fn place_gallery_envelope(&self, a: &OpenAsk) -> Option<office::Placed> {
-        let c = self.ch.as_ref()?;
-        let m = self.output_rect();
+    /// B-GAL-1: the envelope of all candidates: the widest and the tallest frame of the
+    /// catalog at the size factor, its bottom centre on the current character's foot
+    /// (B-CHAR-5), pulled inside the output like a switch pulls a frame.
+    fn gallery_envelope(&self, c: &Char) -> Rect {
         let (fx, fy) = geometry::foot(&c.model, self.scale);
         let (cw, ch) = geometry::size(&c.model, self.scale);
         let k = self.scale;
@@ -1806,12 +1804,16 @@ impl Core {
         let w = sizes().map(|d| d.0.saturating_mul(k)).fold(cw, u32::max);
         let h = sizes().map(|d| d.1.saturating_mul(k)).fold(ch, u32::max);
         let at = (c.x.saturating_add(fx), c.y.saturating_add(fy));
+        let m = self.output_rect();
         let (x, y) = geometry::stand_at(at, (w as i32 / 2, h as i32), (w, h), m);
-        if y != at.1.saturating_sub(h as i32) {
-            // No room above the foot for the tallest frame.
-            return None;
-        }
-        let env = Rect::new(x, y, w as i32, h as i32);
+        Rect::new(x, y, w as i32, h as i32)
+    }
+
+    /// B-GAL-1: the gallery balloon is placed next to the envelope (B-OB-3, any side).
+    /// `None` when that needs B-OB-4 (the balloon is then placed next to the character).
+    fn place_gallery_envelope(&self, a: &OpenAsk) -> Option<office::Placed> {
+        let env = self.gallery_envelope(self.ch.as_ref()?);
+        let m = self.output_rect();
         let cx = office::Ctx::new(self.metrics.as_ref(), m.w);
         let p = office::place_sized(&a.model, &a.it, env, m, &cx, self.gallery_size(a)).ok()?;
         (p.move_by == (0, 0)).then_some(p)
@@ -1953,10 +1955,12 @@ impl Core {
         let visible = geometry::rest_box(&c.model, self.scale).map_or(fr, |(x0, y0, x1, y1)| {
             Rect::new(c.x + x0, c.y + y0, x1 - x0, y1 - y0)
         });
+        // Next to the envelope rather than the character, which may be far smaller.
+        let env = self.gallery_envelope(c);
         let m = self.output_rect();
         let cx = office::Ctx::new(self.metrics.as_ref(), m.w);
         let fixed = self.gallery_size(a);
-        match office::place_kept(&a.model, &a.it, k, sc.body, fr, visible, m, &cx, fixed) {
+        match office::place_kept(&a.model, &a.it, k, sc.body, env, visible, m, &cx, fixed) {
             Some(p) => {
                 self.apply_placement(p);
                 true
