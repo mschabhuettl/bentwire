@@ -343,6 +343,7 @@ dependencies = [
  "calloop",
  "env_logger",
  "ksni",
+ "libc",
  "log",
  "png",
  "rodio",

@@ -55,4 +55,5 @@ writing the spec itself are marked **bentwire decision** in its sections 3.1 to 
 | A-DESK-4 | Headless trace format and frame dump names |
 | A-DESK-5 | Wayland details: applied-position tracking, fractional scale, balloon subsurfaces |
 | A-DESK-6 | Daemon flags, config error handling, signals, tray mnemonics |
+| A-DESK-7 | Audio output: PulseAudio protocol, then PipeWire, then ALSA; client libraries loaded at run time |
 | A-ACT-1 | ACT parser strictness and the runtime leniencies it keeps |
