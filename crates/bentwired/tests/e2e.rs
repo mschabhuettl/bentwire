@@ -1696,6 +1696,214 @@ fn library_gallery_corner_walk_keeps_next_and_back_under_the_pointer() {
     assert!(all.is_empty(), "{all:#?}");
 }
 
+/// Opens the gallery from the character menu.
+fn open_gallery_menu(e: &Env) {
+    let (x, y) = centre(e);
+    e.click(2, x, y);
+    let s = e.snapshot();
+    let item = s["menu"]
+        .as_array()
+        .expect("menu")
+        .iter()
+        .find(|i| i["label"] == "&Choose Assistant...")
+        .expect("Choose Assistant item")
+        .clone();
+    e.click(1, int(&item["x"]) as i32 + 3, int(&item["y"]) as i32 + 3);
+    e.advance(5000);
+    let s = e.snapshot();
+    assert!(!s["office_balloon"].is_null(), "gallery open: {s}");
+}
+
+/// The gallery balloon's window `(x, y, w, h)`.
+fn gallery_window(s: &serde_json::Value) -> (i64, i64, i64, i64) {
+    let b = surface(s, "office_balloon");
+    (int(&b["x"]), int(&b["y"]), int(&b["w"]), int(&b["h"]))
+}
+
+/// B-GAL-1 at a place: with `ids[0]` at size factor `scale`, its frame's bottom centre on
+/// `foot` (pulled inside the output), the gallery opens, walks to the last candidate with
+/// Next and back with Back (clicks where the button was when the walk started in that
+/// direction), closes, opens again, then the size factor changes to `other` and the walk
+/// goes once more to the last candidate with Next. Returns the problems: a step where the
+/// balloon moved (no window corner kept) or the button left the pointer, a reopen at
+/// another place, and a move after the re-placement for the new size factor.
+fn place_walk(e: &Env, ids: &[String], scale: u32, other: u32, foot: (i32, i32)) -> Vec<String> {
+    let c = e.client();
+    c.call_unit(AGENT, AGENT_IF, "Select", &(ids[0].as_str(),))
+        .unwrap();
+    e.advance(5000);
+    set_scale(e, scale).unwrap();
+    e.advance(100);
+    let ch = surface(&e.snapshot(), "character");
+    let (w, h) = (int(&ch["w"]) as i32, int(&ch["h"]) as i32);
+    c.call_id("MoveTo", &(foot.0 - w / 2, foot.1 - h, 0u32))
+        .unwrap();
+    e.advance(10_000);
+    open_gallery_menu(e);
+    let kept = |p: (i64, i64, i64, i64), n: (i64, i64, i64, i64)| {
+        (n.0 == p.0 || n.0 + n.2 == p.0 + p.2) && (n.1 == p.1 || n.1 + n.3 == p.1 + p.3)
+    };
+    let button = |s: &serde_json::Value, i: usize| {
+        let r = &s["office_balloon"]["buttons"][i]["rect"];
+        (int(&r["x"]), int(&r["y"]), int(&r["w"]), int(&r["h"]))
+    };
+    let mut bad = Vec::new();
+    let mut prev = gallery_window(&e.snapshot());
+    let order: Vec<&String> = ids.iter().collect();
+    for (bi, key, steps) in [
+        (1, "n", order[1..].to_vec()),
+        (
+            0,
+            "b",
+            order[..order.len() - 1].iter().rev().copied().collect(),
+        ),
+    ] {
+        let (bx, by, bw, bh) = button(&e.snapshot(), bi);
+        let (px, py) = (bx + bw / 2, by + bh / 2);
+        for id in steps {
+            eprintln!("GALSTEP size {scale} {key} to {id}");
+            let (bx, by, bw, bh) = button(&e.snapshot(), bi);
+            if (bx..bx + bw).contains(&px) && (by..by + bh).contains(&py) {
+                e.click(1, px as i32, py as i32);
+            } else {
+                bad.push(format!("{key} to {id}: button left the pointer"));
+                e.key(key);
+            }
+            e.advance(5000);
+            assert_eq!(e.character(), id.as_str());
+            let now = gallery_window(&e.snapshot());
+            if !kept(prev, now) {
+                bad.push(format!("{key} to {id}: balloon {prev:?} -> {now:?}"));
+            }
+            prev = now;
+        }
+    }
+    e.key("Escape");
+    e.advance(5000);
+    eprintln!("GALSTEP size {scale} reopen");
+    open_gallery_menu(e);
+    let again = gallery_window(&e.snapshot());
+    if !kept(prev, again) {
+        bad.push(format!("reopened at {again:?}, closed at {prev:?}"));
+    }
+    set_scale(e, other).unwrap();
+    e.advance(5000);
+    let mut prev = gallery_window(&e.snapshot());
+    for id in &ids[1..] {
+        eprintln!("GALSTEP size {other} n to {id}");
+        e.key("n");
+        e.advance(5000);
+        let now = gallery_window(&e.snapshot());
+        if !kept(prev, now) {
+            bad.push(format!(
+                "size {other}, n to {id}: balloon {prev:?} -> {now:?}"
+            ));
+        }
+        prev = now;
+    }
+    e.key("Escape");
+    e.advance(5000);
+    bad
+}
+
+/// B-GAL-1 on real data: the walk of [`place_walk`] through every character under
+/// $BENTWIRE_PACKS on a `w` x `h` output with the frame's bottom centre on `foot`, at size
+/// factors 1 to 4 (each followed by a change to the next one). Prints the count per case.
+fn library_place_walks(w: i32, h: i32, foot: (i32, i32)) {
+    let Some(packs) = std::env::var_os("BENTWIRE_PACKS") else {
+        panic!("NOT RUN: set BENTWIRE_PACKS to a characters/ directory with packs");
+    };
+    let mut e = Env::new("pwalk");
+    std::fs::create_dir_all(e.dir.join("cfg/bentwire")).unwrap();
+    std::fs::write(e.dir.join("cfg/bentwire/config.toml"), "idle = false\n").unwrap();
+    e.seed_state("install_hint_shown = true\n");
+    let out = format!("{w}x{h}+0+0");
+    e.start_raw(&[
+        "--characters",
+        std::path::Path::new(&packs).to_str().unwrap(),
+        "--outputs",
+        &out,
+    ]);
+    e.advance(5000);
+    let list: Vec<(String, String, String)> = e
+        .client()
+        .conn
+        .call_method(
+            Some("org.bentwire.Agent"),
+            AGENT,
+            Some(AGENT_IF),
+            "ListCharacters",
+            &(),
+        )
+        .unwrap()
+        .body()
+        .deserialize()
+        .unwrap();
+    let ids: Vec<String> = list.into_iter().map(|x| x.0).collect();
+    let mut all = Vec::new();
+    for (scale, other) in [(1, 2), (2, 3), (3, 4), (4, 1)] {
+        let bad = place_walk(&e, &ids, scale, other, foot);
+        eprintln!(
+            "{out} foot {foot:?} size {scale} then {other}: {} problems{}",
+            bad.len(),
+            bad.iter()
+                .take(12)
+                .map(|b| format!("\n  {b}"))
+                .collect::<String>()
+        );
+        all.extend(bad.into_iter().map(|b| format!("size {scale}: {b}")));
+    }
+    assert!(all.is_empty(), "{out} foot {foot:?}: {} problems", all.len());
+}
+
+#[test]
+#[ignore = "needs BENTWIRE_PACKS=<characters dir>"]
+fn library_gallery_place_walk_wide_middle() {
+    library_place_walks(5120, 1440, (2560, 720));
+}
+
+#[test]
+#[ignore = "needs BENTWIRE_PACKS=<characters dir>"]
+fn library_gallery_place_walk_wide_upper_half() {
+    library_place_walks(5120, 1440, (2560, 540));
+}
+
+#[test]
+#[ignore = "needs BENTWIRE_PACKS=<characters dir>"]
+fn library_gallery_place_walk_wide_near_the_top() {
+    library_place_walks(5120, 1440, (1700, 360));
+}
+
+#[test]
+#[ignore = "needs BENTWIRE_PACKS=<characters dir>"]
+fn library_gallery_place_walk_wide_low() {
+    library_place_walks(5120, 1440, (1200, 1224));
+}
+
+#[test]
+#[ignore = "needs BENTWIRE_PACKS=<characters dir>"]
+fn library_gallery_place_walk_full_hd_middle() {
+    library_place_walks(1920, 1080, (960, 540));
+}
+
+#[test]
+#[ignore = "needs BENTWIRE_PACKS=<characters dir>"]
+fn library_gallery_place_walk_full_hd_upper_half() {
+    library_place_walks(1920, 1080, (960, 405));
+}
+
+#[test]
+#[ignore = "needs BENTWIRE_PACKS=<characters dir>"]
+fn library_gallery_place_walk_full_hd_near_the_top() {
+    library_place_walks(1920, 1080, (640, 270));
+}
+
+#[test]
+#[ignore = "needs BENTWIRE_PACKS=<characters dir>"]
+fn library_gallery_place_walk_full_hd_low() {
+    library_place_walks(1920, 1080, (1400, 918));
+}
+
 // ---------- size factor (B-SCALE-1) ----------
 
 fn set_scale(e: &Env, n: u32) -> Result<(), String> {
