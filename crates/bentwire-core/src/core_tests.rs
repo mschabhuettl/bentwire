@@ -2940,6 +2940,35 @@ fn b_gal_1_reopens_where_it_closed() {
     t.advance(t.now + 1000);
     open_gallery(&mut t);
     assert_eq!(body(&t), b0, "opens where it closed");
+    // Cancel from p (back to a), then OK on p.
+    for (ok, id) in [(false, "a"), (true, "p")] {
+        key(&mut t, Key::Char('n'));
+        assert_eq!(body(&t), b0, "kept for p");
+        if ok {
+            let r = t.core.scene().office_balloon.unwrap().buttons[2].rect;
+            t.press(
+                PointerKind::Press,
+                Surface::OfficeBalloon,
+                1,
+                r.x + 1,
+                r.y + 1,
+            );
+            t.press(
+                PointerKind::Release,
+                Surface::OfficeBalloon,
+                1,
+                r.x + 1,
+                r.y + 1,
+            );
+        } else {
+            key(&mut t, Key::Escape);
+        }
+        assert!(t.core.scene().office_balloon.is_none(), "closed");
+        assert_eq!(t.core.properties().character, id);
+        t.advance(t.now + 1000);
+        open_gallery(&mut t);
+        assert_eq!(body(&t), b0, "opens where it closed on {id}");
+    }
     key(&mut t, Key::Escape);
     t.req(Call::MoveTo {
         x: 500,
