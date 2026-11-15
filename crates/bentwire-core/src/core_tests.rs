@@ -1103,6 +1103,72 @@ fn r_idle_5_missing_level() {
     }
 }
 
+/// B-O97-1: `daypart` branches follow the local hour the daemon re-reads (Event::LocalHour).
+#[test]
+fn b_o97_1_daypart_follows_the_local_hour() {
+    let mut m = CharacterModel::new("o", Family::Office97, (10, 10));
+    let f = |pose: u32, ms: u32, branches: Vec<Branch>| Frame {
+        ms,
+        has_picture: true,
+        pose: Some(pose),
+        branches,
+        ..Default::default()
+    };
+    // Frame 0 goes to 1 in the day (period 1, 10 to 17 h) and to 2 at night (period 3).
+    m.animations.push(anim(
+        "Clock",
+        vec![
+            f(
+                1,
+                100,
+                vec![
+                    Branch::Daypart {
+                        target: 1,
+                        period: 1,
+                    },
+                    Branch::Daypart {
+                        target: 2,
+                        period: 3,
+                    },
+                ],
+            ),
+            f(
+                2,
+                1000,
+                vec![Branch::Prob {
+                    target: 3,
+                    p: 32768,
+                }],
+            ),
+            f(3, 1000, vec![]),
+            f(4, 0, vec![]),
+        ],
+    ));
+    m.states.push(("Idle".into(), vec!["Clock".into()]));
+    m.office97.as_mut().unwrap().idle = "Idle".into();
+    let st = StateFile {
+        character: "o".into(),
+        visible: true,
+        chosen: true,
+        ..Default::default()
+    };
+    let mut t = T::with(vec![m], Some(st), vec![0; 32]);
+    let frame = |t: &T| match t.core.scene().character.unwrap().picture {
+        Picture::Frame { frame, .. } => frame,
+        p => panic!("{p:?}"),
+    };
+    t.advance(0);
+    assert_eq!(frame(&t), 0);
+    t.advance(150);
+    assert_eq!(frame(&t), 1, "12 h: day");
+    t.ev(Event::LocalHour(23));
+    // The replay after frame 1 (and its jump past frame 2) sees the new hour.
+    t.advance(1150);
+    assert_eq!(frame(&t), 0);
+    t.advance(1250);
+    assert_eq!(frame(&t), 2, "23 h: night");
+}
+
 #[test]
 fn b_idle_o_office97() {
     let mut m = CharacterModel::new("o", Family::Office97, (10, 10));
