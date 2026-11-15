@@ -9,6 +9,7 @@ mod model;
 #[cfg(test)]
 mod oracle;
 mod present;
+mod sheets;
 mod tray;
 mod wayland;
 
@@ -99,7 +100,13 @@ fn run(args: args::Args) -> Result<(), String> {
     let state_path = config::state_path();
     let state = config::State::load(&state_path);
     let roots = discovery::roots(&args.characters, &config.character_paths);
-    let lib: library::Shared = Rc::new(RefCell::new(library::Library::new(roots)));
+    let mut lib = library::Library::new(roots);
+    lib.sheets = Some(sheets::SheetCache {
+        dir: config::sheet_cache_dir(),
+    });
+    let chosen = state.character.as_deref().filter(|_| state.chosen());
+    lib.preload(chosen, config.character.as_deref());
+    let lib: library::Shared = Rc::new(RefCell::new(lib));
 
     let conn = Connection::session().map_err(|e| format!("session bus: {e}"))?;
     let incoming = MessageIterator::from(&conn);
