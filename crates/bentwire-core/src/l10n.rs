@@ -165,14 +165,15 @@ pub fn display_names(info: &[InfoEntry], lang: Lang) -> (String, String) {
 }
 
 /// B-GAL-1: the intro phrases of the ExtraData for the UI language (the part before `^^`,
-/// split at `~~`, empty phrases dropped).
+/// split at `~~`; empty phrases and phrases with control characters, such as Microsoft
+/// Bob's user name placeholders, dropped).
 pub fn intro_phrases(info: &[InfoEntry], lang: Lang) -> Vec<String> {
     let extra = pick(info, lang, |e| &e.extra);
     let intros = extra.split("^^").next().unwrap_or_default();
     intros
         .split("~~")
         .map(str::trim)
-        .filter(|p| !p.is_empty())
+        .filter(|p| !p.is_empty() && !p.chars().any(char::is_control))
         .map(String::from)
         .collect()
 }
@@ -331,6 +332,11 @@ mod tests {
             ["Hi there.", "How are you?"]
         );
         assert_eq!(intro_phrases(&info, Lang::De), ["Hallo."]);
+        // A placeholder (control characters) drops the phrase.
+        assert_eq!(
+            intro_phrases(&[x("en", "Hi, \u{3}\u{5}\u{0}!~~Hello.")], Lang::En),
+            ["Hello."]
+        );
         // Only reminders, or no ExtraData: no phrase.
         assert!(intro_phrases(&[x("en", "^^Remember.")], Lang::En).is_empty());
         assert!(intro_phrases(&[ie("en", "N", "D")], Lang::De).is_empty());

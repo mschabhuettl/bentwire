@@ -70,10 +70,12 @@ impl Library {
                     .iter()
                     .map(|i| (i.lang.clone(), i.name.clone(), i.description.clone()))
                     .collect();
+                let agent_15 = e.format.as_deref().is_some_and(|f| f.starts_with("acs-1."));
                 CatalogEntry {
                     id: e.id.clone(),
                     // label_info keeps the order of the entries; an added English entry
-                    // has no ExtraData.
+                    // has no ExtraData. Agent 1.5 ExtraData is a licence string, not
+                    // intro phrases (B-GAL-1).
                     info: label_info(&e.id, &info, e.format.as_deref(), &pack)
                         .into_iter()
                         .enumerate()
@@ -81,7 +83,12 @@ impl Library {
                             lang,
                             name,
                             description,
-                            extra: e.info.get(k).map(|i| i.extra.clone()).unwrap_or_default(),
+                            extra: e
+                                .info
+                                .get(k)
+                                .filter(|_| !agent_15)
+                                .map(|i| i.extra.clone())
+                                .unwrap_or_default(),
                         })
                         .collect(),
                     display: e.display,
@@ -410,14 +417,18 @@ mod tests {
     fn b_gal_1_catalog_carries_extra_data() {
         use bentwire_core::api::Lang;
         let root = crate::config::tests::tempdir();
-        let d = root.join("characters/x");
-        std::fs::create_dir_all(&d).unwrap();
-        std::fs::write(
-            d.join("character.toml"),
-            "format = 1\nfamily = \"agent\"\n[[character.info]]\nlang = \"de\"\nname = \"X\"\n\
-             extra = \"Hallo.~~Servus.^^Merken.\"\n",
-        )
-        .unwrap();
+        for (id, source) in [("x", ""), ("y", "[source]\nformat = \"acs-1.5\"\n")] {
+            let d = root.join("characters").join(id);
+            std::fs::create_dir_all(&d).unwrap();
+            std::fs::write(
+                d.join("character.toml"),
+                format!(
+                    "format = 1\nfamily = \"agent\"\n{source}[[character.info]]\nlang = \"de\"\n\
+                     name = \"X\"\nextra = \"Hallo.~~Servus.^^Merken.\"\n"
+                ),
+            )
+            .unwrap();
+        }
         let catalog = Library::new(vec![root]).catalog();
         let info = &catalog[0].info;
         assert_eq!(info.len(), 2, "an English entry is added");
@@ -425,6 +436,8 @@ mod tests {
             bentwire_core::l10n::intro_phrases(info, Lang::De),
             ["Hallo.", "Servus."]
         );
+        // Agent 1.5: the ExtraData is a licence string, not intro phrases.
+        assert!(bentwire_core::l10n::intro_phrases(&catalog[1].info, Lang::De).is_empty());
     }
 
     fn copy_dir(from: &Path, to: &Path) {

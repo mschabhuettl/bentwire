@@ -1129,6 +1129,11 @@ belongs to the original menu.
   Save, GestureDown, GestureLeft, GestureUp, EmptyTrash.
 - The list is shuffled (B-CORE-2). Each choice queues a Play of the next entry. When all
   are used, the list is shuffled again.
+- A client request ends the Animate! plays when it is queued: a running one is stopped as
+  by Stop (it leaves through its exit branches, B-SW-A), queued ones are dropped. Reason:
+  the list has looping animations (R-Q-6, for example Searching), which would otherwise
+  hold back every client request, such as a notification, until the user hides the
+  character.
 - XP's 5 s Idle timer is not reproduced; R-IDLE applies.
 
 **B-GAL-1 Choose Assistant (gallery).** **bentwire decision.**
@@ -1136,7 +1141,9 @@ belongs to the original menu.
   - heading = the candidate's name;
   - text = one of its intro phrases, otherwise its description. The intro phrases are the
     part of the ExtraData (`character.info` `extra`, picked per UI language like the
-    description, B-CHAR-3) before `^^`, split at `~~`, empty ones dropped; an Office 97
+    description, B-CHAR-3) before `^^`, split at `~~`, empty ones and ones with control
+    characters (Microsoft Bob's user name placeholders) dropped; Agent 1.5 ExtraData (a
+    licence string) is not used; an Office 97
     actor without `extra` uses its string group 40 (greeting lines; that this is its
     intro text is inferred from the text only). With several phrases one is drawn
     (B-CORE-2) each time the candidate is shown (opening, Back, Next);
