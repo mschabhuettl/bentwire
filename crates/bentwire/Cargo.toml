@@ -11,3 +11,13 @@ bentwire-convert.workspace = true
 serde.workspace = true
 sha2.workspace = true
 zbus = "5"
+
+# The Rust example of docs/dbus.md, kept in docs and compiled here so that CI builds it.
+[[example]]
+name = "dbus-client"
+path = "../../docs/dbus/examples/example.rs"
+
+# The bridge template of docs/dbus.md, compiled here for the same reason.
+[[example]]
+name = "bridge-template"
+path = "../../docs/dbus/bridge-template/main.rs"
