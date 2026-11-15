@@ -1,15 +1,24 @@
-//! Sound output through rodio. One sound at a time: starting a sound stops the previous
-//! one. Failures are logged and reported to the caller, never fatal.
+//! Sound output. One sound at a time: starting a sound stops the previous one. Failures
+//! are logged and reported to the caller, never fatal.
 //!
-//! The output stream lives on its own thread and is open only while a sound plays (and
-//! `LINGER` after it), so no device or PipeWire stream is held between sounds: PipeWire
-//! can suspend or restart and other programs can take the card. A stream that reports an
+//! The output lives on its own thread and is open only while a sound plays (and `LINGER`
+//! after it), so no device or sound server stream is held between sounds: the server can
+//! suspend or restart and other programs can take the card. An output that reports an
 //! error is closed and the next sound opens a new one. The daemon's thread never opens,
-//! closes or joins a stream, so a stuck device cannot block it or its exit.
+//! closes or joins an output, so a stuck device cannot block it or its exit.
+//!
+//! Each sound tries, in order: the PulseAudio protocol when a Pulse server is there
+//! (PulseAudio, or PipeWire with pipewire-pulse), then ALSA's default device through
+//! rodio. The sound server's client library is loaded at run time, so it is not a
+//! package dependency; without it the next backend is tried.
+
+mod pulse;
 
 use bentwire_character::Pcm;
 use rodio::buffer::SamplesBuffer;
 use rodio::{OutputStream, OutputStreamBuilder, Sink};
+use std::ffi::{CStr, c_void};
+use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -27,6 +36,13 @@ const CLOSE_WAIT: Duration = Duration::from_millis(200);
 /// The first error a stream reported, set by its error callback.
 type Fault = Arc<Mutex<Option<String>>>;
 
+fn set_fault(fault: &Fault, e: String) {
+    let mut f = fault.lock().unwrap();
+    if f.is_none() {
+        *f = Some(e);
+    }
+}
+
 /// An open output device. Dropping it closes the device.
 trait Output {
     /// Replace the current sound.
@@ -35,7 +51,8 @@ trait Output {
     fn done(&self) -> bool;
 }
 
-type Opener = Box<dyn FnMut(Fault) -> Result<Box<dyn Output>, String> + Send>;
+/// Opens an output for a first sound with this many channels and this rate.
+type Opener = Box<dyn FnMut(Fault, u16, u32) -> Result<Box<dyn Output>, String> + Send>;
 
 enum Cmd {
     Play {
@@ -61,7 +78,29 @@ impl Audio {
     /// None when the audio thread cannot be started (the daemon runs silently). The
     /// device is opened for each sound, so one that appears later is used.
     pub fn open() -> Option<Audio> {
-        Audio::spawn(Box::new(open_device))
+        let mut chooser = Chooser::default();
+        // ALSA's device list is read only when the default device fails, and once
+        // until a device opens: reading it opens every device, which logs noise.
+        let mut scan = true;
+        Audio::spawn(Box::new(move |fault, channels, rate| {
+            let list = backends(
+                std::env::var("PULSE_SERVER").ok().as_deref(),
+                std::env::var_os("XDG_RUNTIME_DIR")
+                    .map(PathBuf::from)
+                    .as_deref(),
+            );
+            let mut log = Vec::new();
+            let r = chooser.open(&list, &mut log, |b| match b {
+                Backend::Pulse(server) => {
+                    pulse::open(server, channels, rate, fault.clone()).map(|o| (o, "pulse".into()))
+                }
+                Backend::Alsa => open_alsa(fault.clone(), &mut scan),
+            });
+            for (level, m) in log {
+                log::log!(level, "{m}");
+            }
+            r
+        }))
     }
 
     fn spawn(open: Opener) -> Option<Audio> {
@@ -167,7 +206,7 @@ fn run(rx: Receiver<Cmd>, mut open: Opener) {
             }) => {
                 if out.is_none() && Instant::now() <= deadline {
                     let fault = Fault::default();
-                    match open(fault.clone()) {
+                    match open(fault.clone(), channels, rate) {
                         Ok(o) => {
                             if failing {
                                 log::info!("audio output available again");
@@ -197,6 +236,123 @@ fn run(rx: Receiver<Cmd>, mut open: Opener) {
     }
 }
 
+/// A way to the speakers, tried in the order of `backends`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Backend {
+    /// The PulseAudio protocol at this libpulse server string.
+    Pulse(String),
+    /// ALSA's default device: without an ALSA plugin of the sound server, the card itself,
+    /// which a running server holds.
+    Alsa,
+}
+
+impl Backend {
+    fn name(&self) -> &'static str {
+        match self {
+            Backend::Pulse(_) => "pulse",
+            Backend::Alsa => "alsa",
+        }
+    }
+}
+
+/// The backends to try for a sound, given `$PULSE_SERVER` and `$XDG_RUNTIME_DIR`. The
+/// explicit server string also keeps libpulse from starting a server of its own.
+fn backends(pulse_server: Option<&str>, runtime: Option<&Path>) -> Vec<Backend> {
+    let mut list = Vec::new();
+    let socket = runtime
+        .map(|d| d.join("pulse/native"))
+        .filter(|p| p.exists());
+    match (pulse_server.filter(|s| !s.is_empty()), socket) {
+        (Some(s), _) => list.push(Backend::Pulse(s.to_string())),
+        (None, Some(p)) => list.push(Backend::Pulse(format!("unix:{}", p.display()))),
+        (None, None) => {}
+    }
+    list.push(Backend::Alsa);
+    list
+}
+
+/// Opens the first backend that works. Says which one is used when that changes, and
+/// that a backend failed once until it works again.
+#[derive(Default)]
+struct Chooser {
+    used: Option<String>,
+    failed: Vec<&'static str>,
+}
+
+type Opened = Result<(Box<dyn Output>, String), String>;
+
+impl Chooser {
+    /// `try_open` returns the output and how to name it in the log.
+    fn open(
+        &mut self,
+        list: &[Backend],
+        log: &mut Vec<(log::Level, String)>,
+        mut try_open: impl FnMut(&Backend) -> Opened,
+    ) -> Result<Box<dyn Output>, String> {
+        let mut last = String::from("no audio backend");
+        for (i, b) in list.iter().enumerate() {
+            match try_open(b) {
+                Ok((o, label)) => {
+                    self.failed.retain(|n| *n != b.name());
+                    if self.used.as_ref() != Some(&label) {
+                        log.push((log::Level::Info, format!("audio: {label}")));
+                        self.used = Some(label);
+                    }
+                    return Ok(o);
+                }
+                Err(e) => {
+                    if let Some(next) = list.get(i + 1)
+                        && !self.failed.contains(&b.name())
+                    {
+                        self.failed.push(b.name());
+                        let m = format!("audio: {} failed: {e}; trying {}", b.name(), next.name());
+                        log.push((log::Level::Warn, m));
+                    }
+                    last = format!("{}: {e}", b.name());
+                }
+            }
+        }
+        Err(last)
+    }
+}
+
+/// A shared library loaded at run time. It is never unloaded: sound server client
+/// libraries do not support that.
+struct Dl(*mut c_void);
+
+impl Dl {
+    fn open(name: &CStr) -> Result<Dl, String> {
+        // SAFETY: dlopen with a NUL-terminated name.
+        let h = unsafe { libc::dlopen(name.as_ptr(), libc::RTLD_NOW | libc::RTLD_LOCAL) };
+        if h.is_null() {
+            // SAFETY: dlerror returns NULL or a NUL-terminated string.
+            let e = unsafe { libc::dlerror() };
+            return Err(if e.is_null() {
+                format!("{}: cannot load", name.to_string_lossy())
+            } else {
+                // SAFETY: see above.
+                unsafe { CStr::from_ptr(e) }.to_string_lossy().into_owned()
+            });
+        }
+        Ok(Dl(h))
+    }
+
+    /// The function `name` of this library (or of the libraries it loaded).
+    ///
+    /// # Safety
+    /// `T` must be the function pointer type of that C function.
+    unsafe fn sym<T: Copy>(&self, name: &CStr) -> Result<T, String> {
+        assert_eq!(size_of::<T>(), size_of::<*mut c_void>());
+        // SAFETY: a live handle and a NUL-terminated name.
+        let p = unsafe { libc::dlsym(self.0, name.as_ptr()) };
+        if p.is_null() {
+            return Err(format!("{} not found", name.to_string_lossy()));
+        }
+        // SAFETY: the caller names the type; sizes are equal.
+        Ok(unsafe { std::mem::transmute_copy(&p) })
+    }
+}
+
 /// rodio's stream with its sink. The sink is dropped before the stream.
 struct Device {
     sink: Sink,
@@ -216,55 +372,53 @@ impl Output for Device {
     }
 }
 
-/// PipeWire's ALSA device, else the default device, else the first that opens (as rodio's
-/// `open_default_stream`). The error callback only records the error: rodio's default one
-/// prints every error, and a broken ALSA stream reports errors in a tight loop.
-fn open_device(fault: Fault) -> Result<Box<dyn Output>, String> {
+/// ALSA's default device, else (if `scan`) the first that opens, as rodio's
+/// `open_default_stream`. `scan` is cleared when the list was read in vain and set when
+/// a device opens. The error callback only records the error: rodio's default one prints
+/// every error, and a broken ALSA stream reports errors in a tight loop.
+fn open_alsa(fault: Fault, scan: &mut bool) -> Opened {
     let on_error = move |e: rodio::cpal::StreamError| {
-        let mut f = fault.lock().unwrap();
-        if f.is_none() {
-            *f = Some(e.to_string());
-        }
-        drop(f);
+        set_fault(&fault, e.to_string());
         // A broken stream calls this in a loop until it is closed.
         std::thread::sleep(Duration::from_millis(20));
     };
     use rodio::cpal::traits::{DeviceTrait, HostTrait};
-    let host = rodio::cpal::default_host();
-    // PipeWire's ALSA device first: without pipewire-alsa, "default" is the card itself,
-    // which PipeWire then cannot open while bentwire plays. Only when PipeWire runs:
-    // looking for the device opens the ALSA devices in turn, which logs noise.
-    let pipewire = std::env::var_os("XDG_RUNTIME_DIR")
-        .filter(|d| std::path::Path::new(d).join("pipewire-0").exists())
-        .and_then(|_| host.output_devices().ok())
-        .and_then(|mut ds| ds.find(|d| d.name().is_ok_and(|n| n == "pipewire")))
-        .and_then(|d| {
-            OutputStreamBuilder::from_device(d)
-                .and_then(|b| b.with_error_callback(on_error.clone()).open_stream())
-                .ok()
-        });
-    let mut stream = match pipewire {
-        Some(s) => Ok(s),
-        None => OutputStreamBuilder::from_default_device()
-            .and_then(|b| b.with_error_callback(on_error.clone()).open_stream()),
-    }
-    .or_else(|first| {
-        let devices = host.output_devices().map_err(|_| first.to_string())?;
-        for d in devices {
-            if let Ok(s) = OutputStreamBuilder::from_device(d).and_then(|b| {
-                b.with_error_callback(on_error.clone())
-                    .open_stream_or_fallback()
-            }) {
-                return Ok(s);
-            }
+    let opened = |mut stream: OutputStream, label: String| -> Opened {
+        stream.log_on_drop(false);
+        Ok((
+            Box::new(Device {
+                sink: Sink::connect_new(stream.mixer()),
+                stream,
+            }),
+            label,
+        ))
+    };
+    let first = match OutputStreamBuilder::from_default_device()
+        .and_then(|b| b.with_error_callback(on_error.clone()).open_stream())
+    {
+        Ok(s) => {
+            *scan = true;
+            return opened(s, "alsa default".into());
         }
-        Err(first.to_string())
-    })?;
-    stream.log_on_drop(false);
-    Ok(Box::new(Device {
-        sink: Sink::connect_new(stream.mixer()),
-        stream,
-    }))
+        Err(e) => e.to_string(),
+    };
+    if !std::mem::replace(scan, false) {
+        return Err(first);
+    }
+    let devices = rodio::cpal::default_host()
+        .output_devices()
+        .map_err(|_| first.clone())?;
+    for d in devices {
+        let name = d.name().unwrap_or_default();
+        if let Ok(s) = OutputStreamBuilder::from_device(d).and_then(|b| {
+            b.with_error_callback(on_error.clone())
+                .open_stream_or_fallback()
+        }) {
+            *scan = true;
+            return opened(s, format!("alsa {name}"));
+        }
+    }
+    Err(first)
 }
 
 #[cfg(test)]
@@ -320,7 +474,7 @@ mod tests {
     fn fake() -> (Audio, Arc<Counts>) {
         let c = Arc::new(Counts::default());
         let c2 = c.clone();
-        let audio = Audio::spawn(Box::new(move |fault| {
+        let audio = Audio::spawn(Box::new(move |fault, _, _| {
             if c2.fail.swap(false, Ordering::SeqCst) {
                 return Err("no device".into());
             }
@@ -432,5 +586,115 @@ mod tests {
         assert!(a.play(&pcm(10_000)));
         drop(a);
         assert_eq!(c.open.load(Ordering::SeqCst), 0);
+    }
+
+    /// A temporary `$XDG_RUNTIME_DIR` with these (empty) files.
+    fn runtime(files: &[&str]) -> PathBuf {
+        let d = crate::config::tests::tempdir();
+        for f in files {
+            let p = d.join(f);
+            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+            std::fs::write(&p, "").unwrap();
+        }
+        d
+    }
+
+    #[test]
+    fn backends_from_environment() {
+        use Backend::*;
+        // The owner's case: PulseAudio's socket, PipeWire's beside it.
+        let both = runtime(&["pulse/native", "pipewire-0"]);
+        let native = format!("unix:{}", both.join("pulse/native").display());
+        assert_eq!(backends(None, Some(&both)), [Pulse(native.clone()), Alsa]);
+        assert_eq!(backends(Some(""), Some(&both)), [Pulse(native), Alsa]);
+        let tcp = Pulse("tcp:host".into());
+        assert_eq!(backends(Some("tcp:host"), Some(&both)), [tcp.clone(), Alsa]);
+        assert_eq!(backends(Some("tcp:host"), None), [tcp, Alsa]);
+        assert_eq!(backends(None, Some(&runtime(&[]))), [Alsa]);
+        assert_eq!(backends(None, None), [Alsa]);
+    }
+
+    struct Silent;
+
+    impl Output for Silent {
+        fn play(&mut self, _: u16, _: u32, _: Vec<f32>) {}
+        fn done(&self) -> bool {
+            true
+        }
+    }
+
+    /// Opens with fake backends, of which `works` open. Returns the backends tried, the
+    /// log and whether one opened.
+    fn choose(
+        c: &mut Chooser,
+        list: &[Backend],
+        works: &[&str],
+    ) -> (Vec<&'static str>, Vec<String>, bool) {
+        let mut tried = Vec::new();
+        let mut log = Vec::new();
+        let r = c.open(list, &mut log, |b| {
+            tried.push(b.name());
+            if works.contains(&b.name()) {
+                Ok((Box::new(Silent) as Box<dyn Output>, b.name().to_string()))
+            } else {
+                Err(format!("no {}", b.name()))
+            }
+        });
+        (tried, log.into_iter().map(|(_, m)| m).collect(), r.is_ok())
+    }
+
+    #[test]
+    fn pulse_first_alsa_untouched() {
+        // The owner's case: the server holds the card, so ALSA's default would fail.
+        let list = backends(None, Some(&runtime(&["pulse/native", "pipewire-0"])));
+        let mut c = Chooser::default();
+        let r = choose(&mut c, &list, &["pulse"]);
+        assert_eq!(r, (vec!["pulse"], vec!["audio: pulse".into()], true));
+        let r = choose(&mut c, &list, &["pulse"]);
+        assert_eq!(r, (vec!["pulse"], vec![], true), "logged once");
+    }
+
+    #[test]
+    fn failed_backend_falls_through_logged_once() {
+        let list = [Backend::Pulse("unix:/x".into()), Backend::Alsa];
+        let mut c = Chooser::default();
+        // No libpulse: ALSA.
+        let (tried, log, ok) = choose(&mut c, &list, &["alsa"]);
+        assert_eq!(tried, ["pulse", "alsa"]);
+        assert_eq!(
+            log,
+            ["audio: pulse failed: no pulse; trying alsa", "audio: alsa"]
+        );
+        assert!(ok);
+        assert_eq!(choose(&mut c, &list, &["alsa"]).1, Vec::<String>::new());
+        // The server is back, then gone again.
+        assert_eq!(
+            choose(&mut c, &list, &["pulse", "alsa"]).1,
+            ["audio: pulse"]
+        );
+        assert_eq!(
+            choose(&mut c, &list, &["alsa"]).1,
+            ["audio: pulse failed: no pulse; trying alsa", "audio: alsa"]
+        );
+        // Nothing works: the last error, for the audio thread's own log line.
+        let mut log = Vec::new();
+        let r = Chooser::default().open(&list, &mut log, |b| Err(format!("no {}", b.name())));
+        assert_eq!(r.err().as_deref(), Some("alsa: no alsa"));
+        assert_eq!(log.len(), 1);
+    }
+
+    #[test]
+    fn stale_pulse_socket_fails_at_once() {
+        let p = crate::config::tests::tempdir().join("native");
+        drop(std::os::unix::net::UnixListener::bind(&p).unwrap());
+        assert!(p.exists(), "the socket file stays");
+        let t = Instant::now();
+        let r = pulse::open(&format!("unix:{}", p.display()), 1, 22050, Fault::default());
+        assert!(r.is_err_and(|e| e.contains("refused")));
+        assert!(
+            t.elapsed() < Duration::from_millis(100),
+            "{:?}",
+            t.elapsed()
+        );
     }
 }
