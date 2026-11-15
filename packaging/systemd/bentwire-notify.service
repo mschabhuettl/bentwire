@@ -1,0 +1,15 @@
+# Optional systemd user unit for the notification bridge (B-NOTIFY-1). Install into
+# ~/.config/systemd/user/ (or /usr/lib/systemd/user/), adjust ExecStart (add --only or
+# --ignore, or use ~/.config/bentwire/notify.toml), then:
+# systemctl --user enable --now bentwire-notify
+[Unit]
+Description=bentwire notification bridge
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecStart=/usr/bin/bentwire-notify
+Restart=on-failure
+
+[Install]
+WantedBy=graphical-session.target

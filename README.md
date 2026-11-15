@@ -208,6 +208,12 @@ a hidden character. Every command and option is in [docs/usage.md](docs/usage.md
 
 Both use only the `bentwire` CLI and never start the daemon themselves.
 
+- **Desktop notifications**: `bentwire-notify` makes the character say your
+  notifications, with `--only APP` / `--ignore APP` filters or
+  `~/.config/bentwire/notify.toml`. It talks to the daemon over D-Bus (which may start
+  it) and has an optional user unit, `packaging/systemd/bentwire-notify.service`.
+  Details in [crates/bentwire-notify/README.md](crates/bentwire-notify/README.md).
+
 ## Configuration
 
 `~/.config/bentwire/config.toml` (`$XDG_CONFIG_HOME`). All keys are optional. The

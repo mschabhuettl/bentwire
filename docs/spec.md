@@ -2061,6 +2061,27 @@ three installed ids within edit distance 2 or that extend the id with `-`
 (`did you mean merlin, merlin-15?`), and, when `clippit` is not installed,
 `more characters: bentwire characters install classics`. **bentwire decision.**
 
+**B-NOTIFY-1 Notification bridge.** **bentwire decision.** Optional binary
+`bentwire-notify` (crate `crates/bentwire-notify`, README there; user unit
+`packaging/systemd/bentwire-notify.service`, not enabled by default).
+- It becomes a monitor on the session bus (`BecomeMonitor`, rule
+  `type='method_call',interface='org.freedesktop.Notifications',member='Notify'`) and
+  calls `Speak` on a second connection for every notification its filter allows. The
+  notification daemon is not replaced and still shows the notification.
+- Text: `summary: body`, or the non-empty one of the two; if both are empty, nothing is said. In the
+  body the tags `b`, `i`, `u`, `a` and `img` are removed and `&lt; &gt; &quot; &apos;
+  &amp;` decoded; then `|` (R-SPEAK-3) and `\` (B-SPEAK-1) become `/`, whitespace runs
+  become one space, and text over 300 characters is cut to 297 plus `...`.
+- Filter on `app_name`, case-insensitive: `ignore` always drops; a non-empty `only`
+  drops every app not in it. Flags `--only APP` and `--ignore APP` (repeatable) replace
+  the list of the same key from `$XDG_CONFIG_HOME/bentwire/notify.toml` (`only = [...]`,
+  `ignore = [...]`).
+- `Speak` may D-Bus-activate bentwired (B-RUN-1). A failed call prints one line on stderr
+  per run of failures and drops the notification. Without a session bus it retries every
+  5 s; SIGTERM, SIGINT and the end of the bus exit 0.
+- Reason: issue #11; a monitor sees notifications without taking the
+  `org.freedesktop.Notifications` name from the user's notification daemon.
+
 ## 6. Test strategy
 
 **T-0 Repo boundary.**
