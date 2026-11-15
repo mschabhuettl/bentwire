@@ -1724,9 +1724,10 @@ fn gallery_window(s: &serde_json::Value) -> (i64, i64, i64, i64) {
 /// `foot` (pulled inside the output), the gallery opens, walks to the last candidate with
 /// Next and back with Back (clicks where the button was when the walk started in that
 /// direction), closes, opens again, then the size factor changes to `other` and the walk
-/// goes once more to the last candidate with Next. Returns the problems: a step where the
-/// balloon moved (no window corner kept) or the button left the pointer, a reopen at
-/// another place, and a move after the re-placement for the new size factor.
+/// goes once more to the last candidate with Next. Returns the problems, each starting
+/// with its kind: `moved` (a step where no window corner was kept), `missed` (the button
+/// left the pointer), `reopened` (at another place than it closed) and `resized` (a move
+/// after the re-placement for the new size factor).
 fn place_walk(e: &Env, ids: &[String], scale: u32, other: u32, foot: (i32, i32)) -> Vec<String> {
     let c = e.client();
     c.call_unit(AGENT, AGENT_IF, "Select", &(ids[0].as_str(),))
@@ -1761,48 +1762,45 @@ fn place_walk(e: &Env, ids: &[String], scale: u32, other: u32, foot: (i32, i32))
         let (bx, by, bw, bh) = button(&e.snapshot(), bi);
         let (px, py) = (bx + bw / 2, by + bh / 2);
         for id in steps {
-            eprintln!("GALSTEP size {scale} {key} to {id}");
             let (bx, by, bw, bh) = button(&e.snapshot(), bi);
             if (bx..bx + bw).contains(&px) && (by..by + bh).contains(&py) {
                 e.click(1, px as i32, py as i32);
             } else {
-                bad.push(format!("{key} to {id}: button left the pointer"));
+                bad.push(format!("missed: {key} to {id}, button left the pointer"));
                 e.key(key);
             }
-            e.advance(5000);
+            e.advance(1000);
             assert_eq!(e.character(), id.as_str());
             let now = gallery_window(&e.snapshot());
             if !kept(prev, now) {
-                bad.push(format!("{key} to {id}: balloon {prev:?} -> {now:?}"));
+                bad.push(format!("moved: {key} to {id}, {prev:?} -> {now:?}"));
             }
             prev = now;
         }
     }
     e.key("Escape");
-    e.advance(5000);
-    eprintln!("GALSTEP size {scale} reopen");
+    e.advance(1000);
     open_gallery_menu(e);
     let again = gallery_window(&e.snapshot());
     if !kept(prev, again) {
-        bad.push(format!("reopened at {again:?}, closed at {prev:?}"));
+        bad.push(format!("reopened: at {again:?}, closed at {prev:?}"));
     }
     set_scale(e, other).unwrap();
-    e.advance(5000);
+    e.advance(1000);
     let mut prev = gallery_window(&e.snapshot());
     for id in &ids[1..] {
-        eprintln!("GALSTEP size {other} n to {id}");
         e.key("n");
-        e.advance(5000);
+        e.advance(1000);
         let now = gallery_window(&e.snapshot());
         if !kept(prev, now) {
             bad.push(format!(
-                "size {other}, n to {id}: balloon {prev:?} -> {now:?}"
+                "resized: size {other}, n to {id}, {prev:?} -> {now:?}"
             ));
         }
         prev = now;
     }
     e.key("Escape");
-    e.advance(5000);
+    e.advance(1000);
     bad
 }
 
@@ -1843,17 +1841,29 @@ fn library_place_walks(w: i32, h: i32, foot: (i32, i32)) {
     let mut all = Vec::new();
     for (scale, other) in [(1, 2), (2, 3), (3, 4), (4, 1)] {
         let bad = place_walk(&e, &ids, scale, other, foot);
+        let n = |k: &str| bad.iter().filter(|b| b.starts_with(k)).count();
         eprintln!(
-            "{out} foot {foot:?} size {scale} then {other}: {} problems{}",
-            bad.len(),
+            "{out} foot {foot:?} size {scale}: {} steps, moved {}, missed {}, reopened \
+             elsewhere {}; then size {other}: moved {} of {} steps{}",
+            2 * (ids.len() - 1),
+            n("moved"),
+            n("missed"),
+            n("reopened"),
+            n("resized"),
+            ids.len() - 1,
             bad.iter()
-                .take(12)
+                .filter(|b| !b.starts_with("missed"))
+                .take(6)
                 .map(|b| format!("\n  {b}"))
                 .collect::<String>()
         );
         all.extend(bad.into_iter().map(|b| format!("size {scale}: {b}")));
     }
-    assert!(all.is_empty(), "{out} foot {foot:?}: {} problems", all.len());
+    assert!(
+        all.is_empty(),
+        "{out} foot {foot:?}: {} problems",
+        all.len()
+    );
 }
 
 #[test]
