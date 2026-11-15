@@ -93,6 +93,23 @@ pub fn character_picture(scene: &Scene, lib: &Library, k: u32) -> Option<RgbaIma
     ))
 }
 
+/// B-WL-7: when `scene` differs from `last` only in the character's position (a drag),
+/// `drawn` (the surfaces rendered for `last`) moved there, without drawing the picture
+/// again at the buffer scale.
+pub fn moved(last: Option<&Scene>, scene: &Scene, drawn: &Rendered) -> Option<Rendered> {
+    let (l, c) = (last?.character.as_ref()?, scene.character.as_ref()?);
+    let mut same = scene.clone();
+    let sc = same.character.as_mut()?;
+    (sc.x, sc.y) = (l.x, l.y);
+    if Some(&same) != last {
+        return None;
+    }
+    let mut r = drawn.clone();
+    let rc = r.character.as_mut()?;
+    (rc.x, rc.y) = (c.x, c.y);
+    Some(r)
+}
+
 pub fn render(scene: &Scene, lib: &Library, fonts: &Fonts, theme: Option<&Theme>) -> Rendered {
     let mut r = Rendered::default();
     let Some(ch) = scene.character.as_ref().filter(|c| c.mapped) else {
@@ -381,7 +398,13 @@ mod tests {
 
     /// The rest frame of `id` (display `size`) at `scale` on an output of `out_scale`.
     fn rendered(l: &Library, id: &str, size: u32, scale: u32, out_scale: f64) -> Buf {
-        let scene = Scene {
+        let fonts = Fonts::bundled();
+        let scene = rest_scene(id, size, scale, out_scale);
+        render(&scene, l, &fonts, None).character.unwrap().buf
+    }
+
+    fn rest_scene(id: &str, size: u32, scale: u32, out_scale: f64) -> Scene {
+        Scene {
             character: Some(CharacterScene {
                 id: id.into(),
                 mapped: true,
@@ -413,9 +436,29 @@ mod tests {
                 rect: CoreRect::new(0, 0, 800, 600),
                 scale: out_scale,
             }],
-        };
+        }
+    }
+
+    /// B-WL-7: a drag motion moves the drawn surfaces; the result is what drawing the
+    /// moved scene gives. Any other change draws again.
+    #[test]
+    fn b_wl_7_position_only_change_reuses_the_drawn_surfaces() {
+        let l = lib("tests/fixtures/characters", "pebble");
         let fonts = Fonts::bundled();
-        render(&scene, l, &fonts, None).character.unwrap().buf
+        let a = rest_scene("pebble", 32, 3, 1.5);
+        let drawn = render(&a, &l, &fonts, None);
+        let mut b = a.clone();
+        let c = b.character.as_mut().unwrap();
+        (c.x, c.y) = (-70, 345);
+        let r = moved(Some(&a), &b, &drawn).expect("position only");
+        assert_eq!(r, render(&b, &l, &fonts, None));
+        assert_eq!(moved(None, &b, &drawn), None);
+        let mut d = b.clone();
+        d.character.as_mut().unwrap().picture = Picture::Empty;
+        assert_eq!(moved(Some(&a), &d, &drawn), None);
+        let mut d = b.clone();
+        d.outputs[0].scale = 1.0;
+        assert_eq!(moved(Some(&a), &d, &drawn), None);
     }
 
     fn px(b: &Buf, x: u32, y: u32) -> &[u8] {

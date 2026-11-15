@@ -1272,6 +1272,35 @@ fn spec_5_5_characters_install_classics() {
     );
 }
 
+/// B-CLI-1: on a terminal (a pty from script(1)) the install prints no curl progress bars,
+/// only its own line for the archive and the result.
+#[test]
+fn b_cli_1_install_on_a_terminal_prints_no_progress_bars() {
+    let e = Env::new("installtty");
+    let url = fake_release(&e.dir, "9.9.1");
+    let mut c = std::process::Command::new("script");
+    c.args([
+        "-qec",
+        "\"$BW_CLI\" characters install classics",
+        "/dev/null",
+    ]);
+    for (k, v) in e.envs() {
+        c.env(k, v);
+    }
+    c.env("BENTWIRE_CLASSICS_URL", url).env("BW_CLI", cli_bin());
+    let o = c.output().expect("script (util-linux)");
+    let text = String::from_utf8_lossy(&o.stdout).replace("\r\n", "\n");
+    assert!(o.status.success(), "{text}");
+    assert_eq!(
+        text,
+        format!(
+            "bentwire: downloading bentwire-classics-9.9.1.tar.gz\n\
+             installed bentwire-classics 9.9.1 in {}\n",
+            e.dir.join("data/bentwire/characters/classics").display()
+        )
+    );
+}
+
 /// B-CHAR-6: with only the builtin placeholder, the first start says how to get the
 /// classics, once (the flag is in the state file), and an explicit choice is kept.
 #[test]
@@ -1455,6 +1484,184 @@ fn library_gallery_walk_keeps_the_bottom_centre() {
         other_pose.join(", ")
     );
     assert!(bad.is_empty(), "{bad:#?}");
+}
+
+/// B-GAL-1 browsing walk: `ids` (the gallery order) from the first to the last with Next
+/// and back with Back, the character in the bottom-right corner of a 5120 x 1440 output at
+/// size factor `scale`. The pointer stays where Next (then Back) was when the walk started
+/// in that direction; every step is a click there. Returns the steps where the button was
+/// no longer under the pointer (the click then missed, and the key mnemonic continues).
+fn corner_walk(e: &Env, ids: &[String], scale: u32) -> Vec<String> {
+    let c = e.client();
+    c.call_unit(AGENT, AGENT_IF, "Select", &(ids[0].as_str(),))
+        .unwrap();
+    e.advance(5000);
+    set_scale(e, scale).unwrap();
+    e.advance(100);
+    let ch = surface(&e.snapshot(), "character");
+    let (w, h) = (int(&ch["w"]) as i32, int(&ch["h"]) as i32);
+    c.call_id("MoveTo", &(5120 - w, 1440 - h, 0u32)).unwrap();
+    e.advance(10_000);
+    let (x, y) = centre(e);
+    e.click(2, x, y);
+    let s = e.snapshot();
+    let item = s["menu"]
+        .as_array()
+        .expect("menu")
+        .iter()
+        .find(|i| i["label"] == "&Choose Assistant...")
+        .expect("Choose Assistant item")
+        .clone();
+    e.click(1, int(&item["x"]) as i32 + 3, int(&item["y"]) as i32 + 3);
+    e.advance(5000);
+    let button = |s: &serde_json::Value, i: usize| {
+        let r = &s["office_balloon"]["buttons"][i]["rect"];
+        (int(&r["x"]), int(&r["y"]), int(&r["w"]), int(&r["h"]))
+    };
+    let mut missed = Vec::new();
+    let order: Vec<&String> = ids.iter().collect();
+    for (bi, key, steps) in [
+        (1, "n", order[1..].to_vec()),
+        (
+            0,
+            "b",
+            order[..order.len() - 1].iter().rev().copied().collect(),
+        ),
+    ] {
+        let s = e.snapshot();
+        assert!(!s["office_balloon"].is_null(), "gallery open: {s}");
+        let (bx, by, bw, bh) = button(&s, bi);
+        let (px, py) = (bx + bw / 2, by + bh / 2);
+        for id in steps {
+            let s = e.snapshot();
+            let (bx, by, bw, bh) = button(&s, bi);
+            if (bx..bx + bw).contains(&px) && (by..by + bh).contains(&py) {
+                e.click(1, px as i32, py as i32);
+            } else {
+                missed.push(format!(
+                    "{key} to {id}: button at ({bx}, {by}) {bw}x{bh}, pointer at ({px}, {py})"
+                ));
+                e.key(key);
+            }
+            e.advance(5000);
+            assert_eq!(e.character(), id.as_str());
+        }
+    }
+    e.key("Escape");
+    e.advance(5000);
+    missed
+}
+
+/// Characters for the browsing walk: copies of the builtin placeholder with other display
+/// sizes and descriptions of different lengths.
+fn walk_characters(dir: &std::path::Path) -> Vec<String> {
+    let src = repo().join("characters/builtin/bentwire-placeholder");
+    let toml = std::fs::read_to_string(src.join("character.toml")).unwrap();
+    let words = "a wire clip drawn by code for the browsing walk";
+    let mut ids = Vec::new();
+    for (i, (w, h, n)) in [
+        (96, 96, 3),
+        (60, 140, 30),
+        (180, 72, 1),
+        (128, 128, 12),
+        (48, 48, 50),
+        (150, 200, 6),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let id = format!("walk{i}");
+        let d = dir.join(&id);
+        copy_dir(&src, &d);
+        let desc = vec![words; n].join(" ");
+        let t = toml
+            .replacen(
+                "canvas = [96, 96]",
+                &format!("canvas = [96, 96]\ndisplay = [{w}, {h}]"),
+                1,
+            )
+            .replacen("name = \"Placeholder\"", &format!("name = \"Walk {i}\""), 1)
+            .replacen(
+                "description = \"bentwire's own stand-in: a wire clip drawn by code (CC0).\"",
+                &format!("description = \"{desc}\""),
+                1,
+            );
+        assert!(t.contains("display = ") && t.contains(&desc));
+        std::fs::write(d.join("character.toml"), t).unwrap();
+        ids.push(id);
+    }
+    ids
+}
+
+/// B-GAL-1: while browsing, Next and Back stay under the pointer, for characters of
+/// different sizes and descriptions in the bottom-right corner, at size factor 1 and 3.
+#[test]
+fn b_gal_1_browsing_keeps_next_and_back_under_the_pointer() {
+    let mut e = Env::new("galwalk");
+    let chars = e.dir.join("walk/characters");
+    let ids = walk_characters(&chars);
+    std::fs::create_dir_all(e.dir.join("cfg/bentwire")).unwrap();
+    std::fs::write(e.dir.join("cfg/bentwire/config.toml"), "idle = false\n").unwrap();
+    e.seed_state("install_hint_shown = true\n");
+    e.start_raw(&[
+        "--characters",
+        chars.to_str().unwrap(),
+        "--outputs",
+        "5120x1440+0+0",
+    ]);
+    e.advance(3000);
+    for scale in [1, 3] {
+        let missed = corner_walk(&e, &ids, scale);
+        assert!(missed.is_empty(), "scale {scale}: {missed:#?}");
+    }
+}
+
+/// B-GAL-1 on real data: the browsing walk of the test above through every character under
+/// $BENTWIRE_PACKS, at size factor 1 and 3. Prints how often the button moved away.
+#[test]
+#[ignore = "needs BENTWIRE_PACKS=<characters dir>"]
+fn library_gallery_corner_walk_keeps_next_and_back_under_the_pointer() {
+    let Some(packs) = std::env::var_os("BENTWIRE_PACKS") else {
+        panic!("NOT RUN: set BENTWIRE_PACKS to a characters/ directory with packs");
+    };
+    let mut e = Env::new("cwalk");
+    std::fs::create_dir_all(e.dir.join("cfg/bentwire")).unwrap();
+    std::fs::write(e.dir.join("cfg/bentwire/config.toml"), "idle = false\n").unwrap();
+    e.seed_state("install_hint_shown = true\n");
+    let root = std::path::PathBuf::from(packs);
+    e.start_raw(&[
+        "--characters",
+        root.to_str().unwrap(),
+        "--outputs",
+        "5120x1440+0+0",
+    ]);
+    e.advance(5000);
+    let list: Vec<(String, String, String)> = e
+        .client()
+        .conn
+        .call_method(
+            Some("org.bentwire.Agent"),
+            AGENT,
+            Some(AGENT_IF),
+            "ListCharacters",
+            &(),
+        )
+        .unwrap()
+        .body()
+        .deserialize()
+        .unwrap();
+    let ids: Vec<String> = list.into_iter().map(|x| x.0).collect();
+    let mut all = Vec::new();
+    for scale in [1, 3] {
+        let missed = corner_walk(&e, &ids, scale);
+        eprintln!(
+            "scale {scale}: {} steps, the button moved away {} times",
+            2 * (ids.len() - 1),
+            missed.len()
+        );
+        all.extend(missed.into_iter().map(|m| format!("scale {scale}: {m}")));
+    }
+    assert!(all.is_empty(), "{all:#?}");
 }
 
 // ---------- size factor (B-SCALE-1) ----------

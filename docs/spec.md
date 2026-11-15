@@ -195,8 +195,12 @@ character without a restart, but never override a choice.
 installed character and it starts visible, the daemon logs and the character says once
 (an internal Speak, no request signals) "Install more characters: bentwire characters
 install classics" (German: "Weitere Assistenten installieren: bentwire characters install
-classics", B-L10N-1). The state file records that it was shown (B-CFG-2). Reason: a
-package installs only the placeholder; the classics need the user's own download.
+classics", B-L10N-1). The state file records that it was shown (B-CFG-2). Its balloon
+does not hide by itself: it follows R-BAL-10 without AutoHide (it stays until a click or
+drag on the character, the next Speak, Hide, or a MoveTo that moves), whatever the
+character's AutoHide. Reason: a package installs only the placeholder; the classics need
+the user's own download. With AutoHide the hint was gone about 4 s after it appeared
+(7 words at 352 ms plus 1500 ms), too short to read and type the command.
 
 **B-CHAR-5 Switching (`Select`, gallery).**
 1. Every queued, running or in-progress request of the old character ends with status 3
@@ -1121,12 +1125,23 @@ belongs to the original menu.
   - Back and Next do not close the balloon (unlike B-ASK-2);
   - disabled buttons are drawn in the disabled state and ignore clicks and mnemonics;
   - the balloon survives the gallery's own character switches (unlike B-CHAR-5 and
-    B-ASK-7). It stays where it is (sized for the new text, it keeps its corner next to
-    the tail) while it still fits next to the new character: its window is inside the
-    output, its body does not cover the opaque box of the new character's rest picture,
-    it overlaps the new frame along the other axis, and its tail side is at most 16 px
-    (the tail length) farther from the frame than a new placement would put it.
-    Otherwise it is placed again (B-OB-3, B-OB-4);
+    B-ASK-7), and while browsing Back and Next stay where they are:
+    - one body size for all candidates, set when the gallery opens (and again when the
+      catalog, the output or the UI language changes while it is open): the widest
+      landscape shape (R-OB-31) of all candidates' balloons, and at that width the
+      tallest layout. The text starts at the top, the button row sits at the bottom of
+      the body. A text that needs more height makes its body taller. If the size does
+      not fit the output, or there is no candidate, each balloon is sized as in R-OB-31;
+    - placed once when the gallery opens (B-OB-3) next to the envelope of all candidates
+      instead of the character: the widest and the tallest frame of the catalog
+      (`display` times the size factor), its bottom centre on the character's B-CHAR-5
+      foot, pulled inside the output. When the tallest frame does not fit above the foot,
+      or that placement would need B-OB-4, it is placed next to the character itself;
+    - after a switch it stays where it is (keeping its corner next to the tail) while its
+      window is inside the output, its body does not cover the opaque box of the new
+      character's rest picture and it overlaps the new frame along the other axis,
+      however far the new character is from it; the tail may then not reach a small
+      character. Otherwise it is placed again next to the character (B-OB-3, B-OB-4);
   - it is not a client request: no request id and no signals other than `Shown`,
     `Hidden`, `Move` and the balloon signals.
 - Opening the gallery while a client ask is open first closes that ask with result 0,
@@ -1137,7 +1152,11 @@ belongs to the original menu.
   returns to its old place unless a switch was pulled inside the output. If the user hides
   the character, the gallery closes as Cancel.
 - Reason: Office's gallery previewed Wave and then IdlingLevel1 in a dialog. The live
-  character is the closest preview available without a dialog toolkit.
+  character is the closest preview available without a dialog toolkit. Fixed size and
+  envelope: in 0.1.2 the balloon was sized per text and kept only within 16 px of a new
+  placement, so with characters of different sizes (a corner, a size factor of 3) it
+  moved on almost every Next (98 and 112 of 122 steps through builtin and classics) and
+  Next was no longer under the pointer.
 
 **B-UI-4 User Hide.** **bentwire decision.**
 - Hide from the menu (cause 7) or tray (cause 1) first interrupts every request of the
@@ -1258,6 +1277,14 @@ Nothing else in v1 needs the global pointer.
 - Drags use the implicit grab of the pressed button.
 - The new position is computed from the grab offset. The backend MUST compensate for
   margin changes that the compositor has not yet applied, so the motion stays 1:1.
+- The daemon feeds every pointer event it has read to the core and then updates the
+  surfaces once; when only the character's position changed, the drawn buffers are
+  moved, not drawn again. **bentwire decision.** Reason: drawing after each motion cost,
+  for a 128 x 128 test character in a release build at buffer scale 2 (a fractional
+  output), 2 ms (size 1) to 18 ms (size 3) per motion, more than a 1000 Hz mouse leaves
+  (0.6 and 4 ms at buffer scale 1), so a drag that started on such an
+  output fell seconds behind the cursor (the surface keeps its start output during the
+  drag, B-WL-4).
 
 **B-WL-8 Balloon surfaces.**
 - Balloons are `wl_subsurface`s of the character surface, placed above it and positioned
@@ -2011,7 +2038,8 @@ Exit status:
   the latest release of the bentwire-classics repository with `curl`
   (`BENTWIRE_CLASSICS_URL` replaces the base URL
   `https://github.com/mschabhuettl/bentwire-classics/releases/latest/download`), and
-  checks the SHA-256.
+  checks the SHA-256. curl runs quiet (`-sS`: no progress meter, errors shown); the CLI
+  prints one line of its own on stderr, `bentwire: downloading <archive name>`.
 - Unpacks the archive (top-level `classics/` only) with `tar` into a temporary directory
   in `$XDG_DATA_HOME/bentwire/characters/`, then renames `classics/` into place,
   replacing an older copy as a whole. A git checkout or a symbolic link at

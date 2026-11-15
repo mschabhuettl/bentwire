@@ -74,6 +74,7 @@ impl Library {
                             description,
                         })
                         .collect(),
+                    display: e.display,
                 }
             })
             .collect()

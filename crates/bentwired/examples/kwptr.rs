@@ -3,6 +3,7 @@
 //! Reads commands from stdin, one per line:
 //!   move X Y        absolute position in the output layout
 //!   rel DX DY       relative motion (what a mouse sends)
+//!   burst N DX DY MS  N relative motions MS ms apart, without a roundtrip in between
 //!   press B         B = 1 left, 2 right
 //!   release B
 //!   sleep MS
@@ -62,6 +63,14 @@ fn main() {
             ["press" | "release", b] => {
                 let code = if *b == "2" { 0x111 } else { 0x110 };
                 fake.button(code, (f[0] == "press") as u32);
+            }
+            ["burst", n, _, _, ms] => {
+                // Mouse rate: no roundtrip between the motions, only a flush.
+                for _ in 0..n.parse::<u32>().expect("count") {
+                    fake.pointer_motion(num(2), num(3));
+                    conn.flush().unwrap();
+                    std::thread::sleep(std::time::Duration::from_millis(ms.parse().unwrap()));
+                }
             }
             ["sleep", ms] => {
                 std::thread::sleep(std::time::Duration::from_millis(ms.parse().unwrap()));

@@ -627,16 +627,11 @@ fn run_tool(cmd: &mut Command) -> Result<(), Fail> {
     }
 }
 
+/// Quiet curl (`-sS`: no progress meter, errors still shown).
 fn download(url: &str, to: &Path) -> Result<(), Fail> {
-    use std::io::IsTerminal;
     let mut c = Command::new("curl");
-    c.args(["-fL", "--proto", "=https,file", "--retry", "2", "-o"])
+    c.args(["-fsSL", "--proto", "=https,file", "--retry", "2", "-o"])
         .arg(to);
-    if std::io::stderr().is_terminal() {
-        c.arg("--progress-bar");
-    } else {
-        c.arg("-sS");
-    }
     run_tool(c.arg(url)).map_err(|_| fail(format!("downloading {url} failed")))
 }
 
@@ -717,6 +712,7 @@ fn install_into(tmp: &Path, dest: &Path) -> Result<String, Fail> {
         .ok_or_else(|| fail("sha256sums.txt names no bentwire-classics-*.tar.gz"))?;
     let version = name["bentwire-classics-".len()..name.len() - ".tar.gz".len()].to_string();
     let archive = tmp.join(name);
+    eprintln!("bentwire: downloading {name}");
     download(&format!("{base}/{name}"), &archive)?;
     if sha256_hex(&archive)? != hash {
         return Err(fail(format!(
