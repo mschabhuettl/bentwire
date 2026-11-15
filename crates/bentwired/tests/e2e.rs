@@ -1272,6 +1272,31 @@ fn spec_5_5_characters_install_classics() {
     );
 }
 
+/// B-CLI-1: on a terminal (a pty from script(1)) the install prints no curl progress bars,
+/// only its own line for the archive and the result.
+#[test]
+fn b_cli_1_install_on_a_terminal_prints_no_progress_bars() {
+    let e = Env::new("installtty");
+    let url = fake_release(&e.dir, "9.9.1");
+    let mut c = std::process::Command::new("script");
+    c.args(["-qec", "\"$BW_CLI\" characters install classics", "/dev/null"]);
+    for (k, v) in e.envs() {
+        c.env(k, v);
+    }
+    c.env("BENTWIRE_CLASSICS_URL", url).env("BW_CLI", cli_bin());
+    let o = c.output().expect("script (util-linux)");
+    let text = String::from_utf8_lossy(&o.stdout).replace("\r\n", "\n");
+    assert!(o.status.success(), "{text}");
+    assert_eq!(
+        text,
+        format!(
+            "bentwire: downloading bentwire-classics-9.9.1.tar.gz\n\
+             installed bentwire-classics 9.9.1 in {}\n",
+            e.dir.join("data/bentwire/characters/classics").display()
+        )
+    );
+}
+
 /// B-CHAR-6: with only the builtin placeholder, the first start says how to get the
 /// classics, once (the flag is in the state file), and an explicit choice is kept.
 #[test]

@@ -1991,7 +1991,8 @@ Exit status:
   the latest release of the bentwire-classics repository with `curl`
   (`BENTWIRE_CLASSICS_URL` replaces the base URL
   `https://github.com/mschabhuettl/bentwire-classics/releases/latest/download`), and
-  checks the SHA-256.
+  checks the SHA-256. curl runs quiet (`-sS`: no progress meter, errors shown); the CLI
+  prints one line of its own on stderr, `bentwire: downloading <archive name>`.
 - Unpacks the archive (top-level `classics/` only) with `tar` into a temporary directory
   in `$XDG_DATA_HOME/bentwire/characters/`, then renames `classics/` into place,
   replacing an older copy as a whole. A git checkout or a symbolic link at
