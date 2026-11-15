@@ -250,7 +250,14 @@ fn main() -> ExitCode {
         print!("{USAGE}");
         return ExitCode::SUCCESS;
     }
-    let file = config_path().and_then(|p| std::fs::read_to_string(p).ok());
+    // A missing file is no filter; an unreadable one must not silently allow every app.
+    let file = match config_path().map(std::fs::read_to_string) {
+        Some(Err(e)) if e.kind() != std::io::ErrorKind::NotFound => {
+            eprintln!("bentwire-notify: notify.toml: {e}");
+            return ExitCode::from(1);
+        }
+        r => r.and_then(Result::ok),
+    };
     let f = match filter(&args, file.as_deref()) {
         Ok(f) => f,
         Err(m) => {
