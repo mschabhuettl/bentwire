@@ -88,6 +88,8 @@ pub struct App {
     pub grab: Option<Hit>,
     /// Events raised while processing a batch, fed in after it.
     pub deferred: Vec<Event>,
+    /// Inside a batch of backend events: the scene is updated once at its end.
+    pub batch: bool,
 }
 
 impl App {
@@ -416,13 +418,23 @@ impl App {
         }
     }
 
+    /// Every event the backend has, then one scene update (B-WL-7): a scene update draws
+    /// the character at the buffer scale, so updating after each pointer motion of a drag
+    /// fell behind the pointer on a fractionally scaled output (buffer scale 2).
     pub fn backend_events(&mut self) {
-        for ev in self.backend.poll() {
+        let evs = self.backend.poll();
+        if evs.is_empty() {
+            return;
+        }
+        self.batch = true;
+        for ev in evs {
             if let Event::Outputs(o) = &ev {
                 self.outputs = o.clone();
             }
             self.event(ev);
         }
+        self.batch = false;
+        self.update();
     }
 
     /// Run the core's outputs in order, then update properties and the scene.
@@ -485,7 +497,9 @@ impl App {
                 Output::Quit => self.quit = true,
             }
         }
-        self.update();
+        if !self.batch {
+            self.update();
+        }
         for ev in std::mem::take(&mut self.deferred) {
             self.event(ev);
         }
@@ -559,7 +573,10 @@ impl App {
             });
             t.update(&scene.tray, icon);
         }
-        let r = present::render(&scene, &self.lib.borrow(), &self.fonts, self.theme.as_ref());
+        let r = match present::moved(self.last_scene.as_ref(), &scene, &self.rendered) {
+            Some(r) => r,
+            None => present::render(&scene, &self.lib.borrow(), &self.fonts, self.theme.as_ref()),
+        };
         for q in present::requests(&self.rendered, &r, &scene.outputs, self.menu_serial) {
             self.trace(q);
         }
@@ -689,7 +706,6 @@ fn call_args(c: &api::Call) -> serde_json::Value {
 fn sound_played(device: Option<bool>, silent: bool, decoded: bool) -> bool {
     decoded && device.unwrap_or(silent)
 }
-
 /// `Test1.Key` names: `Escape`, `Enter` (`Return`), `Tab`, `space`, `Up`, `Down`, `Left`,
 /// `Right`, or one character; `Alt+`, `Ctrl+` and `Shift+` prefixes set modifiers.
 pub fn parse_key(s: &str) -> Option<(Key, u32)> {

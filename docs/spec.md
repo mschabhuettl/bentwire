@@ -1277,6 +1277,13 @@ Nothing else in v1 needs the global pointer.
 - Drags use the implicit grab of the pressed button.
 - The new position is computed from the grab offset. The backend MUST compensate for
   margin changes that the compositor has not yet applied, so the motion stays 1:1.
+- The daemon feeds every pointer event it has read to the core and then updates the
+  surfaces once; when only the character's position changed, the drawn buffers are
+  moved, not drawn again. **bentwire decision.** Reason: drawing after each motion cost
+  2 ms (size 1) to 18 ms (size 3) per motion at buffer scale 2 (a fractional output) in a
+  release build, more than a 1000 Hz mouse leaves, so a drag that started on such an
+  output fell seconds behind the cursor (the surface keeps its start output during the
+  drag, B-WL-4).
 
 **B-WL-8 Balloon surfaces.**
 - Balloons are `wl_subsurface`s of the character surface, placed above it and positioned

@@ -5,7 +5,8 @@
 #
 # usage: scripts/desktop/scenario.sh sway|kwin [BIN_DIR]
 #   sway: WLR_BACKENDS=headless sway, screenshots with grim (pixels are checked).
-#   kwin: kwin_wayland --virtual, two outputs, the right one primary; KWin offers no
+#   kwin: kwin_wayland --virtual, two outputs, the right one primary, the left one at the
+#         fractional scale 1.25 (buffer scale 2 plus viewporter); KWin offers no
 #         screenshot without an OpenGL render node, so geometry is checked through KWin
 #         scripting (workspace.windowList).
 # Needs: dbus-run-session, python3, and sway+grim or kwin_wayland + busctl. Build first:
@@ -61,6 +62,9 @@ wait_for() { # wait_for <seconds> <command...>
 
 W=1280
 H=720
+# KWin: logical width of the left output (scale 1.25), the x of the primary one.
+LS=1.25
+LW=1024
 case "$COMP" in
 sway)
     export WLR_BACKENDS=headless WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1
@@ -73,12 +77,13 @@ sway)
 kwin)
     export XDG_CONFIG_HOME=$T/home/cfg QT_LOGGING_RULES="kwin_scripting.debug=true;js.debug=true"
     mkdir -p "$XDG_CONFIG_HOME"
-    # Two outputs side by side, the right one primary (first in kde_output_order_v1).
+    # Two outputs side by side, the right one primary (first in kde_output_order_v1), the
+    # left one fractionally scaled (W x H / LS logical).
     cat >"$XDG_CONFIG_HOME/kwinoutputconfig.json" <<EOF
-[{"name": "outputs", "data": [{"connectorName": "Virtual-0"}, {"connectorName": "Virtual-1"}]},
+[{"name": "outputs", "data": [{"connectorName": "Virtual-0", "scale": $LS}, {"connectorName": "Virtual-1"}]},
  {"name": "setups", "data": [{"lidClosed": false, "outputs": [
    {"enabled": true, "outputIndex": 0, "position": {"x": 0, "y": 0}, "priority": 1},
-   {"enabled": true, "outputIndex": 1, "position": {"x": $W, "y": 0}, "priority": 0}]}]}]
+   {"enabled": true, "outputIndex": 1, "position": {"x": $LW, "y": 0}, "priority": 0}]}]}]
 EOF
     # The permission override lets the kwptr example use org_kde_kwin_fake_input.
     KWIN_WAYLAND_NO_PERMISSION_CHECKS=1 KWIN_COMPOSE=Q kwin_wayland --virtual --output-count 2 \
@@ -116,7 +121,13 @@ if [ "$COMP" = sway ] && [ -x "$BIN/examples/vptr" ]; then
 fi
 dbus-monitor --session "type='signal',interface='org.bentwire.Character1'" >"$T/signals.log" 2>&1 &
 PIDS+=($!)
-"$BIN/bentwired" --test-interface $TRAYARG --no-audio --characters "$FIXTURES" >"$T/bentwired.log" 2>&1 &
+# pebble-big: pebble shown at 128 x 128 (a costly picture at buffer scale 2), for the KWin
+# drag on the fractional output.
+mkdir -p "$T/extra/characters"
+cp -r "$FIXTURES/pebble" "$T/extra/characters/pebble-big"
+sed -i 's/^canvas = \[32, 32\]$/canvas = [32, 32]\ndisplay = [128, 128]/' "$T/extra/characters/pebble-big/character.toml"
+"$BIN/bentwired" --test-interface $TRAYARG --no-audio --characters "$FIXTURES" \
+    --characters "$T/extra" >"$T/bentwired.log" 2>&1 &
 BW=$!
 PIDS+=($BW)
 wait_for 10 busctl --user status org.bentwire.Agent || { echo "bentwired did not start"; cat "$T/bentwired.log"; exit 1; }
@@ -186,9 +197,9 @@ check "show --wait succeeds" "$BIN/bentwire" show --wait
 check "surface configured and buffer attached" wait_for 5 mapped
 X=$(status left)
 Y=$(status top)
-# KWin: the primary output is the right one, at x = W (B-CFG-3).
+# KWin: the primary output is the right one, at x = LW (B-CFG-3).
 PX=0
-[ "$COMP" = kwin ] && PX=$W
+[ "$COMP" = kwin ] && PX=$LW
 check "first-run position on the primary output (B-CFG-3)" test "$X,$Y" = "$((PX + W - 48 - 32)),$((H - 96 - 32))"
 check "layer surface keyboard_interactivity none" snap 's["backend"]["character"]["keyboard_interactivity"] == "none"'
 sleep 0.5
@@ -224,8 +235,9 @@ sys.exit(0 if re.search(r"member=Click\n\s*uint32 1\n\s*uint32 0\n\s*int32 " + s
 elif [ "$COMP" = kwin ] && [ -x "$BIN/examples/kwptr" ]; then
     # Drag from the primary (right) output onto the left one with relative motion, as a
     # mouse does. KWin's edge barrier holds the cursor at the edge while relative events
-    # go on; the character must stay under the cursor (B-WL-7, A-DESK-5).
-    X=$((W + 100))
+    # go on; the character must stay under the cursor (B-WL-7, A-DESK-5). At y 300 the
+    # left output (H / LS high) is beside it.
+    X=$((LW + 100)) Y=300
     "$BIN/bentwire" moveto "$X" "$Y" --speed 0 --wait >/dev/null
     sleep 0.6
     CX=$((X + 16)) CY=$((Y + 16))
@@ -246,11 +258,33 @@ elif [ "$COMP" = kwin ] && [ -x "$BIN/examples/kwptr" ]; then
     busctl --user call org.kde.KWin /Scripting org.kde.kwin.Scripting unloadScript s bwcursor >/dev/null || true
     read -r CUX CUY < <(sed -n 's/.*BWCURSOR //p' "$T/compositor.log" | tail -1) || true
     echo "release 1" >&8
-    check "cursor crossed onto the left output" test "${CUX%.*}" -lt "$W"
+    check "cursor crossed onto the left output" test "${CUX%.*}" -lt "$LW"
     check "drag across outputs keeps the character under the cursor (B-WL-7)" wait_for 5 sh -c "
         L=\$(\"$BIN/bentwire\" status | sed -n 's/^left=//p'); D=\$(( ${CUX%.*} - 16 - L ));
         [ \$D -ge -8 ] && [ \$D -le 8 ] && \"$BIN/bentwire\" status | grep -qx 'top=$Y'"
     check "dropped surface recreated on the left output (B-WL-4)" wait_for 5 snap 's["backend"]["character"]["output"] == [o for o in s["outputs"] if o["x"] == 0][0]["id"] and s["backend"]["character"]["buffer_attached"]'
+    # A drag that starts on the fractional output, with pebble-big (128 x 128) at size 3, at
+    # mouse rate (1 ms apart): the character must have caught up 1 s after the last motion.
+    # Each motion used to draw the 768 x 768 buffer again (buffer scale 2), and the drag
+    # fell behind the cursor (B-WL-7).
+    X=100
+    "$BIN/bentwire" select pebble-big >/dev/null
+    "$BIN/bentwire" scale 3 >/dev/null
+    "$BIN/bentwire" moveto "$X" 100 --speed 0 --wait >/dev/null
+    sleep 0.6
+    check "buffer scale 2 with a viewport on the left output (B-WL-6)" wait_for 5 snap 's["backend"]["character"]["buffer_scale"] == 2 and s["backend"]["character"]["viewport"]'
+    {
+        echo "move $((X + 192)) 292"; echo "sleep 200"; echo "press 1"; echo "sleep 100"
+        echo "burst 200 2 0 1"; echo "mark burst"
+    } >&8
+    wait_for 15 grep -q burst "$T/kwptr.log" || true
+    # The daemon answers D-Bus between event batches: a status that takes longer than 1 s
+    # means it is still drawing old motions.
+    check "fast drag on the fractional output keeps up within 1 s (B-WL-7)" sh -c "timeout 1 \"$BIN/bentwire\" status | grep -qx 'left=$((X + 400))'"
+    echo "release 1" >&8
+    sleep 0.3
+    "$BIN/bentwire" scale 1 >/dev/null
+    "$BIN/bentwire" select pebble >/dev/null
     X=200
     "$BIN/bentwire" moveto "$X" "$Y" --speed 0 --wait >/dev/null
     sleep 0.6

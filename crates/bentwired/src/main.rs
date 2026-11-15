@@ -291,6 +291,7 @@ fn run(args: args::Args) -> Result<(), String> {
         menu_serial: 0,
         grab: None,
         deferred: Vec::new(),
+        batch: false,
     };
     let now = app.clock.now();
     let out = app.core.start(now);
