@@ -1,0 +1,76 @@
+#!/bin/sh
+# Git hooks for bentwire. The hook files in this directory are symbolic links to this
+# script; it tells them apart by the name it was called as.
+#
+#   post-commit  play Congratulate, say "Committed: <subject>"
+#   post-merge   play Congratulate, say "Merge done."
+#   pre-push     play SendMail, say "Pushing to <remote>."
+#   any hook     when the repository's own hook of that name fails: play GetAttention,
+#                say "The <hook> hook failed."
+#
+# Chaining: with `core.hooksPath` pointing here, git no longer runs the repository's own
+# hooks, so each hook first runs `$GIT_COMMON_DIR/hooks/<name>` (same arguments and stdin)
+# and exits with its status. Called as `bentwire-git-hook <name> [args...]` from an
+# existing hook, it only lets the character react and never chains.
+#
+# The character call runs detached with a short timeout and prints nothing; it never
+# changes the hook's exit status. Nothing is sent when bentwired is not running (no D-Bus
+# activation). Environment: BENTWIRE_GIT_OFF=1 disables the reactions (chaining stays);
+# BENTWIRE_CLI names the CLI (default `bentwire`).
+
+name=${0##*/}
+chain=1
+if [ "$name" = bentwire-git-hook ]; then
+    name=${1:-}
+    [ $# -gt 0 ] && shift
+    chain=
+fi
+
+running() {
+    if command -v busctl >/dev/null 2>&1; then
+        busctl --user --no-pager status org.bentwire.Agent >/dev/null 2>&1
+    elif command -v dbus-send >/dev/null 2>&1; then
+        dbus-send --session --print-reply --dest=org.freedesktop.DBus /org/freedesktop/DBus \
+            org.freedesktop.DBus.NameHasOwner string:org.bentwire.Agent 2>/dev/null | grep -q true
+    else
+        return 0
+    fi
+}
+
+cli() {
+    if command -v timeout >/dev/null 2>&1; then
+        timeout 3 "${BENTWIRE_CLI:-bentwire}" "$@"
+    else
+        "${BENTWIRE_CLI:-bentwire}" "$@"
+    fi
+}
+
+# react <animation> <text>: detached, so git never waits
+react() {
+    [ "${BENTWIRE_GIT_OFF:-}" = 1 ] && return 0
+    (
+        running || exit 0
+        cli play "$1"
+        cli say "$2"
+    ) </dev/null >/dev/null 2>&1 &
+}
+
+rc=0
+if [ -n "$chain" ]; then
+    own=$(git rev-parse --git-common-dir 2>/dev/null)/hooks/$name
+    if [ -x "$own" ] && ! [ "$own" -ef "$0" ]; then
+        "$own" "$@"
+        rc=$?
+    fi
+fi
+
+if [ "$rc" != 0 ]; then
+    react GetAttention "The $name hook failed."
+else
+    case $name in
+        post-commit) react Congratulate "Committed: $(git log -1 --format=%s 2>/dev/null)" ;;
+        post-merge) react Congratulate "Merge done." ;;
+        pre-push) react SendMail "Pushing to ${1:-the remote}." ;;
+    esac
+fi
+exit "$rc"

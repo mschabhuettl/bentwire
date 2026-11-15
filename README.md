@@ -200,13 +200,18 @@ a hidden character. Every command and option is in [docs/usage.md](docs/usage.md
 
 ## Integration
 
-- **Shell** (bash and zsh): the character reacts to failed and long-running commands. Add
+- **Shell** (bash and zsh): the character reacts to failed and long-running commands (and,
+  opt-in, to a command that is not found). Add
   `. /path/to/bentwire/clients/shell/bentwire.sh` to `~/.bashrc` or `~/.zshrc`. Details in
   [clients/shell/README.md](clients/shell/README.md).
 - **Claude Code hooks**: thinking, writing, attention and done animations. Details in
   [clients/claude-code/README.md](clients/claude-code/README.md).
+- **Git hooks**: commits, merges, pushes and failing repository hooks, per repository or
+  for all through `core.hooksPath`. Details in [clients/git/README.md](clients/git/README.md).
+- **systemd**: a failed unit is announced through `OnFailure=bentwire-failure@%n.service`.
+  Details in [clients/systemd/README.md](clients/systemd/README.md).
 
-Both use only the `bentwire` CLI and never start the daemon themselves.
+All of them use only the `bentwire` CLI and never start the daemon themselves.
 
 - **Desktop notifications**: `bentwire-notify` makes the character say your
   notifications, with `--only APP` / `--ignore APP` filters or

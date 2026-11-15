@@ -53,11 +53,12 @@ is therefore read through KWin scripting (`workspace.windowList()`), and balloon
 menu through the backend's own record (`Test1.Snapshot`). The scale and hot-plug steps
 run under sway only.
 
-Client tests (shell integration and Claude Code hooks; need `dbus-run-session`, `gdbus`,
-`jq`):
+Client tests (shell integration, Claude Code hooks, git hooks, systemd helper; need
+`dbus-run-session`, `gdbus`, `jq`, `git`):
 
 ```sh
-cargo build -p bentwired -p bentwire && clients/shell/test.sh && clients/claude-code/test.sh
+cargo build -p bentwired -p bentwire && clients/shell/test.sh && clients/claude-code/test.sh \
+    && clients/git/test.sh && clients/systemd/test.sh
 ```
 
 Parser fuzzing: `BENTWIRE_FUZZ_ROUNDS=40000 cargo test --release -p agent-formats --test

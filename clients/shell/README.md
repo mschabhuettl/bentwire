@@ -9,6 +9,24 @@ The character reacts to your terminal:
 - **A command runs long** (10 s by default): it plays `Processing` while the command
   runs. When the command ends, the character stops, plays `Congratulate` and says
   "Done after N s: <command>", or reports the failure as above.
+- **A command is not found** (opt-in, `BENTWIRE_SHELL_NOT_FOUND=1`): it plays `Searching`
+  and says 'I can't find the command "<name>".' The shell still prints its usual message
+  and the status stays 127; that miss is not reported a second time as a failure.
+
+## Command not found
+
+Set the variable before the integration is sourced:
+
+```sh
+export BENTWIRE_SHELL_NOT_FOUND=1
+. /path/to/bentwire/clients/shell/bentwire.sh
+```
+
+It defines `command_not_found_handle` (bash) or `command_not_found_handler` (zsh). A
+handler that already exists, such as the one of `pkgfile` or `command-not-found` from your
+distribution, is kept and called after the character's reaction: it prints its own
+suggestions and decides the exit status. So source the distribution's script first.
+Sourcing the integration again does not chain the handler to itself.
 
 ## Install
 
@@ -44,6 +62,7 @@ the daemon runs.
 | `BENTWIRE_LONG_SECONDS` | `10` | threshold for long-running commands |
 | `BENTWIRE_SHELL_IGNORE` | `exit logout vi vim nvim nano emacs less more most man info ssh mosh telnet top htop btop watch tmux screen fg bg jobs bentwire` | commands that are never watched as long-running |
 | `BENTWIRE_CLI` | `bentwire` | the CLI to call |
+| `BENTWIRE_SHELL_NOT_FOUND` | unset | `1` when the file is sourced installs the command-not-found handler |
 
 ## Test
 
@@ -59,6 +78,8 @@ with an isolated `HOME`. It drives an interactive bash and an interactive zsh an
 - that the daemon accepted them (request ids) and started them: the `--trace` call line for each request id names the same method and
   arguments, and `RequestStart` follows after `Test1.Advance`;
 - that four prompts take well under the 5 s a slow CLI would need;
+- the command-not-found handler: one reaction per miss, status 127, the usual message,
+  chaining to an earlier handler, no reaction with `BENTWIRE_SHELL_OFF=1`;
 - that nothing is sent without a daemon.
 
 It needs `dbus-run-session`, `gdbus`, `jq`, bash and (optionally) zsh.

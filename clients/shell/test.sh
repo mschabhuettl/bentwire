@@ -87,6 +87,68 @@ for sh in bash zsh; do
         test "$(jq -r 'select(.type == "call") | .method' "$BW_TRACE" | tail -4 | tr '\n' ' ')" = "Play StopAll Play Speak "
 done
 
+# nf_session <shell> <prev> <command line>...: like session, with the not-found handler
+# opted in, the integration sourced twice, and with prev=1 an earlier handler defined first
+# (prev=2: the same handler autoloaded from $fpath, zsh only)
+nf_session() {
+    local sh=$1 prev=$2 name=command_not_found_handle lines=()
+    shift 2
+    [ "$sh" = zsh ] && name=command_not_found_handler
+    [ "$prev" = 1 ] && lines+=("$name() { echo \"previous handler: \$1\"; return 127; }")
+    if [ "$prev" = 2 ]; then
+        mkdir -p "$BW_DIR/fpath"
+        printf '%s\n' 'echo "previous handler: $1"' 'return 127' >"$BW_DIR/fpath/$name"
+        lines+=("fpath=($BW_DIR/fpath \$fpath)" "autoload -Uz $name")
+    fi
+    lines+=("export BENTWIRE_SHELL_NOT_FOUND=1" ". $INTEGRATION" ". $INTEGRATION" "$@" exit)
+    case $sh in
+        bash) printf '%s\n' "${lines[@]}" | bash --norc --noprofile -i >"$BW_DIR/$sh.out" 2>&1 ;;
+        zsh) printf '%s\n' "${lines[@]}" | zsh -f -i >"$BW_DIR/$sh.out" 2>&1 ;;
+    esac
+}
+nf_say() { printf '^say I can'"'"'t find the command "%s"\\.$' "$1"; }
+
+for sh in bash zsh; do
+    command -v $sh >/dev/null || continue
+    echo "$sh: command not found (BENTWIRE_SHELL_NOT_FOUND=1)"
+    : >"$BW_LOG"
+    nf_session $sh 0 'nosuch_bw_a arg; echo "rc=$?"' nosuch_bw_b \
+        'BENTWIRE_SHELL_OFF=1' 'nosuch_bw_c; echo "rc=$?"' 'unset BENTWIRE_SHELL_OFF' '(exit 127)'
+    bw_wait 10 bw_has '^say It looks like' 1
+    sleep 1
+    bw_check "Searching for each miss" test "$(bw_count '^play Searching$')" -eq 2
+    bw_check "says which command is missing" bw_has "$(nf_say nosuch_bw_a)"
+    bw_check "once per miss, no failure text for the handled 127" bw_has "$(nf_say nosuch_bw_b)"
+    bw_check "an exit status 127 of its own is still a failure" \
+        bw_has '^say It looks like that command failed \(exit status 127\)\.$'
+    bw_check "nothing else (opt-out: no call)" test "$(wc -l <"$BW_LOG")" -eq 6
+    bw_check "daemon received each call (method, args, id)" bw_received '.'
+    bw_check "status 127 with and without opt-out" test "$(grep -c '^rc=127$' "$BW_DIR/$sh.out")" -eq 2
+    bw_check "the shell's usual message" \
+        grep -Eq 'command not found: nosuch_bw_c|nosuch_bw_c: command not found' "$BW_DIR/$sh.out"
+
+    echo "$sh: command not found chains to an earlier handler"
+    : >"$BW_LOG"
+    nf_session $sh 1 'nosuch_bw_d; echo "rc=$?"'
+    bw_wait 10 bw_has "$(nf_say nosuch_bw_d)"
+    sleep 1
+    bw_check "says which command is missing" bw_has "$(nf_say nosuch_bw_d)"
+    bw_check "said once (sourced twice, no self-chaining)" test "$(wc -l <"$BW_LOG")" -eq 2
+    bw_check "the earlier handler ran" grep -q 'previous handler: nosuch_bw_d$' "$BW_DIR/$sh.out"
+    bw_check "its status is kept" grep -q '^rc=127$' "$BW_DIR/$sh.out"
+    bw_check "no message of our own" bash -c "! grep -q 'command not found' '$BW_DIR/$sh.out'"
+done
+
+if command -v zsh >/dev/null; then
+    echo "zsh: command not found chains to an autoloaded earlier handler"
+    : >"$BW_LOG"
+    nf_session zsh 2 'nosuch_bw_e; echo "rc=$?"'
+    bw_wait 10 bw_has "$(nf_say nosuch_bw_e)"
+    bw_check "says which command is missing" bw_has "$(nf_say nosuch_bw_e)"
+    bw_check "the earlier handler ran" grep -q 'previous handler: nosuch_bw_e$' "$BW_DIR/zsh.out"
+    bw_check "its status is kept" grep -q '^rc=127$' "$BW_DIR/zsh.out"
+fi
+
 echo "bash: the user's PROMPT_COMMAND still sees the exit status"
 printf '%s\n' "PROMPT_COMMAND='echo rc=\$? >>$BW_DIR/pc.log'" ". $INTEGRATION" true false '(exit 7)' exit |
     bash --norc --noprofile -i >"$BW_DIR/pc.out" 2>&1
