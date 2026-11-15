@@ -21,10 +21,22 @@ D-Bus API (`org.bentwire.Agent1`) and the character format (`format = 1`) are fr
 - Faster first frame: decoded character sheets are cached in `~/.cache/bentwire/sheets/`
   (at most 512 MiB) and mapped on load, and the startup character loads while the daemon
   starts.
+- `docs/dbus.md`: a developer reference of the D-Bus API with the introspection XML
+  (`docs/dbus/org.bentwire.Agent.xml`, kept current by a test), examples in shell,
+  Python, Rust and JavaScript, and a template for your own bridge.
 - More ready-made clients: an opt-in command-not-found handler for bash and zsh
   (`BENTWIRE_SHELL_NOT_FOUND=1`; keeps the usual message and status 127 and chains to an
   existing handler), git hooks in `clients/git/` and a systemd `OnFailure=` template in
   `clients/systemd/` that says which unit failed.
+
+### Fixed
+
+- Dragging across an output edge keeps the character under the cursor when KWin's edge
+  barrier holds the cursor for part of a mouse movement. Before, it ended up to 20 px off
+  after a horizontal crossing and up to the barrier's width after a slightly diagonal
+  one. The same holds at the layout edge under sway.
+- Sound: a PipeWire stream that reports an error after its format was negotiated falls
+  back to ALSA instead of staying silent.
 
 ## [0.1.3] - 2026-11-15
 
