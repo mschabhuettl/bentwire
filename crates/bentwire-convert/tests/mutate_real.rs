@@ -23,7 +23,7 @@ fn edit_sheet(dir: &Path, f: impl FnOnce(&mut Vec<u8>, &mut Vec<[u8; 3]>, &[u8],
     let p = dir.join("sheets/a.png");
     let img = decode_png(&std::fs::read(&p).unwrap()).unwrap();
     let Pixels::Indexed {
-        mut data,
+        data,
         mut plte,
         trns,
         ..
@@ -32,6 +32,7 @@ fn edit_sheet(dir: &Path, f: impl FnOnce(&mut Vec<u8>, &mut Vec<[u8; 3]>, &[u8],
         panic!("indexed sheet expected")
     };
     let trns = trns.unwrap();
+    let mut data = data.to_vec();
     f(&mut data, &mut plte, &trns, img.width);
     let png = encode_png_indexed(img.width, img.height, &data, &plte, Some(&trns)).unwrap();
     std::fs::write(&p, png).unwrap();
