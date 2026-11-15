@@ -712,6 +712,10 @@ mod tests {
         let t = Instant::now();
         let r = pulse::open(&format!("unix:{}", p.display()), 1, 22050, Fault::default());
         assert!(r.is_err_and(|e| e.contains("refused")));
+        // A $PULSE_SERVER list or a TCP server is libpulse's to try.
+        let list = format!("unix:{} unix:/run/other/native", p.display());
+        assert_eq!(pulse::probe(&list), Ok(()));
+        assert_eq!(pulse::probe("tcp:localhost:4713"), Ok(()));
         assert!(
             t.elapsed() < Duration::from_millis(100),
             "{:?}",

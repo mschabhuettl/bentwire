@@ -206,6 +206,20 @@ struct Pulse {
     feeder: Option<std::thread::JoinHandle<()>>,
 }
 
+/// A socket left behind by a server that is gone refuses at once; checked before loading
+/// the library, so that a missing server costs nothing. Other server strings (a list,
+/// TCP) are left to libpulse.
+pub(super) fn probe(server: &str) -> Result<(), String> {
+    match server.strip_prefix("unix:") {
+        Some(path) if !path.contains(char::is_whitespace) => {
+            std::os::unix::net::UnixStream::connect(path)
+                .map(drop)
+                .map_err(|e| format!("{path}: {e}"))
+        }
+        _ => Ok(()),
+    }
+}
+
 /// Connects to `server` (a libpulse server string) with a stream for this format.
 pub(super) fn open(
     server: &str,
@@ -213,11 +227,7 @@ pub(super) fn open(
     rate: u32,
     fault: Fault,
 ) -> Result<Box<dyn Output>, String> {
-    // A socket left behind by a server that is gone refuses at once; checked before
-    // loading the library, so that a missing server costs nothing.
-    if let Some(path) = server.strip_prefix("unix:") {
-        std::os::unix::net::UnixStream::connect(path).map_err(|e| format!("{path}: {e}"))?;
-    }
+    probe(server)?;
     let lib = lib()?;
     let server = CString::new(server).map_err(|e| e.to_string())?;
     let stream = Stream::new(lib, &server, channels, rate)?;
