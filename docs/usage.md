@@ -1,6 +1,8 @@
 # Using bentwire
 
-The daemon's options and the full reference of the `bentwire` command line client.
+The daemon's options and the full reference of the `bentwire` command line client. To
+talk to the daemon from your own program, see the D-Bus reference,
+[dbus.md](dbus.md).
 
 ## `bentwired` options
 
@@ -76,3 +78,5 @@ stderr); 2 the request failed (for `ask`: nothing is printed, the reason goes to
 - `bentwire-mqtt`: MQTT topics for say, play, show, hide and ask, with answers and Home
   Assistant discovery (`~/.config/bentwire/mqtt.toml`). Details in
   [`crates/bentwire-mqtt/README.md`](../crates/bentwire-mqtt/README.md).
+
+Your own bridge: [dbus.md, "Writing a bridge"](dbus.md#writing-a-bridge).

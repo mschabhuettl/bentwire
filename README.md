@@ -351,6 +351,9 @@ Please check on a Plasma desktop with real hardware:
 ## Documentation
 
 - [docs/usage.md](docs/usage.md): daemon options and the full CLI reference.
+- [docs/dbus.md](docs/dbus.md): the D-Bus API for developers: every method, property and
+  signal, the introspection XML, examples in shell, Python, Rust and JavaScript, and a
+  bridge template.
 - [docs/desktop.md](docs/desktop.md): the daemon on the desktop, and what the automated
   desktop checks cover.
 - [docs/testing.md](docs/testing.md): tests, real-data tests and the desktop scenario.
