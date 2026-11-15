@@ -8,10 +8,12 @@
 //! closes or joins an output, so a stuck device cannot block it or its exit.
 //!
 //! Each sound tries, in order: the PulseAudio protocol when a Pulse server is there
-//! (PulseAudio, or PipeWire with pipewire-pulse), then ALSA's default device through
-//! rodio. The sound server's client library is loaded at run time, so it is not a
-//! package dependency; without it the next backend is tried.
+//! (PulseAudio, or PipeWire with pipewire-pulse), then PipeWire natively when its socket
+//! is there, then ALSA's default device through rodio. The sound servers' client
+//! libraries are loaded at run time, so they are not package dependencies; without one
+//! the next backend is tried.
 
+mod pipewire;
 mod pulse;
 
 use bentwire_character::Pcm;
@@ -94,6 +96,8 @@ impl Audio {
                 Backend::Pulse(server) => {
                     pulse::open(server, channels, rate, fault.clone()).map(|o| (o, "pulse".into()))
                 }
+                Backend::PipeWire(socket) => pipewire::open(socket, channels, rate, fault.clone())
+                    .map(|o| (o, "pipewire".into())),
                 Backend::Alsa => open_alsa(fault.clone(), &mut scan),
             });
             for (level, m) in log {
@@ -241,6 +245,8 @@ fn run(rx: Receiver<Cmd>, mut open: Opener) {
 enum Backend {
     /// The PulseAudio protocol at this libpulse server string.
     Pulse(String),
+    /// PipeWire's own protocol at this socket.
+    PipeWire(PathBuf),
     /// ALSA's default device: without an ALSA plugin of the sound server, the card itself,
     /// which a running server holds.
     Alsa,
@@ -250,6 +256,7 @@ impl Backend {
     fn name(&self) -> &'static str {
         match self {
             Backend::Pulse(_) => "pulse",
+            Backend::PipeWire(_) => "pipewire",
             Backend::Alsa => "alsa",
         }
     }
@@ -266,6 +273,9 @@ fn backends(pulse_server: Option<&str>, runtime: Option<&Path>) -> Vec<Backend> 
         (Some(s), _) => list.push(Backend::Pulse(s.to_string())),
         (None, Some(p)) => list.push(Backend::Pulse(format!("unix:{}", p.display()))),
         (None, None) => {}
+    }
+    if let Some(p) = runtime.map(|d| d.join("pipewire-0")).filter(|p| p.exists()) {
+        list.push(Backend::PipeWire(p));
     }
     list.push(Backend::Alsa);
     list
@@ -605,11 +615,22 @@ mod tests {
         // The owner's case: PulseAudio's socket, PipeWire's beside it.
         let both = runtime(&["pulse/native", "pipewire-0"]);
         let native = format!("unix:{}", both.join("pulse/native").display());
-        assert_eq!(backends(None, Some(&both)), [Pulse(native.clone()), Alsa]);
-        assert_eq!(backends(Some(""), Some(&both)), [Pulse(native), Alsa]);
+        let pw = PipeWire(both.join("pipewire-0"));
+        let owner = [Pulse(native.clone()), pw.clone(), Alsa];
+        assert_eq!(backends(None, Some(&both)), owner);
+        assert_eq!(backends(Some(""), Some(&both)), owner);
         let tcp = Pulse("tcp:host".into());
-        assert_eq!(backends(Some("tcp:host"), Some(&both)), [tcp.clone(), Alsa]);
+        assert_eq!(
+            backends(Some("tcp:host"), Some(&both)),
+            [tcp.clone(), pw, Alsa]
+        );
         assert_eq!(backends(Some("tcp:host"), None), [tcp, Alsa]);
+        // PipeWire without pipewire-pulse.
+        let only = runtime(&["pipewire-0"]);
+        assert_eq!(
+            backends(None, Some(&only)),
+            [PipeWire(only.join("pipewire-0")), Alsa]
+        );
         assert_eq!(backends(None, Some(&runtime(&[]))), [Alsa]);
         assert_eq!(backends(None, None), [Alsa]);
     }
@@ -696,5 +717,42 @@ mod tests {
             "{:?}",
             t.elapsed()
         );
+    }
+
+    #[test]
+    fn pipewire_after_pulse() {
+        let list = backends(None, Some(&runtime(&["pulse/native", "pipewire-0"])));
+        let mut c = Chooser::default();
+        // A stale pulse socket (or no libpulse), PipeWire running.
+        let (tried, log, ok) = choose(&mut c, &list, &["pipewire", "alsa"]);
+        assert_eq!(tried, ["pulse", "pipewire"]);
+        assert_eq!(
+            log,
+            [
+                "audio: pulse failed: no pulse; trying pipewire",
+                "audio: pipewire"
+            ]
+        );
+        assert!(ok);
+        // No libpipewire either.
+        let (tried, log, _) = choose(&mut c, &list, &["alsa"]);
+        assert_eq!(tried, ["pulse", "pipewire", "alsa"]);
+        assert_eq!(
+            log,
+            [
+                "audio: pipewire failed: no pipewire; trying alsa",
+                "audio: alsa"
+            ]
+        );
+    }
+
+    #[test]
+    fn stale_pipewire_socket_fails_at_once() {
+        let p = crate::config::tests::tempdir().join("pipewire-0");
+        drop(std::os::unix::net::UnixListener::bind(&p).unwrap());
+        let t = Instant::now();
+        let r = pipewire::open(&p, 1, 22050, Fault::default());
+        assert!(r.is_err_and(|e| e.contains("refused")));
+        assert!(t.elapsed() < Duration::from_millis(100));
     }
 }
