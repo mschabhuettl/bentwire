@@ -73,3 +73,6 @@ stderr); 2 the request failed (for `ask`: nothing is printed, the reason goes to
 - `bentwire-notify`: the character says desktop notifications, with a filter per app
   (`--only`, `--ignore`, `~/.config/bentwire/notify.toml`). Details in
   [`crates/bentwire-notify/README.md`](../crates/bentwire-notify/README.md).
+- `bentwire-mqtt`: MQTT topics for say, play, show, hide and ask, with answers and Home
+  Assistant discovery (`~/.config/bentwire/mqtt.toml`). Details in
+  [`crates/bentwire-mqtt/README.md`](../crates/bentwire-mqtt/README.md).

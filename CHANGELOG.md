@@ -15,6 +15,9 @@ D-Bus API (`org.bentwire.Agent1`) and the character format (`format = 1`) are fr
 - `bentwire-notify`, an optional notification bridge: the character says desktop
   notifications, filtered per app with `--only` and `--ignore` or
   `~/.config/bentwire/notify.toml`, with an optional systemd user unit.
+- `bentwire-mqtt`, an MQTT bridge: topics for say, play, show, hide and ask, answers
+  (`button:<n>`) and the visibility state published back, Home Assistant discovery and
+  example automations, an optional systemd user unit.
 - More ready-made clients: an opt-in command-not-found handler for bash and zsh
   (`BENTWIRE_SHELL_NOT_FOUND=1`; keeps the usual message and status 127 and chains to an
   existing handler), git hooks in `clients/git/` and a systemd `OnFailure=` template in
