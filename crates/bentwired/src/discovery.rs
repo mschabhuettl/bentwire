@@ -29,6 +29,8 @@ pub struct Info {
     pub lang: String,
     pub name: String,
     pub description: String,
+    /// ExtraData (B-GAL-1).
+    pub extra: String,
 }
 
 #[derive(Deserialize)]
@@ -40,6 +42,21 @@ struct CheapManifest {
     /// `[source]` is free form (character-format); only a string `format` is used.
     #[serde(default)]
     source: toml::Table,
+    #[serde(default)]
+    office97: CheapOffice97,
+}
+
+#[derive(Deserialize, Default)]
+struct CheapOffice97 {
+    /// String group 40 (greeting lines) is the intro text of an Office 97 actor (B-GAL-1).
+    #[serde(default)]
+    strings: CheapStrings,
+}
+
+#[derive(Deserialize, Default)]
+struct CheapStrings {
+    #[serde(default, rename = "40")]
+    greetings: Vec<String>,
 }
 
 #[derive(Deserialize, Default)]
@@ -203,8 +220,14 @@ fn check(path: &Path) -> Option<Entry> {
             .get("format")
             .and_then(|f| f.as_str())
             .map(String::from);
-        let c = m.character;
+        let mut c = m.character;
         let display = c.display.or(c.canvas).unwrap_or((0, 0));
+        let greetings = m.office97.strings.greetings;
+        if !greetings.is_empty() {
+            for i in c.info.iter_mut().filter(|i| i.extra.is_empty()) {
+                i.extra = greetings.join("~~");
+            }
+        }
         Ok((c.info, format, display))
     });
     match res {
@@ -292,5 +315,34 @@ mod tests {
         std::fs::create_dir_all(&t).unwrap();
         std::fs::write(t.join("theme.toml"), "").unwrap();
         assert_eq!(find_theme(&[r2.clone(), r1.clone()]), Some(t));
+    }
+
+    /// B-GAL-1: ExtraData from `extra`, and for Office 97 actors from string group 40.
+    #[test]
+    fn b_gal_1_extra_data() {
+        let root = tempdir();
+        let r = root.join("characters");
+        let write = |name: &str, body: &str| {
+            std::fs::create_dir_all(r.join(name)).unwrap();
+            std::fs::write(
+                r.join(name).join("character.toml"),
+                format!("format = 1\n{body}"),
+            )
+            .unwrap();
+        };
+        write(
+            "acs",
+            "family = \"agent\"\n[[character.info]]\nlang = \"en\"\nname = \"A\"\n\
+             extra = \"Hi.~~Ho.^^R.\"\n[[character.info]]\nlang = \"de\"\nname = \"A\"\n",
+        );
+        write(
+            "act",
+            "family = \"office97\"\n[[character.info]]\nlang = \"en\"\nname = \"B\"\n\
+             [office97.strings]\n8 = [\"Desc\"]\n40 = [\"One.\", \"Two.\"]\n",
+        );
+        let e = discover(std::slice::from_ref(&root));
+        assert_eq!(e[0].info[0].extra, "Hi.~~Ho.^^R.");
+        assert_eq!(e[0].info[1].extra, "");
+        assert_eq!(e[1].info[0].extra, "One.~~Two.");
     }
 }

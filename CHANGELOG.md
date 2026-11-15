@@ -7,6 +7,12 @@ D-Bus API (`org.bentwire.Agent1`) and the character format (`format = 1`) are fr
 
 ## [Unreleased]
 
+### Added
+
+- The Choose Assistant gallery shows one of the character's intro phrases (its ExtraData,
+  or the greeting lines of an Office 97 actor) instead of the description, a new one each
+  time the character is shown. Characters without them keep the description.
+
 ## [0.1.3] - 2026-11-15
 
 ### Fixed

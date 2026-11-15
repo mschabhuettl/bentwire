@@ -1113,7 +1113,12 @@ belongs to the original menu.
 **B-GAL-1 Choose Assistant (gallery).** **bentwire decision.**
 - The gallery is an Office balloon, mode modal, next to the character:
   - heading = the candidate's name;
-  - text = its description;
+  - text = one of its intro phrases, otherwise its description. The intro phrases are the
+    part of the ExtraData (`character.info` `extra`, picked per UI language like the
+    description, B-CHAR-3) before `^^`, split at `~~`, empty ones dropped; an Office 97
+    actor without `extra` uses its string group 40 (greeting lines; that this is its
+    intro text is inferred from the text only). With several phrases one is drawn
+    (B-CORE-2) each time the candidate is shown (opening, Back, Next);
   - custom buttons `<&Back`, `&Next>`, `OK`, `Cancel`. German: `<&Zurück`, `&Weiter>`.
     Both verbatim: Back and Next from the MSOINTL 10.0.2609 (1033/1031) Assistant dialog
     template (type 221, id 12), OK and Cancel from OBALLOON 112, 113.
@@ -1128,7 +1133,8 @@ belongs to the original menu.
     B-ASK-7), and while browsing Back and Next stay where they are:
     - one body size for all candidates, set when the gallery opens (and again when the
       catalog, the output or the UI language changes while it is open): the widest
-      landscape shape (R-OB-31) of all candidates' balloons, and at that width the
+      landscape shape (R-OB-31) of all candidates' balloons with each of their intro
+      phrases, and at that width the
       tallest layout. The text starts at the top, the button row sits at the bottom of
       the body. A text that needs more height makes its body taller. If the size does
       not fit the output, or there is no candidate, each balloon is sized as in R-OB-31;

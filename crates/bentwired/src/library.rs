@@ -66,12 +66,16 @@ impl Library {
                     .collect();
                 CatalogEntry {
                     id: e.id.clone(),
+                    // label_info keeps the order of the entries; an added English entry
+                    // has no ExtraData.
                     info: label_info(&e.id, &info, e.format.as_deref(), &pack)
                         .into_iter()
-                        .map(|(lang, name, description)| InfoEntry {
+                        .enumerate()
+                        .map(|(k, (lang, name, description))| InfoEntry {
                             lang,
                             name,
                             description,
+                            extra: e.info.get(k).map(|i| i.extra.clone()).unwrap_or_default(),
                         })
                         .collect(),
                     display: e.display,
@@ -357,6 +361,29 @@ mod tests {
             }
         }
         eprintln!("{} characters, labels non-empty and unique", catalog.len());
+    }
+
+    /// B-GAL-1: the catalog carries the ExtraData of each entry to the core, also when
+    /// label_info adds an English entry.
+    #[test]
+    fn b_gal_1_catalog_carries_extra_data() {
+        use bentwire_core::api::Lang;
+        let root = crate::config::tests::tempdir();
+        let d = root.join("characters/x");
+        std::fs::create_dir_all(&d).unwrap();
+        std::fs::write(
+            d.join("character.toml"),
+            "format = 1\nfamily = \"agent\"\n[[character.info]]\nlang = \"de\"\nname = \"X\"\n\
+             extra = \"Hallo.~~Servus.^^Merken.\"\n",
+        )
+        .unwrap();
+        let catalog = Library::new(vec![root]).catalog();
+        let info = &catalog[0].info;
+        assert_eq!(info.len(), 2, "an English entry is added");
+        assert_eq!(
+            bentwire_core::l10n::intro_phrases(info, Lang::De),
+            ["Hallo.", "Servus."]
+        );
     }
 
     fn copy_dir(from: &Path, to: &Path) {

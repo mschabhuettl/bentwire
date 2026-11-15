@@ -98,7 +98,7 @@ cannot express. All 63 converted manifests validate.
 | `character.canvas` | [w, h] | Frame size in canvas units. For Agent data one unit is one pixel. |
 | `character.display` | [w, h] | Default on-screen size in pixels; default = canvas. |
 | `character.standard_animation_set` | bool | Agent flag 0x100000. |
-| `[[character.info]]` | table array | `lang` (BCP 47), `name`, `description`, `extra`; source order kept. |
+| `[[character.info]]` | table array | `lang` (BCP 47), `name`, `description`, `extra`; source order kept. `extra` is the Agent ExtraData, by convention `Intro1~~Intro2^^Reminder1~~Reminder2`; the daemon shows an intro phrase in the gallery (B-GAL-1). |
 | `[balloon]` | table | `enabled`, `lines`, `chars_per_line`, `fg`, `bg`, `border` (`#RRGGBB`), `font`, `font_height`, `font_weight`, `italic`, `font_flag2`, `size_to_text`, `auto_hide`, `auto_pace`. |
 | `[voice]` | table | `engine`, `mode` (GUIDs), `speed`, `pitch`, optional `language`, `dialect`, `gender`, `age`, `style`. |
 | `[icon]` | table | `file`. |
@@ -447,7 +447,8 @@ while i < frame count:
   `transitions = [[from_pose, to_pose, state], ...]` are the clips played when the last
   logical pose and the next animation's first pose differ (act-format 5.5); `ids` maps state
   names to the numeric `MsoAnimationType` values; `strings` holds the remaining ACT string
-  groups by id.
+  groups by id. The daemon reads group 40 (greeting lines, meaning inferred from the text,
+  act-format 4.12) as the intro phrases when `extra` is empty (B-GAL-1).
 - An ACT script is a flat command list. Its mapping to frames is exact because **all 1,408
   distinct scripts in the 37 sample files consist of units `[sound] frame branch*`**, and
   all 7,217 branch targets point at the start of a unit (6,886 at a frame, 331 at a sound

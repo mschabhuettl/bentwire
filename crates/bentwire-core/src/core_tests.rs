@@ -34,6 +34,7 @@ pub fn character(id: &str, ms: u32) -> CharacterModel {
         lang: "en".into(),
         name: format!("Name {id}"),
         description: format!("Desc {id}"),
+        extra: String::new(),
     });
     for st in [
         "Showing",
@@ -2726,6 +2727,51 @@ fn b_gal_1_balloon_and_buttons_stay_while_browsing() {
     open_gallery(&mut t);
     assert_eq!(scene(&t).body.bottom(), 500 - 4, "above a, not B-OB-4");
     assert_eq!(t.pos(), (500, 500));
+}
+
+/// B-GAL-1: a candidate with ExtraData shows one of its intro phrases instead of the
+/// description, drawn when it is shown; the common size covers every phrase.
+#[test]
+fn b_gal_1_intro_phrase() {
+    let mut a = sized("a", 100, 100, None);
+    a.info[0].extra = format!(
+        "Short hello.~~{}^^A reminder.",
+        "A long intro phrase that needs several lines. ".repeat(4)
+    );
+    let chars = vec![a, sized("b", 100, 100, None)];
+    let mut t = T::with(
+        chars,
+        Some(StateFile {
+            character: "a".into(),
+            left: 500,
+            top: 500,
+            visible: true,
+            chosen: true,
+            ..Default::default()
+        }),
+        vec![],
+    );
+    t.advance(1000);
+    let text = |t: &T| -> String {
+        let s = t.core.scene().office_balloon.unwrap();
+        s.text
+            .iter()
+            .flat_map(|l| l.runs.iter().map(|r| r.text.trim().to_string()))
+            .collect::<Vec<_>>()
+            .join(" ")
+    };
+    let body = |t: &T| t.core.scene().office_balloon.unwrap().body;
+    t.core.set_draws(Box::new(ScriptedDraws::new([1; 64])));
+    open_gallery(&mut t);
+    assert!(text(&t).starts_with("A long intro phrase"), "{}", text(&t));
+    let b0 = body(&t);
+    key(&mut t, Key::Char('n'));
+    assert_eq!(text(&t), "Desc b", "no ExtraData: the description");
+    assert_eq!(body(&t), b0);
+    t.core.set_draws(Box::new(ScriptedDraws::new([0; 64])));
+    key(&mut t, Key::Char('b'));
+    assert_eq!(text(&t), "Short hello.");
+    assert_eq!(body(&t), b0, "sized for the longest phrase");
 }
 
 /// B-GAL-1: the common size follows the output (a smaller one: too big for it, so each

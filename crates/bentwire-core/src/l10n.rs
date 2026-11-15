@@ -164,6 +164,19 @@ pub fn display_names(info: &[InfoEntry], lang: Lang) -> (String, String) {
     )
 }
 
+/// B-GAL-1: the intro phrases of the ExtraData for the UI language (the part before `^^`,
+/// split at `~~`, empty phrases dropped).
+pub fn intro_phrases(info: &[InfoEntry], lang: Lang) -> Vec<String> {
+    let extra = pick(info, lang, |e| &e.extra);
+    let intros = extra.split("^^").next().unwrap_or_default();
+    intros
+        .split("~~")
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+        .map(String::from)
+        .collect()
+}
+
 /// B-CHAR-4: candidate ids in order (state file, config, `clippit`, the builtin
 /// placeholder, sorted first). The caller tries to load each in turn.
 pub fn startup_candidates(
@@ -266,6 +279,7 @@ mod tests {
             lang: lang.into(),
             name: name.into(),
             description: desc.into(),
+            extra: String::new(),
         }
     }
 
@@ -297,6 +311,34 @@ mod tests {
         let info3 = vec![ie("fr", "Caillou", "x"), ie("en", "Pebble", "y")];
         assert_eq!(display_names(&info3, Lang::De).0, "Pebble");
         assert_eq!(display_names(&[ie("fr", "Caillou", "")], Lang::De).0, "");
+    }
+
+    #[test]
+    fn b_gal_1_intro_phrases() {
+        let x = |lang: &str, extra: &str| InfoEntry {
+            extra: extra.into(),
+            ..ie(lang, "N", "D")
+        };
+        let info = vec![
+            x(
+                "en",
+                " Hi there.~~~~How are you? ^^Remember this.~~Do not forget.",
+            ),
+            x("de", "Hallo."),
+        ];
+        assert_eq!(
+            intro_phrases(&info, Lang::En),
+            ["Hi there.", "How are you?"]
+        );
+        assert_eq!(intro_phrases(&info, Lang::De), ["Hallo."]);
+        // Only reminders, or no ExtraData: no phrase.
+        assert!(intro_phrases(&[x("en", "^^Remember.")], Lang::En).is_empty());
+        assert!(intro_phrases(&[ie("en", "N", "D")], Lang::De).is_empty());
+        // A language without ExtraData falls back as B-CHAR-3 does.
+        assert_eq!(
+            intro_phrases(&[x("fr", "Bonjour."), x("en", "Hello.")], Lang::De),
+            ["Hello."]
+        );
     }
 
     #[test]

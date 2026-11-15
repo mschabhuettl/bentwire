@@ -164,6 +164,9 @@ struct Gallery {
     /// or no candidates), and the output size and language it was computed for.
     size: Option<(i32, i32)>,
     size_for: (i32, i32, Lang),
+    /// The intro phrase shown for the current candidate (index modulo its phrases),
+    /// drawn when the candidate is shown.
+    intro: usize,
 }
 
 struct Press {
@@ -1747,11 +1750,13 @@ impl Core {
         }
         self.rescan(false);
         let index = self.catalog.iter().position(|e| e.id == id).unwrap_or(0);
+        let intro = self.draw_intro(index);
         self.gallery = Some(Gallery {
             original: id,
             index,
             size: None,
             size_for: self.size_key(),
+            intro,
         });
         self.refresh_gallery_size();
         let model = self.gallery_model();
@@ -1804,7 +1809,22 @@ impl Core {
     }
 
     fn gallery_model(&self) -> AskModel {
-        self.gallery_model_at(self.gallery.as_ref().expect("gallery").index)
+        let g = self.gallery.as_ref().expect("gallery");
+        self.gallery_model_at(g.index, g.intro)
+    }
+
+    fn intro_count(&self, index: usize) -> usize {
+        self.catalog
+            .get(index)
+            .map_or(0, |e| l10n::intro_phrases(&e.info, self.lang).len())
+    }
+
+    /// B-GAL-1: which intro phrase the candidate shows (a draw only when it has several).
+    fn draw_intro(&mut self, index: usize) -> usize {
+        match self.intro_count(index) {
+            n @ 2.. => self.draws.draw(n as u32) as usize,
+            _ => 0,
+        }
     }
 
     /// B-GAL-1: one body size for every candidate, so the buttons stay in place while
@@ -1812,25 +1832,36 @@ impl Core {
     fn common_gallery_size(&self) -> Option<(i32, i32)> {
         let m = self.output_rect();
         let cx = office::Ctx::new(self.metrics.as_ref(), m.w);
+        // Every intro phrase of every candidate, so no phrase makes the body taller.
         let models: Vec<AskModel> = (0..self.catalog.len())
-            .map(|i| self.gallery_model_at(i))
+            .flat_map(|i| (0..self.intro_count(i).max(1)).map(move |j| (i, j)))
+            .map(|(i, j)| self.gallery_model_at(i, j))
             .collect();
         let (w, h) = office::common_size(&models, &cx);
         (!models.is_empty() && w + 16 <= m.w && h + 16 <= m.h).then_some((w, h))
     }
 
-    fn gallery_model_at(&self, index: usize) -> AskModel {
+    fn gallery_model_at(&self, index: usize, intro: usize) -> AskModel {
         let (name, desc) = self
             .catalog
             .get(index)
             .map(|e| l10n::display_names(&e.info, self.lang))
             .unwrap_or_default();
+        let intros = self
+            .catalog
+            .get(index)
+            .map(|e| l10n::intro_phrases(&e.info, self.lang))
+            .unwrap_or_default();
+        let text = match intros.len() {
+            0 => desc,
+            n => intros[intro % n].clone(),
+        };
         let caps = l10n::gallery_captions(self.lang);
         let n = self.catalog.len();
         let enabled = [index > 0, index + 1 < n, true, true];
         AskModel {
             heading: name,
-            text: office::markup(&desc),
+            text: office::markup(&text),
             icon: None,
             labels: Vec::new(),
             label_type: LabelType::Buttons,
@@ -1867,7 +1898,9 @@ impl Core {
                     }
                 };
                 let Some((ni, m)) = found else { return };
-                self.gallery.as_mut().unwrap().index = ni;
+                let intro = self.draw_intro(ni);
+                let g = self.gallery.as_mut().unwrap();
+                (g.index, g.intro) = (ni, intro);
                 self.switch_to(m, true, false);
                 if let Some(c) = &self.ch
                     && let Ok(res) = fallback::resolve(&c.model, "Wave")

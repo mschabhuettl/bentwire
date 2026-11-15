@@ -18,6 +18,8 @@ pub struct InfoEntry {
     pub lang: String,
     pub name: String,
     pub description: String,
+    /// Raw ExtraData (`Intro1~~Intro2^^Reminder1~~Reminder2`, B-GAL-1); empty if none.
+    pub extra: String,
 }
 
 /// `[balloon]` of the manifest, with the R-BAL-1/R-BAL-2 defaults applied by the adapter

@@ -184,6 +184,7 @@ pub fn model_from(id: &str, c: &Character) -> CharacterModel {
                 lang: i.lang.clone(),
                 name: i.name.clone(),
                 description: i.description.clone().unwrap_or_default(),
+                extra: i.extra.clone().unwrap_or_default(),
             })
             .collect(),
         balloon: balloon(m.balloon.as_ref()),
