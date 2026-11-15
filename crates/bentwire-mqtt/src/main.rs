@@ -92,10 +92,25 @@ fn config_path() -> PathBuf {
     base.join("bentwire/mqtt.toml")
 }
 
+/// A config error without the source snippet, and without the message on a `password`
+/// line, so that the password never reaches the log.
+fn toml_error(text: &str, e: &toml::de::Error) -> String {
+    let Some(span) = e.span() else {
+        return e.message().to_string();
+    };
+    let line = text[..span.start].matches('\n').count();
+    let src = text.lines().nth(line).unwrap_or("");
+    if src.trim_start().starts_with("password") {
+        format!("line {}: bad password value", line + 1)
+    } else {
+        format!("line {}: {}", line + 1, e.message())
+    }
+}
+
 /// The config file (missing = defaults), then the command line options.
 fn load_config(text: Option<&str>, args: &[String]) -> Result<Config, String> {
     let mut c: Config = match text {
-        Some(t) => toml::from_str(t).map_err(|e| e.to_string())?,
+        Some(t) => toml::from_str(t).map_err(|e| toml_error(t, &e))?,
         None => Config::default(),
     };
     let mut it = args.iter();
@@ -750,6 +765,15 @@ mod tests {
             "a/b"
         );
         assert!(load_config(Some("hots = \"x\""), &[]).is_err());
+        for bad in [
+            "host = \"h\"\npassword = \"s3cret\\q\"\n",
+            "password = 12345\n",
+            "password = s3cret\n",
+            "password = \"s3cret\"\npassword = \"s3cret2\"\n",
+        ] {
+            let e = load_config(Some(bad), &[]).err().unwrap();
+            assert!(!e.contains("s3cret") && !e.contains("12345"), "{e}");
+        }
         assert!(load_config(None, &["--base".into(), "a/#".into()]).is_err());
         assert!(load_config(None, &["--port".into()]).is_err());
         assert!(load_config(None, &["--bogus".into()]).is_err());

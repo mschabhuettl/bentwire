@@ -2074,7 +2074,8 @@ three installed ids within edit distance 2 or that extend the id with `-`
   ignored), `ask` = `Ask`: a payload starting with `{` is a JSON object whose values are
   strings or lists of strings, passed as the `a{sv}` keys of B-ASK-1; any other payload
   is `{"text": payload}`. Retained command messages are ignored. Method errors are
-  logged.
+  logged. A command while bentwired does not run starts it through D-Bus activation,
+  as the CLI does.
 - Answers: when an ask ends, `<base>/answer` gets the result name of the CLI (5.5:
   B-L10N-2 names, `button:<n>`, `label:<n>`, `none`), not retained. An ask with
   `checkboxes` first gets `<base>/answer/checked` = comma-separated 0 or 1 values. An ask

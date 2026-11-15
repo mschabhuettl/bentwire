@@ -389,12 +389,11 @@ fn b_mqtt_1_round_trips_with_a_broker() {
         assert_eq!(v["availability_topic"], t("status"));
     }
 
-    // The daemon goes away and comes back.
+    // The daemon goes away and comes back (visible, from its state file).
+    r.advance(2000);
     r.daemon.take();
     r.expect(&t("state"), "hidden");
     r.start_daemon(&bin);
-    // The restarted daemon follows its state file; a show through the bridge still works.
-    send("show", "");
     r.expect(&t("state"), "visible");
 
     // SIGTERM: offline (retained), exit 0, no password in the log.
