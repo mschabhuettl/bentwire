@@ -47,8 +47,9 @@ through signals:
 `status` is 0 complete, 1 failed, 3 interrupted; `reason` is `""` on success, otherwise an
 error name from [the table below](#request-reasons) (B-Q-2, B-Q-3).
 
-These four signals (and `Bookmark`) are **unicast**: they go only to the unique name of
-the connection that made the call (B-Q-2). Two consequences for clients:
+`RequestStart`, `AskComplete`, `RequestComplete` and `Bookmark` are **unicast**: they go
+only to the unique name of the connection that made the call (B-Q-2). Two consequences
+for clients:
 
 - Wait on the same connection that made the call, and set up your signal handling before
   the call, so that nothing is missed. The method reply is always sent before the first
@@ -181,8 +182,10 @@ Method errors (the call fails; spec 5.4):
 | `org.bentwire.Error.NotSupported` | `Ask` with `mode = modeless` |
 | `org.freedesktop.DBus.Error.InvalidArgs` | wrong argument types, unknown `Ask` keys, unknown `StopAll` types, reserved bookmark numbers, `Scale` outside 1 to 4 |
 
-The standard `UnknownMethod`, `UnknownObject`, `UnknownProperty` and `PropertyReadOnly`
-errors of `org.freedesktop.DBus.Error` are used as their names say.
+Standard errors: `org.freedesktop.DBus.Error.UnknownMethod` and `UnknownObject` for
+unknown members and paths, `UnknownProperty` for `Get` of an unknown property, and
+`PropertyReadOnly` for every `Set` other than `Scale` and `IdleOn` (also for an unknown
+property). `GetAll` of an unknown interface returns an empty map.
 
 <a id="request-reasons"></a>Request reasons (the `reason` of `RequestComplete`):
 
@@ -206,7 +209,8 @@ A-DESK-3); it is not part of the API and is left out of the XML.
 ## Introspection XML
 
 [dbus/org.bentwire.Agent.xml](dbus/org.bentwire.Agent.xml) holds the two interfaces as the
-daemon introspects them; feed it to `gdbus-codegen`, `zbus-xmlgen file` or similar. The
+daemon introspects them, without the standard interfaces, in one `<node>` so that code
+generators such as `gdbus-codegen` take it as it is. The
 test `spec_5_1_introspection_matches_docs_dbus_xml` in `crates/bentwired/tests/e2e.rs`
 (part of `cargo test --workspace`) starts `bentwired --headless` on a private bus, calls
 `Introspect` on both objects and fails if the file differs. After an API change,
@@ -237,7 +241,8 @@ until Ctrl+C.
 | [example.js](dbus/examples/example.js) | Node.js and `npm install dbus-next` | `node docs/dbus/examples/example.js` |
 
 The Rust example is a cargo example of the `bentwire` crate, so `cargo build --workspace
---all-targets` and `cargo test --workspace` compile it.
+--all-targets` and `cargo test --workspace` compile it. The shell example needs a bus
+that supports `BecomeMonitor`; it was tested with dbus-daemon, not with dbus-broker.
 
 One-off calls from a shell:
 
