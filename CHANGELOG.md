@@ -7,6 +7,13 @@ D-Bus API (`org.bentwire.Agent1`) and the character format (`format = 1`) are fr
 
 ## [Unreleased]
 
+### Fixed
+
+- After Animate! a notification or any other client request no longer waits forever
+  behind a looping animation: the client request ends the Animate! play.
+- Gallery: Microsoft Bob greetings with a user name placeholder and the licence string of
+  Agent 1.5 characters are no longer shown as intro phrases.
+
 ## [0.2.0] - 2026-11-15
 
 ### Added
