@@ -202,6 +202,27 @@ character's AutoHide. Reason: a package installs only the placeholder; the class
 the user's own download. With AutoHide the hint was gone about 4 s after it appeared
 (7 words at 352 ms plus 1500 ms), too short to read and type the command.
 
+**B-CHAR-7 Sheet cache and preload.** **bentwire decision.**
+- The daemon keeps each decoded sheet file (character-format 5.1, 5.2) as one file in
+  `$XDG_CACHE_HOME/bentwire/sheets/` (default `~/.cache/bentwire/sheets/`) and maps it
+  read-only on later loads instead of decoding the PNG. The entry holds the pixels in
+  the loader's memory form (indexed files stay 1 byte per pixel with their PLTE and tRNS).
+- Key: SHA-256 of a cache format version, the character's path (folder or `.bwc`), the
+  file's package path, and the length and CRC-32 of the PNG bytes. A changed file gets a
+  new key, so an entry is never stale.
+- An entry is used only when its magic, version, key, dimensions (A-CHAR-4 limits) and
+  exact length match; the pixels themselves carry no checksum. Anything else is decoded
+  as without a cache and the entry is written again. A failed decode is not cached.
+- Entries are written in a background thread to a temp file, synced and renamed, and
+  removed only by unlink, so a mapping never sees a partial or shrinking file. After each
+  write the directory is trimmed to 512 MiB, least recently used first (a hit refreshes
+  the modification time). An unwritable cache directory is logged once and loading goes
+  on without the cache.
+- At start the daemon begins loading the first B-CHAR-4 candidate in a thread right after
+  discovery; the startup selection takes that result. Selection itself is unchanged.
+Reason: decoding the PNG sheets was most of a character's load time (up to about 230 ms
+for the largest Office 97 actors); a gallery walk loads every character, hence the bound.
+
 **B-CHAR-5 Switching (`Select`, gallery).**
 1. Every queued, running or in-progress request of the old character ends with status 3
    and the reason `org.bentwire.Error.CharacterChanged`. An open client ask balloon
@@ -1514,6 +1535,9 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   is empty. Reason: D8 "only complete characters", decided in code, not by list.
 - **A-CHAR-1** With only `builtin` installed, B-CHAR-4 selects `bentwire-placeholder`
   (step 4, also before characters of other packs that sort first).
+- **B-CHAR-7** Decoded sheets are cached in `$XDG_CACHE_HOME/bentwire/sheets/` and
+  mapped on load; the startup character is loaded in a thread during the daemon start.
+  Reason: a faster first frame (issue #15).
 - **A-THEME-1** The Office balloon theme is pack data with a generic loader; the
   look-alike of B-OB-1 is the fallback.
 - **A-TEST-1** Real-data tests use `BENTWIRE_SOURCES` (the original files, found by name
