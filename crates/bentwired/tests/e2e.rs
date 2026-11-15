@@ -1279,7 +1279,11 @@ fn b_cli_1_install_on_a_terminal_prints_no_progress_bars() {
     let e = Env::new("installtty");
     let url = fake_release(&e.dir, "9.9.1");
     let mut c = std::process::Command::new("script");
-    c.args(["-qec", "\"$BW_CLI\" characters install classics", "/dev/null"]);
+    c.args([
+        "-qec",
+        "\"$BW_CLI\" characters install classics",
+        "/dev/null",
+    ]);
     for (k, v) in e.envs() {
         c.env(k, v);
     }
