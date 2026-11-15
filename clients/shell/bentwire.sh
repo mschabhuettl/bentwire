@@ -7,7 +7,10 @@
 #   - a failed command: an attention animation and "It looks like your build failed."
 #     (or a matching sentence for tests and other commands);
 #   - a long-running command: after BENTWIRE_LONG_SECONDS it plays Processing, and when
-#     the command ends it congratulates you (or tells you it failed).
+#     the command ends it congratulates you (or tells you it failed);
+#   - a command that is not found (opt-in, BENTWIRE_SHELL_NOT_FOUND=1): it plays Searching
+#     and says so. The shell's usual message and status 127 stay, and a handler defined
+#     before this file is sourced (pkgfile, command-not-found) still runs.
 #
 # Only the `bentwire` CLI is used. Every call runs in the background with a short timeout,
 # so the prompt never waits, and nothing is sent when bentwired is not running.
@@ -18,6 +21,8 @@
 #   BENTWIRE_SHELL_IGNORE="..." commands that never count as long-running (interactive
 #                               programs); default below
 #   BENTWIRE_CLI=bentwire       the CLI to call
+#   BENTWIRE_SHELL_NOT_FOUND=1  install the command-not-found handler (read when this file
+#                               is sourced)
 
 [ -n "${BASH_VERSION:-}${ZSH_VERSION:-}" ] || return 0
 case $- in *i*) ;; *) return 0 ;; esac
@@ -155,7 +160,12 @@ _bw_timer_fire() { # <token>
 
 # Called before each prompt with the status of the command that just finished.
 _bw_precmd() { # <status>
-    local rc=$1
+    local rc=$1 nf=
+    # a miss the not-found handler already reported (the marker is cleared at every prompt)
+    if [ -n "${_bw_nf_file:-}" ] && [ -e "$_bw_nf_file" ]; then
+        rm -f "$_bw_nf_file"
+        nf=1
+    fi
     [ -n "${_bw_cmd+x}" ] || return 0
     local cmd=$_bw_cmd elapsed=$((SECONDS - ${_bw_start:-$SECONDS})) token=
     unset _bw_cmd
@@ -166,7 +176,7 @@ _bw_precmd() { # <status>
     [ "${BENTWIRE_SHELL_OFF:-}" = 1 ] && token=
     [ "${BENTWIRE_SHELL_OFF:-}" = 1 ] && [ -z "$token" ] && return 0
     local text=
-    case $rc in 0|130|148) ;; *) text=$(_bw_failure_text "$cmd" "$rc") ;; esac
+    case $rc:$nf in 0:*|130:*|148:*|127:1) ;; *) text=$(_bw_failure_text "$cmd" "$rc") ;; esac
     [ -z "$token" ] && [ -z "$text" ] && return 0
     # Whether Processing was sent is known only under the send lock (the timer marks it
     # there), so the decision runs in the background too and the prompt never waits.
@@ -199,8 +209,44 @@ _bw_finish() { # <token or ""> <status> <failure text or ""> <seconds> <command 
 _bw_exit() {
     [ "${ZSH_SUBSHELL:-0}" = 0 ] || return 0
     # only the timer token: detached sends may still need the .lock and .long files
-    rm -f "$(_bw_state_file)" 2>/dev/null
+    rm -f "$(_bw_state_file)" "${_bw_nf_file:-}" 2>/dev/null
 }
+
+# The command-not-found handler (runs in a subshell in bash and zsh; $$ is still the
+# interactive shell). A previous handler, saved as _bw_nf_prev, decides message and status.
+_bw_not_found() { # <command> [args...]
+    if [ "${BENTWIRE_SHELL_OFF:-}" != 1 ]; then
+        : >"$_bw_nf_file" 2>/dev/null # precmd must not report the 127 a second time
+        _bw_send play Searching -- say "I can't find the command \"$1\"."
+    fi
+    if [ -n "${_bw_nf_chain:-}" ]; then
+        _bw_nf_prev "$@"
+        return
+    fi
+    if [ -n "${ZSH_VERSION:-}" ]; then
+        printf 'zsh: command not found: %s\n' "$1" >&2
+    else
+        printf 'bash: %s: command not found\n' "$1" >&2
+    fi
+    return 127
+}
+
+if [ "${BENTWIRE_SHELL_NOT_FOUND:-}" = 1 ]; then
+    if [ -n "${ZSH_VERSION:-}" ]; then _bw_nf_name=command_not_found_handler; else _bw_nf_name=command_not_found_handle; fi
+    _bw_def=$(declare -f "$_bw_nf_name" 2>/dev/null)
+    case $_bw_def in
+        *_bw_not_found*) ;; # sourced again: already installed, never chain to ourselves
+        *)
+            if [ -n "$_bw_def" ]; then
+                eval "_bw_nf_prev${_bw_def#"$_bw_nf_name"}"
+                _bw_nf_chain=1
+            fi
+            _bw_nf_file=$(_bw_state_file).nf
+            eval "$_bw_nf_name() { _bw_not_found \"\$@\"; }"
+            ;;
+    esac
+    unset _bw_def _bw_nf_name
+fi
 
 if [ -n "${ZSH_VERSION:-}" ]; then
     _bw_zsh_preexec() { _bw_preexec "$1"; }
