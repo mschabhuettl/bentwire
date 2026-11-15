@@ -92,15 +92,15 @@ fn config_path() -> PathBuf {
     base.join("bentwire/mqtt.toml")
 }
 
-/// A config error without the source snippet, and without the message on a `password`
-/// line, so that the password never reaches the log.
+/// A config error without the source snippet, and without the message on a line that
+/// mentions `password`, so that the password never reaches the log.
 fn toml_error(text: &str, e: &toml::de::Error) -> String {
     let Some(span) = e.span() else {
         return e.message().to_string();
     };
     let line = text[..span.start].matches('\n').count();
     let src = text.lines().nth(line).unwrap_or("");
-    if src.trim_start().starts_with("password") {
+    if src.contains("password") {
         format!("line {}: bad password value", line + 1)
     } else {
         format!("line {}: {}", line + 1, e.message())
@@ -269,7 +269,6 @@ enum Ev {
     Visible(bool),
     AskComplete(u32, i32, Vec<bool>),
     RequestComplete(u32, u32, String),
-    Quit,
 }
 
 fn signal_event(m: &Message) -> Option<Ev> {
@@ -316,7 +315,10 @@ fn add_match(conn: &Connection, rule: &str) -> zbus::Result<()> {
 fn dbus_thread(tx: Sender<Ev>) {
     let mut logged = false;
     loop {
-        let r = Connection::session().and_then(|conn| {
+        let r = zbus::blocking::connection::Builder::session()
+            .map(|b| b.method_timeout(Duration::from_secs(25)))
+            .and_then(|b| b.build())
+            .and_then(|conn| {
             // Before any call, so that no unicast AskComplete is missed.
             let it = MessageIterator::from(&conn);
             add_match(
@@ -394,23 +396,18 @@ fn mqtt_thread(
     let _ = done.send(());
 }
 
-/// Blocks SIGTERM and SIGINT in every thread and turns them into `Ev::Quit`.
-fn signal_thread(tx: Sender<Ev>) {
+/// Blocks SIGTERM and SIGINT in this thread and every thread spawned after it; the
+/// returned set is for `sigwait`.
+fn block_signals() -> libc::sigset_t {
     // SAFETY: plain libc calls on a local, initialised signal set.
-    let set = unsafe {
+    unsafe {
         let mut set: libc::sigset_t = std::mem::zeroed();
         libc::sigemptyset(&mut set);
         libc::sigaddset(&mut set, libc::SIGTERM);
         libc::sigaddset(&mut set, libc::SIGINT);
         libc::pthread_sigmask(libc::SIG_BLOCK, &set, std::ptr::null_mut());
         set
-    };
-    std::thread::spawn(move || {
-        let mut sig = 0;
-        // SAFETY: `set` is a valid signal set, `sig` a valid out pointer.
-        unsafe { libc::sigwait(&set, &mut sig) };
-        let _ = tx.send(Ev::Quit);
-    });
+    }
 }
 
 /// An open ask: had check boxes, and its AskComplete (result, checked) once seen.
@@ -606,7 +603,6 @@ impl Bridge {
                     self.publish_answer(cb, result, &checked);
                 }
             }
-            Ev::Quit => {}
         }
     }
 }
@@ -622,7 +618,14 @@ fn main() -> std::process::ExitCode {
         return std::process::ExitCode::SUCCESS;
     }
     let path = config_path();
-    let text = std::fs::read_to_string(&path).ok();
+    let text = match std::fs::read_to_string(&path) {
+        Ok(t) => Some(t),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+        Err(e) => {
+            eprintln!("bentwire-mqtt: {}: {e}", path.display());
+            return std::process::ExitCode::from(1);
+        }
+    };
     let cfg = match load_config(text.as_deref(), &args) {
         Ok(c) => c,
         Err(e) => {
@@ -643,8 +646,8 @@ fn main() -> std::process::ExitCode {
         cfg.host, cfg.port, cfg.base_topic
     );
 
+    let signals = block_signals();
     let (tx, rx) = channel();
-    signal_thread(tx.clone());
     let (mqtt, connection) = Client::new(opts, 64);
     let quitting = Arc::new(AtomicBool::new(false));
     let (done_tx, done_rx) = channel();
@@ -652,29 +655,29 @@ fn main() -> std::process::ExitCode {
         let (tx, q) = (tx.clone(), quitting.clone());
         std::thread::spawn(move || mqtt_thread(connection, tx, q, done_tx));
     }
-    {
-        let tx = tx.clone();
-        std::thread::spawn(move || dbus_thread(tx));
-    }
-    drop(tx);
+    std::thread::spawn(move || dbus_thread(tx));
     let mut b = Bridge {
         cfg,
-        mqtt,
+        mqtt: mqtt.clone(),
         mqtt_up: false,
         bus: None,
         visible: false,
         asks: HashMap::new(),
     };
-    for ev in rx.iter() {
-        if matches!(ev, Ev::Quit) {
-            break;
+    // The bridge runs on its own thread so that a D-Bus call that hangs cannot block the
+    // shutdown below.
+    std::thread::spawn(move || {
+        for ev in rx.iter() {
+            b.handle(ev);
         }
-        b.handle(ev);
-    }
+    });
+    let mut sig = 0;
+    // SAFETY: `signals` is a valid signal set, `sig` a valid out pointer.
+    unsafe { libc::sigwait(&signals, &mut sig) };
     // Shutdown: offline (retained), then a clean disconnect so the last will is not sent.
     quitting.store(true, Ordering::Relaxed);
-    b.publish(status, true, "offline".into());
-    let _ = b.mqtt.try_disconnect();
+    let _ = mqtt.try_publish(&status, QoS::AtLeastOnce, true, "offline");
+    let _ = mqtt.try_disconnect();
     let _ = done_rx.recv_timeout(Duration::from_secs(3));
     eprintln!("bentwire-mqtt: stopped");
     std::process::ExitCode::SUCCESS
@@ -769,6 +772,7 @@ mod tests {
             "host = \"h\"\npassword = \"s3cret\\q\"\n",
             "password = 12345\n",
             "password = s3cret\n",
+            "\"password\" = 12345\n",
             "password = \"s3cret\"\npassword = \"s3cret2\"\n",
         ] {
             let e = load_config(Some(bad), &[]).err().unwrap();
