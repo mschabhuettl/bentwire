@@ -19,7 +19,7 @@ struct StreamEvents {
     state_changed: Option<unsafe extern "C" fn(*mut c_void, c_int, c_int, *const c_char)>,
     control_info: Option<unsafe extern "C" fn()>,
     io_changed: Option<unsafe extern "C" fn()>,
-    param_changed: Option<unsafe extern "C" fn()>,
+    param_changed: Option<unsafe extern "C" fn(*mut c_void, u32, *const c_void)>,
     add_buffer: Option<unsafe extern "C" fn()>,
     remove_buffer: Option<unsafe extern "C" fn()>,
     process: Option<unsafe extern "C" fn(*mut c_void)>,
@@ -70,8 +70,11 @@ const EVENTS_VERSION: u32 = 2;
 const STATE_ERROR: c_int = -1;
 const STATE_UNCONNECTED: c_int = 0;
 const STATE_STREAMING: c_int = 3;
-/// How long a new stream may take to be linked to an output. A PipeWire without an
-/// audio sink or session manager never links it; ALSA is tried then, within OPEN_WAIT.
+/// SPA_PARAM_Format: set on the stream's port when the session manager links it.
+const PARAM_FORMAT: u32 = 4;
+/// How long a new stream may take to be linked to an output (its format negotiated,
+/// before a suspended device resumes). A PipeWire without an audio sink or session
+/// manager never links it; ALSA is tried then, within OPEN_WAIT.
 const LINK_WAIT: Duration = Duration::from_millis(300);
 const DIRECTION_OUTPUT: c_int = 1;
 const ID_ANY: u32 = u32::MAX;
@@ -85,7 +88,7 @@ static EVENTS: StreamEvents = StreamEvents {
     state_changed: Some(on_state_changed),
     control_info: None,
     io_changed: None,
-    param_changed: None,
+    param_changed: Some(on_param_changed),
     add_buffer: None,
     remove_buffer: None,
     process: Some(on_process),
@@ -197,6 +200,8 @@ struct Feed {
     draining: bool,
     /// The stream's last `pw_stream_state`.
     state: c_int,
+    /// The stream's format was negotiated.
+    linked: bool,
 }
 
 /// What the callbacks see. Boxed: its address is the callbacks' data.
@@ -250,9 +255,15 @@ pub(super) fn open(
     }
     let t = Instant::now();
     loop {
-        let state = pw.shared.feed.lock().unwrap().state;
+        let (state, linked) = {
+            let f = pw.shared.feed.lock().unwrap();
+            (f.state, f.linked)
+        };
         match state {
-            STATE_STREAMING => return Ok(Box::new(pw)),
+            _ if linked || state == STATE_STREAMING => {
+                log::debug!("pipewire: stream linked after {:?}", t.elapsed());
+                return Ok(Box::new(pw));
+            }
             STATE_ERROR => break,
             _ if t.elapsed() >= LINK_WAIT => {
                 return Err(format!("no audio output linked within {LINK_WAIT:?}"));
@@ -458,6 +469,14 @@ unsafe extern "C" fn on_process(data: *mut c_void) {
         if end {
             (sh.lib.stream_flush)(stream, true);
         }
+    }
+}
+
+unsafe extern "C" fn on_param_changed(data: *mut c_void, id: u32, param: *const c_void) {
+    // SAFETY: the data is the stream's `Shared`.
+    let sh = unsafe { &*(data as *const Shared) };
+    if id == PARAM_FORMAT && !param.is_null() {
+        sh.feed.lock().unwrap().linked = true;
     }
 }
 
