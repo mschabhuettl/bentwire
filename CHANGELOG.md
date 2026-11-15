@@ -7,6 +7,28 @@ D-Bus API (`org.bentwire.Agent1`) and the character format (`format = 1`) are fr
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-11-15
+
+### Fixed
+
+- Sound works on PulseAudio and PipeWire desktops without pipewire-alsa or
+  pulseaudio-alsa. bentwired now plays through the running sound server: the PulseAudio
+  protocol first (PulseAudio, or PipeWire with pipewire-pulse), then PipeWire's own
+  protocol, then ALSA's default device. The client libraries are loaded at run time and
+  are not package dependencies.
+- The log says once which audio backend is used (`audio: pulse`, `audio: pipewire`,
+  `audio: alsa <device>`), and once when one fails and the next is tried.
+- ALSA's device list is read only when the default device fails, so the journal no longer
+  fills with JACK, OSS and dsnoop errors on every sound.
+- Drag: a drag that starts on a fractionally scaled output (for example 1.5) no longer
+  lags behind the cursor. The character is drawn once per batch of pointer events and
+  only moved while its picture is unchanged.
+- Choose Assistant: the balloon keeps its size and place while browsing, so Back and Next
+  stay under the mouse, also in a screen corner and at size 3x.
+- First start: the "Install more characters" hint stays until you click the character.
+- `bentwire characters install classics` no longer prints curl progress bars; it prints
+  one line for the download.
+
 ## [0.1.2] - 2026-11-12
 
 ### Added
@@ -141,7 +163,8 @@ First release.
 - Configuration file `~/.config/bentwire/config.toml`, reloaded on `SIGHUP`.
 - Documentation: behaviour spec, format research, sources, credits, decisions, roadmap.
 
-[Unreleased]: https://github.com/mschabhuettl/bentwire/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/mschabhuettl/bentwire/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/mschabhuettl/bentwire/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/mschabhuettl/bentwire/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/mschabhuettl/bentwire/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/mschabhuettl/bentwire/releases/tag/v0.1.0

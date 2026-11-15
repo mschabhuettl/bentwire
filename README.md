@@ -315,7 +315,9 @@ Please check on a Plasma desktop with real hardware:
 - Clicking the tray icon and its menu inside Plasma's system tray (tested only against a
   minimal watcher: menu labels, a menu click, Activate).
 - Output hot-plug on KWin (tested on sway).
-- Sound through a real audio device (headless runs log sounds with their duration).
+- Sound through a real sound card. Sound was tested against PulseAudio, PipeWire (with
+  and without pipewire-pulse) and ALSA in containers with a null sink
+  (`scripts/audio-backends.sh`).
 - Pixels under KWin: the nested KWin's output was captured and checked by eye, and the
   captures are byte-identical across runs, but there is no automated comparison against
   expected images. KWin composited with QPainter there, without OpenGL.
