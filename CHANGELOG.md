@@ -13,6 +13,10 @@ D-Bus API (`org.bentwire.Agent1`) and the character format (`format = 1`) are fr
   behind a looping animation: the client request ends the Animate! play.
 - Gallery: Microsoft Bob greetings with a user name placeholder and the licence string of
   Agent 1.5 characters are no longer shown as intro phrases.
+- Gallery: the Choose Assistant balloon no longer jumps while browsing when the character
+  stands in the middle or upper part of the screen or at a size factor of 3 or 4, no longer
+  moves when the pointer touches a button, reopens where it was closed, and after a size
+  change moves once and then stays.
 
 ## [0.2.0] - 2026-11-15
 
