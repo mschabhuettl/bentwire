@@ -1166,16 +1166,19 @@ belongs to the original menu.
       tallest layout. The text starts at the top, the button row sits at the bottom of
       the body. A text that needs more height makes its body taller. If the size does
       not fit the output, or there is no candidate, each balloon is sized as in R-OB-31;
-    - placed once when the gallery opens (B-OB-3) next to the envelope of all candidates
-      instead of the character: the widest and the tallest frame of the catalog
-      (`display` times the size factor), its bottom centre on the character's B-CHAR-5
-      foot, pulled inside the output. When the tallest frame does not fit above the foot,
-      or that placement would need B-OB-4, it is placed next to the character itself;
+    - placed (B-OB-3) next to the envelope of all candidates instead of the character:
+      the widest and the tallest frame of the catalog (`display` times the size factor),
+      its bottom centre on the character's B-CHAR-5 foot, pulled inside the output as a
+      switch pulls a frame. All four candidates count, so without room above the
+      envelope it goes beside it. Only when every candidate would need B-OB-4 is it
+      placed next to the character itself. This holds for every placement while the
+      gallery is open: opening, a switch where it cannot stay, a size factor or output
+      change, the end of a drag;
     - after a switch it stays where it is (keeping its corner next to the tail) while its
       window is inside the output, its body does not cover the opaque box of the new
-      character's rest picture and it overlaps the new frame along the other axis,
-      however far the new character is from it; the tail may then not reach a small
-      character. Otherwise it is placed again next to the character (B-OB-3, B-OB-4);
+      character's rest picture and it overlaps the envelope at the new character's foot
+      along the other axis, however far the new character is from it; the tail may then
+      not reach a small character. Otherwise it is placed again;
   - it is not a client request: no request id and no signals other than `Shown`,
     `Hidden`, `Move` and the balloon signals.
 - Opening the gallery while a client ask is open first closes that ask with result 0,
@@ -1190,7 +1193,13 @@ belongs to the original menu.
   envelope: in 0.1.2 the balloon was sized per text and kept only within 16 px of a new
   placement, so with characters of different sizes (a corner, a size factor of 3) it
   moved on almost every Next (98 and 112 of 122 steps through builtin and classics) and
-  Next was no longer under the pointer.
+  Next was no longer under the pointer. Envelope on any side, pulled inside, and kept
+  against the envelope: in 0.2.0 the envelope had to fit above the foot, a kept balloon
+  had to overlap the new character's own frame and a size change placed it next to the
+  character, so away from the bottom of the output (size factor 3 or 4 in the middle, any
+  factor near the top) it went back to the character and moved with taller and smaller
+  candidates (up to 22 of 122 steps), opened elsewhere than it closed, and moved again
+  after every size change.
 
 **B-UI-4 User Hide.** **bentwire decision.**
 - Hide from the menu (cause 7) or tray (cause 1) first interrupts every request of the

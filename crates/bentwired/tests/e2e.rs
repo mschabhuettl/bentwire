@@ -1770,7 +1770,12 @@ fn place_walk(e: &Env, ids: &[String], scale: u32, other: u32, foot: (i32, i32))
                 e.key(key);
             }
             e.advance(1000);
-            assert_eq!(e.character(), id.as_str());
+            assert_eq!(
+                e.character(),
+                id.as_str(),
+                "{key} at ({px}, {py}): {}",
+                e.snapshot()
+            );
             let now = gallery_window(&e.snapshot());
             if !kept(prev, now) {
                 bad.push(format!("moved: {key} to {id}, {prev:?} -> {now:?}"));
@@ -1805,9 +1810,10 @@ fn place_walk(e: &Env, ids: &[String], scale: u32, other: u32, foot: (i32, i32))
 }
 
 /// B-GAL-1 on real data: the walk of [`place_walk`] through every character under
-/// $BENTWIRE_PACKS on a `w` x `h` output with the frame's bottom centre on `foot`, at size
-/// factors 1 to 4 (each followed by a change to the next one). Prints the count per case.
-fn library_place_walks(w: i32, h: i32, foot: (i32, i32)) {
+/// $BENTWIRE_PACKS on a `w` x `h` output with the frame's bottom centre on each of `feet`,
+/// at size factors 1 to 4 (each followed by a change to the next one). Prints the counts
+/// per case. One daemon, the places one after the other (each daemon holds about 1 GB).
+fn library_place_walks(w: i32, h: i32, feet: &[(i32, i32)]) {
     let Some(packs) = std::env::var_os("BENTWIRE_PACKS") else {
         panic!("NOT RUN: set BENTWIRE_PACKS to a characters/ directory with packs");
     };
@@ -1839,7 +1845,10 @@ fn library_place_walks(w: i32, h: i32, foot: (i32, i32)) {
         .unwrap();
     let ids: Vec<String> = list.into_iter().map(|x| x.0).collect();
     let mut all = Vec::new();
-    for (scale, other) in [(1, 2), (2, 3), (3, 4), (4, 1)] {
+    for (&foot, (scale, other)) in feet
+        .iter()
+        .flat_map(|f| std::iter::repeat(f).zip([(1, 2), (2, 3), (3, 4), (4, 1)]))
+    {
         let bad = place_walk(&e, &ids, scale, other, foot);
         let n = |k: &str| bad.iter().filter(|b| b.starts_with(k)).count();
         eprintln!(
@@ -1857,61 +1866,35 @@ fn library_place_walks(w: i32, h: i32, foot: (i32, i32)) {
                 .map(|b| format!("\n  {b}"))
                 .collect::<String>()
         );
-        all.extend(bad.into_iter().map(|b| format!("size {scale}: {b}")));
+        all.extend(
+            bad.into_iter()
+                .map(|b| format!("foot {foot:?} size {scale}: {b}")),
+        );
     }
-    assert!(
-        all.is_empty(),
-        "{out} foot {foot:?}: {} problems",
-        all.len()
-    );
+    assert!(all.is_empty(), "{out}: {} problems", all.len());
+}
+
+/// The places of the walk on a `w` x `h` output: the middle, the upper half, near the top
+/// (left of the middle) and low (right of the middle).
+fn walk_feet(w: i32, h: i32) -> [(i32, i32); 4] {
+    [
+        (w / 2, h / 2),
+        (w / 2, h * 3 / 8),
+        (w / 3, h / 4),
+        (w * 3 / 4, h * 17 / 20),
+    ]
 }
 
 #[test]
 #[ignore = "needs BENTWIRE_PACKS=<characters dir>"]
-fn library_gallery_place_walk_wide_middle() {
-    library_place_walks(5120, 1440, (2560, 720));
+fn library_gallery_place_walk_5120x1440() {
+    library_place_walks(5120, 1440, &walk_feet(5120, 1440));
 }
 
 #[test]
 #[ignore = "needs BENTWIRE_PACKS=<characters dir>"]
-fn library_gallery_place_walk_wide_upper_half() {
-    library_place_walks(5120, 1440, (2560, 540));
-}
-
-#[test]
-#[ignore = "needs BENTWIRE_PACKS=<characters dir>"]
-fn library_gallery_place_walk_wide_near_the_top() {
-    library_place_walks(5120, 1440, (1700, 360));
-}
-
-#[test]
-#[ignore = "needs BENTWIRE_PACKS=<characters dir>"]
-fn library_gallery_place_walk_wide_low() {
-    library_place_walks(5120, 1440, (1200, 1224));
-}
-
-#[test]
-#[ignore = "needs BENTWIRE_PACKS=<characters dir>"]
-fn library_gallery_place_walk_full_hd_middle() {
-    library_place_walks(1920, 1080, (960, 540));
-}
-
-#[test]
-#[ignore = "needs BENTWIRE_PACKS=<characters dir>"]
-fn library_gallery_place_walk_full_hd_upper_half() {
-    library_place_walks(1920, 1080, (960, 405));
-}
-
-#[test]
-#[ignore = "needs BENTWIRE_PACKS=<characters dir>"]
-fn library_gallery_place_walk_full_hd_near_the_top() {
-    library_place_walks(1920, 1080, (640, 270));
-}
-
-#[test]
-#[ignore = "needs BENTWIRE_PACKS=<characters dir>"]
-fn library_gallery_place_walk_full_hd_low() {
-    library_place_walks(1920, 1080, (1400, 918));
+fn library_gallery_place_walk_1920x1080() {
+    library_place_walks(1920, 1080, &walk_feet(1920, 1080));
 }
 
 // ---------- size factor (B-SCALE-1) ----------

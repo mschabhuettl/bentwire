@@ -38,7 +38,7 @@ B-CORE-3 | structural: all timers come from Core::next_deadline/tick on the call
 B-FAM-1 | structural: family dispatch in player.rs; per-row tests: b_seq_a_*, b_o97_*, b_sw_a_*, b_sw_o_*, b_idle_t_*, b_idle_o_office97, b_fb_1_b_o97_5_*
 B-FB-1 | b_fb_1_b_char_2_play_errors_and_unavailable, b_fb_1_b_o97_5_alias_and_office97_groups, b_fb_1_error_lists_chain
 B-FB-2 | b_fb_2_rover_like, b_fb_2_courtney_earl_merlin_qmark_like, b_fb_2_office_names_resolve_to_themselves || other crates: bentwired: b_fb_2_table_on_converted_acs
-B-GAL-1 | b_gal_1_gallery, b_gal_1_hide_closes_as_cancel, b_gal_1_running_ask_is_interrupted_when_gallery_opens, b_gal_1_balloon_stays_while_it_fits_next_to_the_new_character || other crates: bentwired: b_gal_1_gallery_next_cancel_and_ok, library_gallery_walk_keeps_the_bottom_centre (real data)
+B-GAL-1 | b_gal_1_gallery, b_gal_1_hide_closes_as_cancel, b_gal_1_running_ask_is_interrupted_when_gallery_opens, b_gal_1_balloon_and_buttons_stay_while_browsing, b_gal_1_balloon_stays_next_to_the_envelope || other crates: bentwired: b_gal_1_gallery_next_cancel_and_ok, b_gal_1_browsing_keeps_next_and_back_under_the_pointer, library_gallery_walk_keeps_the_bottom_centre, library_gallery_corner_walk_keeps_next_and_back_under_the_pointer, library_gallery_place_walk_* (real data)
 B-IDLE-O | b_idle_o_office97
 B-IDLE-T | b_idle_t_r_idle_1_r_idle_2_r_idle_3_vector, b_idle_t_r_idle_4_play_interrupts_idle
 B-L10N-1 | b_l10n_1_language
