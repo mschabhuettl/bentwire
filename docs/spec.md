@@ -1279,9 +1279,10 @@ Nothing else in v1 needs the global pointer.
   margin changes that the compositor has not yet applied, so the motion stays 1:1.
 - The daemon feeds every pointer event it has read to the core and then updates the
   surfaces once; when only the character's position changed, the drawn buffers are
-  moved, not drawn again. **bentwire decision.** Reason: drawing after each motion cost
-  2 ms (size 1) to 18 ms (size 3) per motion at buffer scale 2 (a fractional output) in a
-  release build, more than a 1000 Hz mouse leaves, so a drag that started on such an
+  moved, not drawn again. **bentwire decision.** Reason: drawing after each motion cost,
+  for a 128 x 128 test character in a release build at buffer scale 2 (a fractional
+  output), 2 ms (size 1) to 18 ms (size 3) per motion, more than a 1000 Hz mouse leaves
+  (0.6 and 4 ms at buffer scale 1), so a drag that started on such an
   output fell seconds behind the cursor (the surface keeps its start output during the
   drag, B-WL-4).
 
