@@ -45,4 +45,5 @@ if [ -z "${BENTWIRE_PROTO_COPY:-}" ]; then
   rsync -a --exclude msadp32/ --exclude out/ --exclude __pycache__/ "$proto/" "$tmp/proto/"
   export BENTWIRE_PROTO_COPY="$tmp/proto"
 fi
-cargo test --release --workspace -- --ignored --nocapture "$@"
+# The MQTT broker test needs mosquitto; scripts/mqtt-check.sh runs it.
+cargo test --release --workspace -- --ignored --nocapture --skip b_mqtt_1_round_trips "$@"

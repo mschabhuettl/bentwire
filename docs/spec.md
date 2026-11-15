@@ -2083,6 +2083,46 @@ three installed ids within edit distance 2 or that extend the id with `-`
 - Reason: issue #11; a monitor sees notifications without taking the
   `org.freedesktop.Notifications` name from the user's notification daemon.
 
+**B-MQTT-1 MQTT bridge.** **bentwire decision.**
+- `bentwire-mqtt` (crate `crates/bentwire-mqtt`) is a client of this API on the session
+  bus, like the CLI, and of an MQTT 3.1.1 broker (plain TCP, optional user name and
+  password). Config: `$XDG_CONFIG_HOME/bentwire/mqtt.toml` with `host` (`localhost`),
+  `port` (1883), `username`, `password`, `base_topic` (`bentwire`), `client_id`
+  (`bentwire-mqtt`), `discovery` (true), `discovery_prefix` (`homeassistant`); unknown keys
+  are an error. `--host`, `--port`, `--base` override the file. The password is never
+  logged.
+- Commands, topics under `<base>/`: `say` = `Speak(payload)`, `play` =
+  `Play(payload trimmed)`, `show` = `Show(false)`, `hide` = `Hide(false)` (payload
+  ignored), `ask` = `Ask`: a payload starting with `{` is a JSON object whose values are
+  strings or lists of strings, passed as the `a{sv}` keys of B-ASK-1; any other payload
+  is `{"text": payload}`. Retained command messages are ignored. Method errors are
+  logged. A command while bentwired does not run starts it through D-Bus activation,
+  as the CLI does.
+- Answers: when an ask ends, `<base>/answer` gets the result name of the CLI (5.5:
+  B-L10N-2 names, `button:<n>`, `label:<n>`, `none`), not retained. An ask with
+  `checkboxes` first gets `<base>/answer/checked` = comma-separated 0 or 1 values. An ask
+  that fails (method error, or `RequestComplete` status 1 without `AskComplete`) and asks
+  still open when bentwired loses its name or the bus connection drops answer `none`.
+- State: `<base>/state` = `visible` or `hidden` (retained), from `Visible` when the
+  daemon appears and from `Shown` / `Hidden`; `hidden` while bentwired does not run.
+  `<base>/status` = `online` while the bridge is connected to broker and session bus,
+  else `offline` (retained; also the MQTT last will, and published on SIGTERM or SIGINT
+  before a clean disconnect, exit 0).
+- Home Assistant discovery (when `discovery` is true): retained configs on every connect,
+  `<prefix>/<component>/<id>_<entity>/config` with `<id>` = the base topic with every
+  character other than ASCII letters, digits and `-` replaced by `_`: `notify` "Say"
+  (`<base>/say`), `button` "Show" and "Hide", `sensor` "Last answer" (`<base>/answer`),
+  `binary_sensor` "Visible" (`<base>/state`, `payload_on` `visible`, `payload_off`
+  `hidden`). Each has `unique_id` = `<id>_<entity>`, `availability_topic` =
+  `<base>/status`, one `device` (identifiers `[<id>]`, name `bentwire`) and an `origin`.
+- Reconnects: broker and session bus are retried every 2 s; on every broker connect the
+  bridge subscribes again and republishes discovery, status and state.
+- Reason: a home automation needs events, not a command line. MQTT is what Home
+  Assistant, Node-RED and most hubs speak; discovery makes the character a device without
+  YAML. Answers are not retained so that a reconnect does not replay an old answer into
+  automations; the answer names follow the CLI so that scripts and automations read the
+  same words.
+
 ## 6. Test strategy
 
 **T-0 Repo boundary.**

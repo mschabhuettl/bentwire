@@ -1,0 +1,15 @@
+# Optional systemd user unit for the MQTT bridge. Install into ~/.config/systemd/user/ (or
+# /usr/lib/systemd/user/), configure ~/.config/bentwire/mqtt.toml, adjust ExecStart, then:
+# systemctl --user enable --now bentwire-mqtt
+[Unit]
+Description=bentwire MQTT bridge
+PartOf=graphical-session.target
+After=graphical-session.target bentwired.service
+
+[Service]
+ExecStart=/usr/bin/bentwire-mqtt
+# A bad config exits 1; broker and daemon outages are retried inside the bridge.
+Restart=on-abnormal
+
+[Install]
+WantedBy=graphical-session.target
