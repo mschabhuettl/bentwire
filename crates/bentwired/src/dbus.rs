@@ -121,10 +121,20 @@ pub fn parse(msg: &Message, test: bool, test_full: bool) -> Option<Result<Call, 
                         Call::Core(CoreCall::SetScale(s))
                     }
                     _ => {
-                        return Err(err(
-                            "org.freedesktop.DBus.Error.PropertyReadOnly",
-                            format!("{i}.{n} is read-only"),
-                        ));
+                        let x = introspect(&path, false, false);
+                        let known = x.contains(&format!("<interface name=\"{i}\">"))
+                            && x.contains(&format!("<property name=\"{n}\" "));
+                        return Err(if known {
+                            err(
+                                "org.freedesktop.DBus.Error.PropertyReadOnly",
+                                format!("{i}.{n} is read-only"),
+                            )
+                        } else {
+                            err(
+                                "org.freedesktop.DBus.Error.UnknownProperty",
+                                format!("no property {i}.{n}"),
+                            )
+                        });
                     }
                 }
             }
@@ -445,7 +455,7 @@ pub fn introspect(path: &str, test: bool, test_full: bool) -> String {
 <interface name="org.freedesktop.DBus.Properties"><method name="Get"><arg type="s" direction="in"/><arg type="s" direction="in"/><arg type="v" direction="out"/></method><method name="GetAll"><arg type="s" direction="in"/><arg type="a{sv}" direction="out"/></method><method name="Set"><arg type="s" direction="in"/><arg type="s" direction="in"/><arg type="v" direction="in"/></method><signal name="PropertiesChanged"><arg type="s"/><arg type="a{sv}"/><arg type="as"/></signal></interface>"#;
     let body = match path {
         AGENT_PATH => r#"<interface name="org.bentwire.Agent1">
-<method name="ListCharacters"><arg type="a(sss)" direction="out"/></method>
+<method name="ListCharacters"><arg name="characters" type="a(sss)" direction="out"/></method>
 <method name="Select"><arg name="id" type="s" direction="in"/></method>
 <method name="Quit"/>
 <property name="Character" type="s" access="read"/>
@@ -455,42 +465,43 @@ pub fn introspect(path: &str, test: bool, test_full: bool) -> String {
             .to_string(),
         CHAR_PATH => {
             let mut s = String::from(r#"<interface name="org.bentwire.Character1">"#);
-            for (name, ins) in [
-                ("Show", "b"),
-                ("Hide", "b"),
-                ("Play", "s"),
-                ("Speak", "s"),
-                ("Ask", "a{sv}"),
-                ("MoveTo", "iiu"),
-                ("GestureAt", "ii"),
+            // Argument names as in spec 5.3 and 5.4.
+            for (name, ins, names) in [
+                ("Show", "b", "fast"),
+                ("Hide", "b", "fast"),
+                ("Play", "s", "name"),
+                ("Speak", "s", "text"),
+                ("Ask", "a{sv}", "spec"),
+                ("MoveTo", "iiu", "x y speed_ms"),
+                ("GestureAt", "ii", "x y"),
             ] {
                 s += &format!("<method name=\"{name}\">");
-                for c in sig_parts(ins) {
-                    s += &format!("<arg type=\"{c}\" direction=\"in\"/>");
+                for (c, a) in sig_parts(ins).into_iter().zip(names.split(' ')) {
+                    s += &format!("<arg name=\"{a}\" type=\"{c}\" direction=\"in\"/>");
                 }
-                s += "<arg type=\"u\" direction=\"out\"/></method>";
+                s += "<arg name=\"id\" type=\"u\" direction=\"out\"/></method>";
             }
-            s += r#"<method name="Stop"><arg type="u" direction="in"/></method><method name="StopAll"><arg type="as" direction="in"/></method>"#;
-            for (n, t) in [
-                ("RequestStart", "u"),
-                ("RequestComplete", "uus"),
-                ("AskComplete", "uiab"),
-                ("Bookmark", "i"),
-                ("Click", "uuiib"),
-                ("DblClick", "uuiib"),
-                ("DragStart", "uuii"),
-                ("DragComplete", "uuii"),
-                ("Move", "iiu"),
-                ("Shown", "u"),
-                ("Hidden", "u"),
-                ("IdleStart", ""),
-                ("IdleComplete", ""),
-                ("BalloonShown", ""),
-                ("BalloonHidden", ""),
+            s += r#"<method name="Stop"><arg name="id" type="u" direction="in"/></method><method name="StopAll"><arg name="types" type="as" direction="in"/></method>"#;
+            for (n, t, names) in [
+                ("RequestStart", "u", "id"),
+                ("RequestComplete", "uus", "id status reason"),
+                ("AskComplete", "uiab", "id result checked"),
+                ("Bookmark", "i", "n"),
+                ("Click", "uuiib", "button modifiers x y from_tray"),
+                ("DblClick", "uuiib", "button modifiers x y from_tray"),
+                ("DragStart", "uuii", "button modifiers x y"),
+                ("DragComplete", "uuii", "button modifiers x y"),
+                ("Move", "iiu", "x y cause"),
+                ("Shown", "u", "cause"),
+                ("Hidden", "u", "cause"),
+                ("IdleStart", "", ""),
+                ("IdleComplete", "", ""),
+                ("BalloonShown", "", ""),
+                ("BalloonHidden", "", ""),
             ] {
                 s += &format!("<signal name=\"{n}\">");
-                for c in sig_parts(t) {
-                    s += &format!("<arg type=\"{c}\"/>");
+                for (c, a) in sig_parts(t).into_iter().zip(names.split(' ')) {
+                    s += &format!("<arg name=\"{a}\" type=\"{c}\"/>");
                 }
                 s += "</signal>";
             }

@@ -209,6 +209,38 @@ fn spec_5_2_5_3_properties_and_properties_changed() {
         )
         .unwrap();
     assert!(!bool::try_from(e.prop(CHAR, CHAR_IF, "IdleOn")).unwrap());
+    // Errors (#46): a read-only, an unknown property, an unknown interface.
+    let error = |r: zbus::Result<zbus::Message>| match r {
+        Err(zbus::Error::MethodError(n, _, _)) => n.to_string(),
+        r => panic!("{r:?}"),
+    };
+    let set = |name: &str| {
+        e.conn.call_method(
+            Some("org.bentwire.Agent"),
+            CHAR,
+            Some("org.freedesktop.DBus.Properties"),
+            "Set",
+            &(CHAR_IF, name, Value::from(1i32)),
+        )
+    };
+    assert_eq!(
+        error(set("Left")),
+        "org.freedesktop.DBus.Error.PropertyReadOnly"
+    );
+    assert_eq!(
+        error(set("Nope")),
+        "org.freedesktop.DBus.Error.UnknownProperty"
+    );
+    assert_eq!(
+        error(e.conn.call_method(
+            Some("org.bentwire.Agent"),
+            CHAR,
+            Some("org.freedesktop.DBus.Properties"),
+            "GetAll",
+            &("org.example.Nope",),
+        )),
+        "org.freedesktop.DBus.Error.UnknownInterface"
+    );
 }
 
 #[test]

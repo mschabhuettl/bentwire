@@ -35,6 +35,9 @@ D-Bus API (`org.bentwire.Agent1`) and the character format (`format = 1`) are fr
   barrier holds the cursor for part of a mouse movement. Before, it ended up to 20 px off
   after a horizontal crossing and up to the barrier's width after a slightly diagonal
   one. The same holds at the layout edge under sway.
+- D-Bus: the introspection names every argument as the spec does; `Set` of an unknown
+  property fails with `UnknownProperty` and `GetAll` of an unknown interface with
+  `UnknownInterface`.
 - Sound: a PipeWire stream that reports an error after its format was negotiated falls
   back to ALSA instead of staying silent.
 

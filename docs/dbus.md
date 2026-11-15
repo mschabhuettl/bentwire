@@ -184,8 +184,8 @@ Method errors (the call fails; spec 5.4):
 
 Standard errors: `org.freedesktop.DBus.Error.UnknownMethod` and `UnknownObject` for
 unknown members and paths, `UnknownProperty` for `Get` of an unknown property, and
-`PropertyReadOnly` for every `Set` other than `Scale` and `IdleOn` (also for an unknown
-property). `GetAll` of an unknown interface returns an empty map.
+`PropertyReadOnly` for every other `Set` of a known property, `UnknownProperty` for an
+unknown one. `GetAll` of an unknown interface fails with `UnknownInterface`.
 
 <a id="request-reasons"></a>Request reasons (the `reason` of `RequestComplete`):
 
@@ -220,8 +220,7 @@ regenerate it with
 BENTWIRE_BLESS=1 cargo test -p bentwired --test e2e spec_5_1_introspection
 ```
 
-and update this page. The daemon's introspection names only the `Select` argument; the
-argument names on this page follow the spec.
+and update this page. The argument names in the introspection follow the spec.
 
 To look at a running daemon: `gdbus introspect --session --dest org.bentwire.Agent
 --object-path /org/bentwire/Character` or `busctl --user introspect org.bentwire.Agent

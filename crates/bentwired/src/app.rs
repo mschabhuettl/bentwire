@@ -145,10 +145,17 @@ impl App {
                     ),
                 }
             }
-            Call::GetAll(iface) => {
-                let m = self.prop_map(&iface).unwrap_or_default();
-                dbus::reply(&conn, &h, &(m,))
-            }
+            Call::GetAll(iface) => match self.prop_map(&iface) {
+                Some(m) => dbus::reply(&conn, &h, &(m,)),
+                None => dbus::reply_error(
+                    &conn,
+                    &h,
+                    &dbus::err(
+                        "org.freedesktop.DBus.Error.UnknownInterface",
+                        format!("no interface {iface}"),
+                    ),
+                ),
+            },
             Call::Core(c) => {
                 let token = self.next_token;
                 self.next_token += 1;

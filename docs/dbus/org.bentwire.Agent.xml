@@ -7,7 +7,7 @@
   <!-- /org/bentwire/Agent -->
   <interface name="org.bentwire.Agent1">
     <method name="ListCharacters">
-      <arg type="a(sss)" direction="out"/>
+      <arg name="characters" type="a(sss)" direction="out"/>
     </method>
     <method name="Select">
       <arg name="id" type="s" direction="in"/>
@@ -20,94 +20,94 @@
   <!-- /org/bentwire/Character -->
   <interface name="org.bentwire.Character1">
     <method name="Show">
-      <arg type="b" direction="in"/>
-      <arg type="u" direction="out"/>
+      <arg name="fast" type="b" direction="in"/>
+      <arg name="id" type="u" direction="out"/>
     </method>
     <method name="Hide">
-      <arg type="b" direction="in"/>
-      <arg type="u" direction="out"/>
+      <arg name="fast" type="b" direction="in"/>
+      <arg name="id" type="u" direction="out"/>
     </method>
     <method name="Play">
-      <arg type="s" direction="in"/>
-      <arg type="u" direction="out"/>
+      <arg name="name" type="s" direction="in"/>
+      <arg name="id" type="u" direction="out"/>
     </method>
     <method name="Speak">
-      <arg type="s" direction="in"/>
-      <arg type="u" direction="out"/>
+      <arg name="text" type="s" direction="in"/>
+      <arg name="id" type="u" direction="out"/>
     </method>
     <method name="Ask">
-      <arg type="a{sv}" direction="in"/>
-      <arg type="u" direction="out"/>
+      <arg name="spec" type="a{sv}" direction="in"/>
+      <arg name="id" type="u" direction="out"/>
     </method>
     <method name="MoveTo">
-      <arg type="i" direction="in"/>
-      <arg type="i" direction="in"/>
-      <arg type="u" direction="in"/>
-      <arg type="u" direction="out"/>
+      <arg name="x" type="i" direction="in"/>
+      <arg name="y" type="i" direction="in"/>
+      <arg name="speed_ms" type="u" direction="in"/>
+      <arg name="id" type="u" direction="out"/>
     </method>
     <method name="GestureAt">
-      <arg type="i" direction="in"/>
-      <arg type="i" direction="in"/>
-      <arg type="u" direction="out"/>
+      <arg name="x" type="i" direction="in"/>
+      <arg name="y" type="i" direction="in"/>
+      <arg name="id" type="u" direction="out"/>
     </method>
     <method name="Stop">
-      <arg type="u" direction="in"/>
+      <arg name="id" type="u" direction="in"/>
     </method>
     <method name="StopAll">
-      <arg type="as" direction="in"/>
+      <arg name="types" type="as" direction="in"/>
     </method>
     <signal name="RequestStart">
-      <arg type="u"/>
+      <arg name="id" type="u"/>
     </signal>
     <signal name="RequestComplete">
-      <arg type="u"/>
-      <arg type="u"/>
-      <arg type="s"/>
+      <arg name="id" type="u"/>
+      <arg name="status" type="u"/>
+      <arg name="reason" type="s"/>
     </signal>
     <signal name="AskComplete">
-      <arg type="u"/>
-      <arg type="i"/>
-      <arg type="ab"/>
+      <arg name="id" type="u"/>
+      <arg name="result" type="i"/>
+      <arg name="checked" type="ab"/>
     </signal>
     <signal name="Bookmark">
-      <arg type="i"/>
+      <arg name="n" type="i"/>
     </signal>
     <signal name="Click">
-      <arg type="u"/>
-      <arg type="u"/>
-      <arg type="i"/>
-      <arg type="i"/>
-      <arg type="b"/>
+      <arg name="button" type="u"/>
+      <arg name="modifiers" type="u"/>
+      <arg name="x" type="i"/>
+      <arg name="y" type="i"/>
+      <arg name="from_tray" type="b"/>
     </signal>
     <signal name="DblClick">
-      <arg type="u"/>
-      <arg type="u"/>
-      <arg type="i"/>
-      <arg type="i"/>
-      <arg type="b"/>
+      <arg name="button" type="u"/>
+      <arg name="modifiers" type="u"/>
+      <arg name="x" type="i"/>
+      <arg name="y" type="i"/>
+      <arg name="from_tray" type="b"/>
     </signal>
     <signal name="DragStart">
-      <arg type="u"/>
-      <arg type="u"/>
-      <arg type="i"/>
-      <arg type="i"/>
+      <arg name="button" type="u"/>
+      <arg name="modifiers" type="u"/>
+      <arg name="x" type="i"/>
+      <arg name="y" type="i"/>
     </signal>
     <signal name="DragComplete">
-      <arg type="u"/>
-      <arg type="u"/>
-      <arg type="i"/>
-      <arg type="i"/>
+      <arg name="button" type="u"/>
+      <arg name="modifiers" type="u"/>
+      <arg name="x" type="i"/>
+      <arg name="y" type="i"/>
     </signal>
     <signal name="Move">
-      <arg type="i"/>
-      <arg type="i"/>
-      <arg type="u"/>
+      <arg name="x" type="i"/>
+      <arg name="y" type="i"/>
+      <arg name="cause" type="u"/>
     </signal>
     <signal name="Shown">
-      <arg type="u"/>
+      <arg name="cause" type="u"/>
     </signal>
     <signal name="Hidden">
-      <arg type="u"/>
+      <arg name="cause" type="u"/>
     </signal>
     <signal name="IdleStart">
     </signal>
