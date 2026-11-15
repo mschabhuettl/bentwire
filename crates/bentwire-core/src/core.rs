@@ -160,8 +160,10 @@ struct OpenAsk {
 struct Gallery {
     original: String,
     index: usize,
-    /// B-GAL-1: the body size shared by all candidates (`None`: too big for the output).
+    /// B-GAL-1: the body size shared by all candidates (`None`: too big for the output
+    /// or no candidates), and the output size and language it was computed for.
     size: Option<(i32, i32)>,
+    size_for: (i32, i32, Lang),
 }
 
 struct Press {
@@ -373,6 +375,7 @@ impl Core {
                 self.lang = l10n::resolve_language(c.language, &self.locale);
                 let scale = clamp_scale(c.scale);
                 self.config = c;
+                self.refresh_gallery_size();
                 if !self.scale_chosen {
                     self.set_scale(scale);
                 }
@@ -1579,7 +1582,29 @@ impl Core {
 
     /// B-GAL-1: the common body size when `a` is the gallery balloon.
     fn gallery_size(&self, a: &OpenAsk) -> Option<(i32, i32)> {
-        self.gallery.as_ref().filter(|_| a.id == 0)?.size
+        let g = self.gallery.as_ref().filter(|_| a.id == 0)?;
+        if g.size_for == self.size_key() {
+            g.size
+        } else {
+            // Another output or language since the last refresh (a drag to another output).
+            self.common_gallery_size()
+        }
+    }
+
+    fn size_key(&self) -> (i32, i32, Lang) {
+        let m = self.output_rect();
+        (m.w, m.h, self.lang)
+    }
+
+    /// B-GAL-1: compute the common size again (open, catalog, output or language change).
+    fn refresh_gallery_size(&mut self) {
+        if self.gallery.is_none() {
+            return;
+        }
+        let (size, key) = (self.common_gallery_size(), self.size_key());
+        if let Some(g) = &mut self.gallery {
+            (g.size, g.size_for) = (size, key);
+        }
     }
 
     fn apply_placement(&mut self, p: office::Placed) {
@@ -1726,8 +1751,9 @@ impl Core {
             original: id,
             index,
             size: None,
+            size_for: self.size_key(),
         });
-        self.gallery.as_mut().unwrap().size = self.common_gallery_size();
+        self.refresh_gallery_size();
         let model = self.gallery_model();
         let focus = model.initial_focus();
         self.ask = Some(OpenAsk {
@@ -1790,7 +1816,7 @@ impl Core {
             .map(|i| self.gallery_model_at(i))
             .collect();
         let (w, h) = office::common_size(&models, &cx);
-        (w + 16 <= m.w && h + 16 <= m.h).then_some((w, h))
+        (!models.is_empty() && w + 16 <= m.w && h + 16 <= m.h).then_some((w, h))
     }
 
     fn gallery_model_at(&self, index: usize) -> AskModel {
@@ -1935,11 +1961,10 @@ impl Core {
                 .catalog
                 .iter()
                 .position(|e| Some(&e.id) == cur.as_ref());
-            let size = self.common_gallery_size();
             if let Some(g) = &mut self.gallery {
                 g.index = i.unwrap_or(0);
-                g.size = size;
             }
+            self.refresh_gallery_size();
             let model = self.gallery_model();
             if let Some(a) = self.ask.as_mut().filter(|a| a.id == 0) {
                 a.model = model;
@@ -2680,6 +2705,7 @@ impl Core {
             self.mark_dirty();
         }
         self.update_output();
+        self.refresh_gallery_size();
         self.replace_ask();
     }
 

@@ -1126,12 +1126,12 @@ belongs to the original menu.
   - disabled buttons are drawn in the disabled state and ignore clicks and mnemonics;
   - the balloon survives the gallery's own character switches (unlike B-CHAR-5 and
     B-ASK-7), and while browsing Back and Next stay where they are:
-    - one body size for all candidates, set when the gallery opens (and when the catalog
-      changes while it is open): the widest landscape shape (R-OB-31) of all candidates'
-      balloons, and at that width the tallest layout. The text starts at the top, the
-      button row sits at the bottom of the body. A text that needs more height (a
-      catalog change) makes its body taller. If the size does not fit the output, each
-      balloon is sized as in R-OB-31;
+    - one body size for all candidates, set when the gallery opens (and again when the
+      catalog, the output or the UI language changes while it is open): the widest
+      landscape shape (R-OB-31) of all candidates' balloons, and at that width the
+      tallest layout. The text starts at the top, the button row sits at the bottom of
+      the body. A text that needs more height makes its body taller. If the size does
+      not fit the output, or there is no candidate, each balloon is sized as in R-OB-31;
     - placed once when the gallery opens (B-OB-3) next to the envelope of all candidates
       instead of the character: the widest and the tallest frame of the catalog
       (`display` times the size factor), its bottom centre on the character's B-CHAR-5

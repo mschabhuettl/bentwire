@@ -2728,6 +2728,46 @@ fn b_gal_1_balloon_and_buttons_stay_while_browsing() {
     assert_eq!(t.pos(), (500, 500));
 }
 
+/// B-GAL-1: the common size follows the output (a smaller one: too big for it, so each
+/// balloon is sized for its own text) and an empty catalog keeps the own size.
+#[test]
+fn b_gal_1_common_size_follows_output_and_catalog() {
+    let mut d = sized("d", 100, 40, None);
+    d.info[0].description = "word ".repeat(1200);
+    let mut t = T::with(
+        vec![sized("a", 100, 100, None), d],
+        Some(StateFile {
+            character: "a".into(),
+            left: 500,
+            top: 400,
+            visible: true,
+            chosen: true,
+            ..Default::default()
+        }),
+        vec![],
+    );
+    t.advance(1000);
+    open_gallery(&mut t);
+    let wide = t.core.scene().office_balloon.unwrap().body.w;
+    assert!(wide > 800, "{wide}");
+    let fits = |t: &T, m: Rect| {
+        let s = t.core.scene().office_balloon.unwrap();
+        let (w, b) = (s.window, s.body);
+        assert!(w.x >= m.x && w.y >= m.y && w.right() <= m.right() && w.bottom() <= m.bottom());
+        assert!(
+            b.w > 0
+                && s.buttons
+                    .iter()
+                    .all(|x| x.rect.x >= b.x && x.rect.right() <= b.right())
+        );
+    };
+    t.ev(Event::Outputs(vec![output(800, 600)]));
+    fits(&t, Rect::new(0, 0, 800, 600));
+    assert_eq!(t.pos(), (500, 400), "no B-OB-4 move");
+    t.ev(Event::Catalog(vec![]));
+    fits(&t, Rect::new(0, 0, 800, 600));
+}
+
 #[test]
 fn b_gal_1_hide_closes_as_cancel() {
     let st = StateFile {
