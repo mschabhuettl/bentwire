@@ -1813,25 +1813,30 @@ the menu. `--dump-frames DIR` writes
   Reason: the spec lists the contents, not the encoding.
 - **A-DESK-5 Wayland details.** Each margin commit is followed by a wl_display.sync;
   its `done` marks the position as applied, so pointer events are mapped with the
-  position the compositor used for them. During an implicit grab the global position is
-  the surface-local wl_pointer.motion position plus one of two origins, because
-  compositors differ in how they report positions on a surface that moves under the grab
-  (KWin: relative to the applied position, sway: relative to the press-time position)
-  (B-WL-7). Until a relative event arrives in a grab (none delivered, as under a nested
-  KWin, or no manager), the applied position is used, which compensates margins not yet
-  applied. After that, the origin whose result lies nearer the press position plus the
-  sum of zwp_relative_pointer_v1 deltas: the two results differ by the distance the
-  surface has moved. The sum itself is not the position: a frame in which the compositor
-  holds the cursor for part of the motion (KWin's edge barrier, in the frames that reach
-  and leave the edge between two outputs; the layout edge) carries a longer delta than the
-  cursor moved, and counting it put the character up to two deltas per crossing beside
-  the cursor (#42: 4 to 20 px with 8 to 16 px steps). Press position and delta sum are
-  kept apart from the reported position and absolute motion never feeds the sum. Relative
-  deltas count only when their wl_pointer frame also carries a wl_pointer.motion (a second
-  wl_pointer object marks the frame ends, SCTK reports no frame without wl_pointer
-  events); deltas in frames without one did not move the cursor (KWin's edge barrier holds
-  it at the edge between two outputs, the layout edge holds it too), and counting them
-  made the sum run ahead by the barrier width. A release keeps the last grab position. A
+  position the compositor used for them. During an implicit grab, until a relative event
+  arrives (none delivered, as under a nested KWin, or no manager), wl_pointer motion is
+  used: the surface-local position plus the applied position, which compensates margins
+  not yet applied. After that the position starts as the press position plus the sum of
+  zwp_relative_pointer_v1 deltas, because compositors differ in how they report positions
+  on a surface that moves under the grab (KWin: relative to the applied position, sway:
+  relative to the press-time position) (B-WL-7). The origin a compositor uses is known
+  once, on two motions in a row, only that origin maps the motion to the sum (within
+  1/8 px). From then on each frame moves the position by the change of the motion's own
+  position, limited per axis to between 0 and the frame's delta (plus 1/8 px). Reasons:
+  the sum is not the cursor, since a frame in which the compositor holds the cursor for
+  part of its delta (KWin's edge barrier in the frames that reach and leave the edge
+  between two outputs, and while it holds x as y moves; the layout edge) carries a longer
+  delta than the cursor moved (#42: 4 to 20 px off after a horizontal crossing with 8 to
+  16 px steps, 100 px with a slightly diagonal one); and the mapped motion is not either,
+  since KWin acknowledges the sync before it moves the surface, so a motion in between maps
+  one margin change too far (seen once in about 100 motions at mouse rate). Press position
+  and delta sum are kept apart from the reported position and absolute motion never feeds
+  the sum. Relative deltas count only when their wl_pointer frame also carries a
+  wl_pointer.motion (a second wl_pointer object marks the frame ends, SCTK reports no
+  frame without wl_pointer events); deltas in frames without one did not move the cursor
+  (KWin's edge barrier holds it at the edge between two outputs, the layout edge holds it
+  too), and counting them made the character run ahead of the cursor by the barrier
+  width. A release keeps the last grab position. A
   pointer entering a menu popup counts as a motion there (sway sends no motion for a
   pointer that stops where it entered). A fractional output scale is the current mode width
   over the xdg-output logical width (no fractional-scale protocol). The Agent and the

@@ -226,15 +226,16 @@ sys.exit(0 if re.search(r"member=Click\n\s*uint32 1\n\s*uint32 0\n\s*int32 " + s
     STEPS+=("release 1")
     vp "${STEPS[@]}"
     check "drag of (-50, -30) moves the character 1:1 (R-UI-2, B-WL-7, K6)" wait_for 5 sh -c "\"$BIN/bentwire\" status | grep -qx 'left=$((X - 50))' && \"$BIN/bentwire\" status | grep -qx 'top=$((Y - 30))'"
-    # Relative drag into the layout edge: the frame that reaches it moves the cursor 6 of
-    # 13 px, to x 0 (B-WL-7).
+    # Relative drag into the layout edge, where the frame that reaches it moves the cursor 6
+    # of 13 px, to x 0, and back to x 115 near the start (B-WL-7).
     "$BIN/bentwire" moveto 107 "$Y" --speed 0 --wait >/dev/null
     sleep 0.6
     STEPS=("move 123 $CY" "press 1")
     for _ in $(seq 12); do STEPS+=("rel -13 0" "sleep 8"); done
+    for _ in $(seq 23); do STEPS+=("rel 5 0" "sleep 8"); done
     STEPS+=("release 1")
     vp "${STEPS[@]}"
-    check "relative drag into the layout edge keeps the character under the cursor (B-WL-7)" wait_for 5 sh -c "\"$BIN/bentwire\" status | grep -qx 'left=-16'"
+    check "relative drag into the layout edge and back keeps the character under the cursor (B-WL-7)" wait_for 5 sh -c "\"$BIN/bentwire\" status | grep -qx 'left=99'"
     "$BIN/bentwire" moveto "$X" "$Y" --speed 0 --wait >/dev/null
     sleep 0.6
     vp "move $CX $CY" "press 2" "release 2"
@@ -242,28 +243,27 @@ sys.exit(0 if re.search(r"member=Click\n\s*uint32 1\n\s*uint32 0\n\s*int32 " + s
     vp "move 20 20" "press 1" "release 1"
     check "outside click closes it via popup_done (K3)" wait_for 5 snap 's["backend"]["menu"] is None and s["menu"] is None'
 elif [ "$COMP" = kwin ] && [ -x "$BIN/examples/kwptr" ]; then
-    # Drags across the edge between the outputs with relative motion, as a mouse does,
-    # right to left and back. KWin's edge barrier holds the cursor at the edge while
-    # relative events go on, and the frames that reach and leave the edge move the cursor
-    # less than their deltas (13 px steps: 9 px off before the fix for #42); the character
-    # must stay under the cursor (B-WL-7, A-DESK-5). At y 300 the left output (H / LS
-    # high) is beside it.
+    # Drags across the edge between the outputs with relative motion, as a mouse does:
+    # right to left and back, slightly diagonal, then right to left at mouse rate. KWin's
+    # edge barrier holds the cursor at the edge while relative events go on, also with
+    # motion while y still moves, and the frames that reach and leave the edge move it less
+    # than their deltas; KWin acknowledges a margin before it moves the surface. The
+    # character must stay under the cursor (B-WL-7, A-DESK-5): before the fix for #42 it
+    # was 100 px off after the diagonal drags and 9 px after the straight one. At y 300 the
+    # left output (H / LS high) is beside the primary one.
     Y=300
     mkfifo "$T/kwptr"
     "$BIN/examples/kwptr" <"$T/kwptr" >"$T/kwptr.log" 2>&1 &
     PIDS+=($!)
     exec 8>"$T/kwptr"
-    # kw_drag <x> <steps> <dx>: drag from (x + 16, Y + 16) by steps times dx; sets CUX to
-    # the cursor x before the release.
+    # kw_drag <x> <steps> <dx> <dy> <ms>: drag from (x + 16, Y + 16) by steps times (dx, dy),
+    # ms apart; sets CUX and CUY to the cursor before the release.
     kw_drag() {
         "$BIN/bentwire" moveto "$1" "$Y" --speed 0 --wait >/dev/null
         sleep 0.6
-        {
-            echo "move $(($1 + 16)) $((Y + 16))"; echo "sleep 200"; echo "press 1"; echo "sleep 100"
-            for _ in $(seq "$2"); do echo "rel $3 0"; echo "sleep 8"; done
-            echo "sleep 200"; echo "mark dragged$1"
-        } >&8
-        wait_for 15 grep -q "dragged$1" "$T/kwptr.log" || true
+        printf '%s\n' "move $(($1 + 16)) $((Y + 16))" "sleep 200" "press 1" "sleep 100" \
+            "burst $2 $3 $4 $5" "sleep 200" "mark dragged$1$5" >&8
+        wait_for 15 grep -q "dragged$1$5" "$T/kwptr.log" || true
         echo 'print("BWCURSOR " + workspace.cursorPos.x + " " + workspace.cursorPos.y);' >"$T/cursor.js"
         local n id
         n=$(grep -c BWCURSOR "$T/compositor.log" || true)
@@ -271,22 +271,29 @@ elif [ "$COMP" = kwin ] && [ -x "$BIN/examples/kwptr" ]; then
         busctl --user call org.kde.KWin "/Scripting/Script$id" org.kde.kwin.Script run >/dev/null
         wait_for 5 sh -c "[ \$(grep -c BWCURSOR '$T/compositor.log') -gt $n ]" || true
         busctl --user call org.kde.KWin /Scripting org.kde.kwin.Scripting unloadScript s bwcursor >/dev/null || true
-        read -r CUX _ < <(sed -n 's/.*BWCURSOR //p' "$T/compositor.log" | tail -1) || true
+        read -r CUX CUY < <(sed -n 's/.*BWCURSOR //p' "$T/compositor.log" | tail -1) || true
         echo "release 1" >&8
     }
-    under_cursor() { # the grab point (16, 16) within 1 px of the cursor
+    under_cursor() { # the grab point (16, 16) within 1 px of the cursor on both axes
         wait_for 5 sh -c "
             L=\$(\"$BIN/bentwire\" status | sed -n 's/^left=//p'); D=\$(( ${CUX%.*} - 16 - L ));
-            [ \$D -ge -1 ] && [ \$D -le 1 ] && \"$BIN/bentwire\" status | grep -qx 'top=$Y'"
+            TP=\$(\"$BIN/bentwire\" status | sed -n 's/^top=//p'); E=\$(( ${CUY%.*} - 16 - TP ));
+            [ \$D -ge -1 ] && [ \$D -le 1 ] && [ \$E -ge -1 ] && [ \$E -le 1 ]"
     }
-    kw_drag $((LW + 100)) 92 -13
+    on_output() { # on_output <x>: the dropped surface is recreated on the output at x
+        wait_for 5 snap "s['backend']['character']['output'] == [o for o in s['outputs'] if o['x'] == $1][0]['id'] and s['backend']['character']['buffer_attached']"
+    }
+    kw_drag $((LW + 100)) 92 -13 1 8
     check "cursor crossed onto the left output" test "${CUX%.*}" -lt "$LW"
     check "drag right to left keeps the character under the cursor (B-WL-7)" under_cursor
-    check "dropped surface recreated on the left output (B-WL-4)" wait_for 5 snap 's["backend"]["character"]["output"] == [o for o in s["outputs"] if o["x"] == 0][0]["id"] and s["backend"]["character"]["buffer_attached"]'
-    kw_drag 100 92 13
+    check "dropped surface recreated on the left output (B-WL-4)" on_output 0
+    kw_drag 100 92 13 -1 8
     check "cursor crossed onto the right output" test "${CUX%.*}" -ge "$LW"
     check "drag left to right keeps the character under the cursor (B-WL-7)" under_cursor
-    check "dropped surface recreated on the right output (B-WL-4)" wait_for 5 snap "s['backend']['character']['output'] == [o for o in s['outputs'] if o['x'] == $LW][0]['id'] and s['backend']['character']['buffer_attached']"
+    check "dropped surface recreated on the right output (B-WL-4)" on_output "$LW"
+    kw_drag $((LW + 100)) 92 -13 0 1
+    check "cursor crossed onto the left output at mouse rate" test "${CUX%.*}" -lt "$LW"
+    check "drag at mouse rate keeps the character under the cursor (B-WL-7)" under_cursor
     # A drag that starts on the fractional output, with pebble-big (128 x 128) at size 3, at
     # mouse rate (1 ms apart): the character must have caught up 1 s after the last motion.
     # Each motion used to draw the 768 x 768 buffer again (buffer scale 2), and the drag
