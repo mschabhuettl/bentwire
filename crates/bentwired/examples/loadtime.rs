@@ -81,14 +81,24 @@ fn main() {
                 ms(s)
             };
             t[7].push(cached());
-            // The entries are written in the background: wait for all of them.
-            let files: usize = c.manifest.sheets.iter().map(|s| 1 + s.hidpi.len()).sum();
+            // The entries are written in the background: wait (up to 10 s) for one per file.
+            let files: std::collections::HashSet<&String> = c
+                .manifest
+                .sheets
+                .iter()
+                .flat_map(|s| std::iter::once(&s.file).chain(s.hidpi.values()))
+                .collect();
             let count = || {
-                let d = std::fs::read_dir(&dir).unwrap();
-                d.filter(|e| e.as_ref().unwrap().path().extension() == Some("sheet".as_ref()))
+                let d = std::fs::read_dir(&dir).map(|d| d.flatten().collect::<Vec<_>>());
+                d.unwrap_or_default()
+                    .iter()
+                    .filter(|e| e.path().extension() == Some("sheet".as_ref()))
                     .count()
             };
-            while count() < files {
+            for _ in 0..2000 {
+                if count() >= files.len() {
+                    break;
+                }
                 std::thread::sleep(std::time::Duration::from_millis(5));
             }
             t[8].push(cached());

@@ -70,8 +70,12 @@ impl SheetCache {
     }
 
     /// Write the entry for `key` (temp file, then rename) and trim the cache. An unwritable
-    /// cache only logs, once per process.
+    /// cache only logs, once per process; a file larger than the whole cache is not kept.
     fn store(&self, key: &[u8; 32], img: &Image) {
+        let (Pixels::Indexed { data, .. } | Pixels::Rgba(data)) = &img.pixels;
+        if data.len() as u64 > LIMIT {
+            return;
+        }
         let path = self.entry(key);
         match write(&self.dir, &path, key, img) {
             Ok(()) => trim(&self.dir, &path, LIMIT),
@@ -192,8 +196,8 @@ fn write(dir: &Path, path: &Path, key: &[u8; 32], img: &Image) -> std::io::Resul
     r
 }
 
-/// Remove the least recently used files of `dir` (oldest modification time) until at most
-/// `limit` bytes remain; never `keep`.
+/// Remove the least recently used entries of `dir` (oldest modification time) until at most
+/// `limit` bytes remain; never `keep`, nor the temp files of writes in progress.
 fn trim(dir: &Path, keep: &Path, limit: u64) {
     let Ok(rd) = std::fs::read_dir(dir) else {
         return;
@@ -201,7 +205,8 @@ fn trim(dir: &Path, keep: &Path, limit: u64) {
     let mut files: Vec<(SystemTime, u64, PathBuf)> = rd
         .flatten()
         .filter_map(|e| {
-            let m = e.metadata().ok().filter(|m| m.is_file())?;
+            let entry = e.path().extension() == Some("sheet".as_ref());
+            let m = e.metadata().ok().filter(|m| m.is_file() && entry)?;
             Some((m.modified().ok()?, m.len(), e.path()))
         })
         .collect();
@@ -361,20 +366,22 @@ mod tests {
     fn b_char_7_trim_removes_the_least_recently_used() {
         let d = crate::config::tests::tempdir();
         let t0 = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1_000_000);
-        for (n, name) in ["c", "a", "keep", "b"].iter().enumerate() {
+        // Oldest first; a temp file of a write in progress is never removed.
+        let names = ["old.tmp", "c.sheet", "a.sheet", "keep.sheet", "b.sheet"];
+        for (n, name) in names.iter().enumerate() {
             let p = d.join(name);
             std::fs::write(&p, [0; 100]).unwrap();
             let f = std::fs::File::options().write(true).open(&p).unwrap();
             f.set_modified(t0 + std::time::Duration::from_secs(n as u64))
                 .unwrap();
         }
-        trim(&d, &d.join("keep"), 250);
+        trim(&d, &d.join("keep.sheet"), 250);
         let mut left: Vec<String> = std::fs::read_dir(&d)
             .unwrap()
             .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
             .collect();
         left.sort();
-        assert_eq!(left, ["b", "keep"]);
+        assert_eq!(left, ["b.sheet", "keep.sheet", "old.tmp"]);
     }
 
     /// Composed frames of the builtin character are the same through a cold and a warm cache.

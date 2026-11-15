@@ -215,8 +215,8 @@ the user's own download. With AutoHide the hint was gone about 4 s after it appe
   as without a cache and the entry is written again. A failed decode is not cached.
 - Entries are written in a background thread to a temp file, synced and renamed, and
   removed only by unlink, so a mapping never sees a partial or shrinking file. After each
-  write the directory is trimmed to 512 MiB, least recently used first (a hit refreshes
-  the modification time). An unwritable cache directory is logged once and loading goes
+  write the entries are trimmed to 512 MiB, least recently used first (a hit refreshes
+  the modification time); a file larger than that is not cached. An unwritable cache directory is logged once and loading goes
   on without the cache.
 - At start the daemon begins loading the first B-CHAR-4 candidate in a thread right after
   discovery; the startup selection takes that result. Selection itself is unchanged.
