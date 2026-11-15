@@ -1179,6 +1179,9 @@ belongs to the original menu.
       character's rest picture and it overlaps the envelope at the new character's foot
       along the other axis, however far the new character is from it; the tail may then
       not reach a small character. Otherwise it is placed again;
+    - opening again with the same character at the same position, size factor and
+      output opens it where it closed, if it may stay there by the rule above (a frame
+      pulled inside the output while browsing moves the foot and so the envelope);
   - it is not a client request: no request id and no signals other than `Shown`,
     `Hidden`, `Move` and the balloon signals.
 - Opening the gallery while a client ask is open first closes that ask with result 0,
@@ -1198,8 +1201,9 @@ belongs to the original menu.
   had to overlap the new character's own frame and a size change placed it next to the
   character, so away from the bottom of the output (size factor 3 or 4 in the middle, any
   factor near the top) it went back to the character and moved with taller and smaller
-  candidates (up to 22 of 122 steps), opened elsewhere than it closed, and moved again
-  after every size change.
+  candidates (up to 22 of 122 steps), a hover or press on a button could move it away
+  from the pointer, it opened elsewhere than it closed, and it moved again after every
+  size change.
 
 **B-UI-4 User Hide.** **bentwire decision.**
 - Hide from the menu (cause 7) or tray (cause 1) first interrupts every request of the

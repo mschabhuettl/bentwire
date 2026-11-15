@@ -169,6 +169,9 @@ struct Gallery {
     intro: usize,
 }
 
+/// Character id, top-left, size factor and output.
+type GalleryKey = (String, i32, i32, u32, Rect);
+
 struct Press {
     button: u32,
     modifiers: u32,
@@ -209,6 +212,10 @@ pub struct Core {
     owner: Owner,
     ask: Option<OpenAsk>,
     gallery: Option<Gallery>,
+    /// B-GAL-1: the gallery balloon's candidate and body when it closed, and the
+    /// character, position, size factor and output then (a reopen without a change
+    /// opens there).
+    gallery_closed: Option<(office::Candidate, Rect, GalleryKey)>,
     idle_on: bool,
     idle_at: Option<Ms>,
     idle_n: u32,
@@ -281,6 +288,7 @@ impl Core {
             owner: Owner::None,
             ask: None,
             gallery: None,
+            gallery_closed: None,
             idle_at: None,
             idle_n: 0,
             idle_started: false,
@@ -1788,7 +1796,15 @@ impl Core {
             candidate: None,
             hidden: false,
         });
-        if let Ok(p) = self.place_ask(self.ask.as_ref().unwrap()) {
+        let a = self.ask.as_ref().unwrap();
+        // Where it closed, if nothing changed since (frames pulled inside the output while
+        // browsing may have moved the foot, and so the envelope).
+        let kept = self
+            .gallery_closed
+            .take()
+            .filter(|c| Some(&c.2) == self.gallery_key().as_ref())
+            .and_then(|(k, body, _)| self.place_gallery_kept(a, k, body));
+        if let Some(p) = kept.or_else(|| self.place_ask(a).ok()) {
             self.apply_placement(p);
         }
     }
@@ -1950,6 +1966,23 @@ impl Core {
         let (Some(sc), Some(k), false) = (&a.scene, a.candidate, a.hidden) else {
             return false;
         };
+        match self.place_gallery_kept(a, k, sc.body) {
+            Some(p) => {
+                self.apply_placement(p);
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// B-GAL-1: the gallery balloon of placement `k` with body `body` kept for the current
+    /// character, if it still fits next to it.
+    fn place_gallery_kept(
+        &self,
+        a: &OpenAsk,
+        k: office::Candidate,
+        body: Rect,
+    ) -> Option<office::Placed> {
         let c = self.ch.as_ref().expect("character");
         let fr = frame_rect(c, self.scale);
         let visible = geometry::rest_box(&c.model, self.scale).map_or(fr, |(x0, y0, x1, y1)| {
@@ -1960,13 +1993,7 @@ impl Core {
         let m = self.output_rect();
         let cx = office::Ctx::new(self.metrics.as_ref(), m.w);
         let fixed = self.gallery_size(a);
-        match office::place_kept(&a.model, &a.it, k, sc.body, env, visible, m, &cx, fixed) {
-            Some(p) => {
-                self.apply_placement(p);
-                true
-            }
-            None => false,
-        }
+        office::place_kept(&a.model, &a.it, k, body, env, visible, m, &cx, fixed)
     }
 
     /// Close the gallery; `cancel` switches back to the original character. With
@@ -1974,6 +2001,11 @@ impl Core {
     /// visibility instead of queuing a Show, so the Hide runs on the original.
     fn close_gallery(&mut self, cancel: bool, for_hide: bool) {
         let Some(g) = self.gallery.take() else { return };
+        let place = self
+            .ask
+            .as_ref()
+            .filter(|a| a.id == 0 && !a.hidden)
+            .and_then(|a| Some((a.candidate?, a.scene.as_ref()?.body)));
         if self.ask.as_ref().is_some_and(|a| a.id == 0) {
             self.close_ask(0, 0, "");
         }
@@ -1983,6 +2015,15 @@ impl Core {
         {
             self.switch_to(m, false, for_hide);
         }
+        self.gallery_closed = place
+            .zip(self.gallery_key())
+            .map(|((k, b), key)| (k, b, key));
+    }
+
+    fn gallery_key(&self) -> Option<GalleryKey> {
+        let c = self.ch.as_ref()?;
+        let id = c.model.id.clone();
+        Some((id, c.x, c.y, self.scale, self.output_rect()))
     }
 
     // ----- catalog -----

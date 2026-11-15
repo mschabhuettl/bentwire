@@ -1874,27 +1874,25 @@ fn library_place_walks(w: i32, h: i32, feet: &[(i32, i32)]) {
     assert!(all.is_empty(), "{out}: {} problems", all.len());
 }
 
-/// The places of the walk on a `w` x `h` output: the middle, the upper half, near the top
-/// (left of the middle) and low (right of the middle).
-fn walk_feet(w: i32, h: i32) -> [(i32, i32); 4] {
-    [
-        (w / 2, h / 2),
-        (w / 2, h * 3 / 8),
-        (w / 3, h / 4),
-        (w * 3 / 4, h * 17 / 20),
-    ]
-}
-
+// The places: the middle, the upper half, near the top and low.
 #[test]
 #[ignore = "needs BENTWIRE_PACKS=<characters dir>"]
 fn library_gallery_place_walk_5120x1440() {
-    library_place_walks(5120, 1440, &walk_feet(5120, 1440));
+    library_place_walks(
+        5120,
+        1440,
+        &[(2560, 720), (2560, 540), (1700, 360), (1200, 1224)],
+    );
 }
 
 #[test]
 #[ignore = "needs BENTWIRE_PACKS=<characters dir>"]
 fn library_gallery_place_walk_1920x1080() {
-    library_place_walks(1920, 1080, &walk_feet(1920, 1080));
+    library_place_walks(
+        1920,
+        1080,
+        &[(960, 540), (960, 405), (640, 270), (1400, 918)],
+    );
 }
 
 // ---------- size factor (B-SCALE-1) ----------

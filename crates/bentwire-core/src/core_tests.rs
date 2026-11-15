@@ -2880,6 +2880,17 @@ fn b_gal_1_balloon_stays_next_to_the_envelope() {
         (100, 600 - 100 - 4),
         "above the envelope"
     );
+    // Hovering Next does not move it (in 0.2.0 it was placed again next to a on hover or
+    // press, and the release missed Next).
+    let nb = t.core.scene().office_balloon.unwrap().buttons[1].rect;
+    t.press(
+        PointerKind::Motion,
+        Surface::OfficeBalloon,
+        0,
+        nb.x + 1,
+        nb.y + 1,
+    );
+    assert_eq!(body(&t), b0, "kept on hover");
     walk(&mut t, b0);
     key(&mut t, Key::Escape);
     t.advance(t.now + 1000);
@@ -2893,6 +2904,52 @@ fn b_gal_1_balloon_stays_next_to_the_envelope() {
         "above the new envelope"
     );
     walk(&mut t, b1);
+}
+
+#[test]
+fn b_gal_1_reopens_where_it_closed() {
+    // a stands on (550, 1070) at the bottom of the output. p's rest picture ends 100 px
+    // above its frame's bottom, so p is pulled up and its foot, and the a after it, stand
+    // 90 px higher. The balloon stays for both, and reopens where it closed although the
+    // envelope moved with the foot; after a move it is placed anew.
+    let chars = vec![
+        sized("a", 100, 100, None),
+        sized("p", 100, 200, Some((0, 0, 100, 100))),
+    ];
+    let st = StateFile {
+        character: "a".into(),
+        left: 500,
+        top: 970,
+        visible: true,
+        chosen: true,
+        ..Default::default()
+    };
+    let mut t = T::with(chars, Some(st), vec![]);
+    t.advance(1000);
+    let body = |t: &T| t.core.scene().office_balloon.unwrap().body;
+    open_gallery(&mut t);
+    let b0 = body(&t);
+    assert_eq!(b0.bottom(), 1070 - 200 - 4, "above the envelope");
+    for (k, id) in [('n', "p"), ('b', "a")] {
+        key(&mut t, Key::Char(k));
+        assert_eq!(t.core.properties().character, id);
+        assert_eq!(body(&t), b0, "kept for {id}");
+    }
+    assert_eq!(t.pos(), (500, 880), "a after p stands higher");
+    key(&mut t, Key::Escape);
+    t.advance(t.now + 1000);
+    open_gallery(&mut t);
+    assert_eq!(body(&t), b0, "opens where it closed");
+    key(&mut t, Key::Escape);
+    t.req(Call::MoveTo {
+        x: 500,
+        y: 500,
+        speed: 0,
+    });
+    t.advance(t.now + 1000);
+    assert_eq!(t.pos(), (500, 500));
+    open_gallery(&mut t);
+    assert_eq!(body(&t).bottom(), 600 - 200 - 4, "placed anew after a move");
 }
 
 /// B-GAL-1: a candidate with ExtraData shows one of its intro phrases instead of the
