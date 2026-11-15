@@ -320,6 +320,17 @@ name = "bentwire-core"
 version = "0.1.3"
 
 [[package]]
+name = "bentwire-notify"
+version = "0.1.3"
+dependencies = [
+ "bentwire-core",
+ "libc",
+ "serde",
+ "toml",
+ "zbus",
+]
+
+[[package]]
 name = "bentwire-render"
 version = "0.1.3"
 dependencies = [

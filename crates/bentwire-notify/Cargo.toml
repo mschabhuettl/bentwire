@@ -1,0 +1,16 @@
+[package]
+name = "bentwire-notify"
+description = "bentwire notification bridge: the character says desktop notifications"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+serde.workspace = true
+toml.workspace = true
+zbus = "5"
+libc = "0.2"
+
+[dev-dependencies]
+bentwire-core.workspace = true
