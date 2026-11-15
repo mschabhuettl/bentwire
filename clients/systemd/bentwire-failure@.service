@@ -1,0 +1,8 @@
+# OnFailure= handler: the bentwire character says which unit failed.
+# Add to a user unit: OnFailure=bentwire-failure@%n.service (see README.md).
+[Unit]
+Description=Tell the bentwire character that %i failed
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/share/bentwire/systemd/bentwire-unit-failed %i
