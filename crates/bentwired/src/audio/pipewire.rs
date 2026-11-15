@@ -10,6 +10,7 @@
 use super::{Dl, Fault, Output, set_fault};
 use std::ffi::{CStr, CString, c_char, c_int, c_void};
 use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 #[repr(C)]
 struct StreamEvents {
@@ -68,6 +69,10 @@ struct SpaChunk {
 const EVENTS_VERSION: u32 = 2;
 const STATE_ERROR: c_int = -1;
 const STATE_UNCONNECTED: c_int = 0;
+const STATE_STREAMING: c_int = 3;
+/// How long a new stream may take to be linked to an output. A PipeWire without an
+/// audio sink or session manager never links it; ALSA is tried then, within OPEN_WAIT.
+const LINK_WAIT: Duration = Duration::from_millis(300);
 const DIRECTION_OUTPUT: c_int = 1;
 const ID_ANY: u32 = u32::MAX;
 /// PW_STREAM_FLAG_AUTOCONNECT | PW_STREAM_FLAG_MAP_BUFFERS (no RT_PROCESS: the process
@@ -190,6 +195,8 @@ struct Feed {
     busy: bool,
     /// The stream drains the end of the sound.
     draining: bool,
+    /// The stream's last `pw_stream_state`.
+    state: c_int,
 }
 
 /// What the callbacks see. Boxed: its address is the callbacks' data.
@@ -241,7 +248,27 @@ pub(super) fn open(
     if unsafe { (lib.loop_start)(thread_loop) } < 0 {
         return Err("pw_thread_loop_start failed".into());
     }
-    Ok(Box::new(pw))
+    let t = Instant::now();
+    loop {
+        let state = pw.shared.feed.lock().unwrap().state;
+        match state {
+            STATE_STREAMING => return Ok(Box::new(pw)),
+            STATE_ERROR => break,
+            _ if t.elapsed() >= LINK_WAIT => {
+                return Err(format!("no audio output linked within {LINK_WAIT:?}"));
+            }
+            _ => {}
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    // The error callback recorded why.
+    Err(pw
+        .shared
+        .fault
+        .lock()
+        .unwrap()
+        .take()
+        .unwrap_or_else(|| "stream error".into()))
 }
 
 impl PipeWire {
@@ -375,6 +402,9 @@ unsafe extern "C" fn on_state_changed(
     let sh = unsafe { &*(data as *const Shared) };
     // A stream being destroyed (its pointer already cleared) reports UNCONNECTED too.
     let current = !sh.stream.lock().unwrap().is_null();
+    if current {
+        sh.feed.lock().unwrap().state = state;
+    }
     if current && (state == STATE_ERROR || (state == STATE_UNCONNECTED && old != STATE_UNCONNECTED))
     {
         let e = if error.is_null() {

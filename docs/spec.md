@@ -1814,7 +1814,8 @@ the menu. `--dump-frames DIR` writes
     `$XDG_RUNTIME_DIR/pulse/native` exists (PulseAudio, or PipeWire with
     pipewire-pulse), through `libpulse-simple.so.0`;
   - PipeWire's own protocol, when `$XDG_RUNTIME_DIR/pipewire-0` exists, through
-    `libpipewire-0.3.so.0`;
+    `libpipewire-0.3.so.0`; a stream that is not linked to an output within 300 ms (no
+    audio sink or session manager) counts as a failure;
   - ALSA's default device through rodio. The device list is read only when the default
     device fails, and once until a device opens again.
 
