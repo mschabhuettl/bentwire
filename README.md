@@ -212,6 +212,8 @@ a hidden character. Every command and option is in [docs/usage.md](docs/usage.md
   Details in [clients/systemd/README.md](clients/systemd/README.md).
 
 All of them use only the `bentwire` CLI and never start the daemon themselves.
+The Arch packages install the clients to `/usr/share/bentwire/clients/` and the systemd
+template as `bentwire-failure@.service`.
 
 - **Desktop notifications**: `bentwire-notify` makes the character say your
   notifications, with `--only APP` / `--ignore APP` filters or
