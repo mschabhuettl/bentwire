@@ -208,6 +208,11 @@ a hidden character. Every command and option is in [docs/usage.md](docs/usage.md
 
 Both use only the `bentwire` CLI and never start the daemon themselves.
 
+**MQTT and Home Assistant**: `bentwire-mqtt` bridges MQTT topics to say, play, show, hide
+and ask, publishes the answers (`button:1`, `ok`, ...) and visibility, and announces itself
+to Home Assistant through MQTT discovery; Node-RED uses the same topics. Config, topics and
+example automations in [crates/bentwire-mqtt/README.md](crates/bentwire-mqtt/README.md).
+
 ## Configuration
 
 `~/.config/bentwire/config.toml` (`$XDG_CONFIG_HOME`). All keys are optional. The
