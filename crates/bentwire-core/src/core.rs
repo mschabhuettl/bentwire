@@ -1386,8 +1386,9 @@ impl Core {
         let (_, h) = balloon::body_size(cpl, ave, lh, lines, m.w);
         let interval = speak::word_interval(self.config.speaking_speed);
         let enabled = st.enabled && self.config.balloon;
-        let (fg, bg, border, auto_hide, auto_pace) =
-            (st.fg, st.bg, st.border, st.auto_hide, st.auto_pace);
+        // B-CHAR-6: the install hint, the only internal Speak (id 0), stays until clicked.
+        let auto_hide = st.auto_hide && r.req.id != 0;
+        let (fg, bg, border, auto_pace) = (st.fg, st.bg, st.border, st.auto_pace);
         // R-BAL-10: the next Speak hides an old balloon.
         self.hide_speech_balloon();
         let words = t.words.len();

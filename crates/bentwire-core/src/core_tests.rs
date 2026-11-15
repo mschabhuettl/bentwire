@@ -568,13 +568,15 @@ fn b_char_4_rescan_installs_a_character_when_none_loaded() {
     );
 }
 
+/// B-CHAR-6: the hint is an internal Speak whose balloon does not hide by itself (the
+/// character's AutoHide is on); it stays until a click on the character (R-BAL-10).
 #[test]
-fn b_char_6_install_hint_is_an_internal_speak() {
+fn b_char_6_install_hint_is_an_internal_speak_and_stays_until_clicked() {
     let mut t = T::visible(character("bentwire-placeholder", 0));
     let now = t.now;
     t.ev(Event::InstallHint);
     let mut seen = String::new();
-    for _ in 0..300 {
+    for _ in 0..600 {
         t.advance(t.now + 100);
         if let Some(b) = t.core.scene().agent_balloon {
             seen = b.lines.join(" ");
@@ -585,12 +587,22 @@ fn b_char_6_install_hint_is_an_internal_speak() {
             .iter()
             .any(|(t, s)| *t >= now && *s == Signal::BalloonShown)
     );
-    assert!(t.signals().iter().any(|(_, s)| *s == Signal::BalloonHidden));
     assert_eq!(t.count(|s| matches!(s, Signal::RequestStart { .. })), 0);
     assert!(
         seen.ends_with("bentwire characters install classics"),
         "{seen:?}"
     );
+    // Still there after 60 s; a click on the character hides it.
+    assert!(t.core.scene().agent_balloon.is_some(), "kept after 60 s");
+    assert_eq!(t.count(|s| *s == Signal::BalloonHidden), 0);
+    t.press(PointerKind::Press, Surface::Character, 1, 510, 510);
+    t.press(PointerKind::Release, Surface::Character, 1, 510, 510);
+    assert!(t.core.scene().agent_balloon.is_none());
+    assert_eq!(t.count(|s| *s == Signal::BalloonHidden), 1);
+    // A client Speak keeps the character's AutoHide.
+    t.req(Call::Speak("a".into()));
+    t.advance(t.now + 10_000);
+    assert!(t.core.scene().agent_balloon.is_none(), "client Speak hides");
 }
 
 #[test]

@@ -195,8 +195,12 @@ character without a restart, but never override a choice.
 installed character and it starts visible, the daemon logs and the character says once
 (an internal Speak, no request signals) "Install more characters: bentwire characters
 install classics" (German: "Weitere Assistenten installieren: bentwire characters install
-classics", B-L10N-1). The state file records that it was shown (B-CFG-2). Reason: a
-package installs only the placeholder; the classics need the user's own download.
+classics", B-L10N-1). The state file records that it was shown (B-CFG-2). Its balloon
+does not hide by itself: it follows R-BAL-10 without AutoHide (it stays until a click or
+drag on the character, the next Speak, Hide, or a MoveTo that moves), whatever the
+character's AutoHide. Reason: a package installs only the placeholder; the classics need
+the user's own download. With AutoHide the hint was gone about 4 s after it appeared
+(7 words at 352 ms plus 1500 ms), too short to read and type the command.
 
 **B-CHAR-5 Switching (`Select`, gallery).**
 1. Every queued, running or in-progress request of the old character ends with status 3
