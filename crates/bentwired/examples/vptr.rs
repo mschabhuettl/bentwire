@@ -2,6 +2,7 @@
 //! real compositor pointer (sway headless). Reads commands from stdin, one per line:
 //!   move X Y        absolute position in the output layout
 //!   movenf X Y      the same without a wl_pointer frame (two moves in one frame)
+//!   rel DX DY       relative motion (what a mouse sends)
 //!   press B         B = 1 left, 2 right
 //!   release B
 //!   sleep MS
@@ -76,6 +77,7 @@ fn main() {
             ["move", x, y] => {
                 p.motion_absolute(now(), x.parse().unwrap(), y.parse().unwrap(), w, h)
             }
+            ["rel", dx, dy] => p.motion(now(), dx.parse().unwrap(), dy.parse().unwrap()),
             ["press" | "release", b] => {
                 let code = if *b == "2" { 0x111 } else { 0x110 };
                 let st = if f[0] == "press" {
