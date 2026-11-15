@@ -260,11 +260,12 @@ pub(super) fn open(
             (f.state, f.linked)
         };
         match state {
+            // A reported error wins over an earlier format negotiation (fall back).
+            STATE_ERROR => break,
             _ if linked || state == STATE_STREAMING => {
                 log::debug!("pipewire: stream linked after {:?}", t.elapsed());
                 return Ok(Box::new(pw));
             }
-            STATE_ERROR => break,
             _ if t.elapsed() >= LINK_WAIT => {
                 return Err(format!("no audio output linked within {LINK_WAIT:?}"));
             }
