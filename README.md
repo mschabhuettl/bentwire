@@ -247,6 +247,8 @@ unknown keys are ignored.
 | `scale` | `1` | Character size 1 to 4; once chosen in the Size menu, with `bentwire scale` or over D-Bus, that choice wins over this key |
 
 State (character, position, visibility, size) is kept in `~/.local/state/bentwire/state.toml`.
+Decoded character pictures are cached in `~/.cache/bentwire/sheets/` (`$XDG_CACHE_HOME`, at
+most 512 MiB); deleting it is safe.
 
 **Balloon font.** The word balloon of `say` uses the character's own font: "MS Sans Serif"
 13 px for the Microsoft Agent characters; Office 97 actors name no font and get the same

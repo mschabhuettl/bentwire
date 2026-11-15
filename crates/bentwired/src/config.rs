@@ -152,6 +152,11 @@ pub fn state_path() -> PathBuf {
     xdg("XDG_STATE_HOME", ".local/state").join("bentwire/state.toml")
 }
 
+/// The sheet cache (B-CHAR-7), beside other users of `$XDG_CACHE_HOME/bentwire`.
+pub fn sheet_cache_dir() -> PathBuf {
+    xdg("XDG_CACHE_HOME", ".cache").join("bentwire/sheets")
+}
+
 pub fn data_home() -> PathBuf {
     xdg("XDG_DATA_HOME", ".local/share")
 }

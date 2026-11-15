@@ -2,14 +2,16 @@
 //! daemon needs for pictures, sounds and the tray icon.
 
 use crate::discovery::Entry;
+use crate::sheets::SheetCache;
 use bentwire_character::Character;
 use bentwire_character::label::{PackLabels, label_info};
 use bentwire_core::api::{CatalogEntry, CharacterLoader, Picture};
+use bentwire_core::l10n::startup_candidates;
 use bentwire_core::model::{CharacterModel, InfoEntry};
 use bentwire_render::canvas::RgbaImage;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -24,6 +26,10 @@ pub struct Library {
     /// The A-THEME-1 balloon theme under the roots at the last scan.
     pub theme: Option<PathBuf>,
     pub cache: crate::discovery::Cache,
+    /// Decoded sheets on disk (B-CHAR-7); `None` decodes every load (tests, tools).
+    pub sheets: Option<SheetCache>,
+    /// The startup character loading in a thread (`preload`).
+    preload: Option<(String, std::thread::JoinHandle<Result<Character, String>>)>,
 }
 
 pub type Shared = Rc<RefCell<Library>>;
@@ -87,6 +93,35 @@ impl Library {
     pub fn get(&self, id: &str) -> Option<&Arc<Character>> {
         self.loaded.get(id)
     }
+
+    /// Start loading the first B-CHAR-4 candidate in a thread, so that it overlaps the rest
+    /// of the daemon start; the core's first load of that id takes the result.
+    pub fn preload(&mut self, chosen: Option<&str>, config: Option<&str>) {
+        let mut ids: Vec<String> = self.entries.iter().map(|e| e.id.clone()).collect();
+        ids.sort();
+        let Some(id) = startup_candidates(chosen, config, &ids).into_iter().next() else {
+            return;
+        };
+        let Some(path) = self
+            .entries
+            .iter()
+            .find(|e| e.id == id)
+            .map(|e| e.path.clone())
+        else {
+            return;
+        };
+        let sheets = self.sheets.clone();
+        let h = std::thread::spawn(move || load_character(&path, sheets.as_ref()));
+        self.preload = Some((id, h));
+    }
+}
+
+fn load_character(path: &Path, sheets: Option<&SheetCache>) -> Result<Character, String> {
+    match sheets {
+        Some(s) => Character::load_with(path, &mut |file, png| s.decode(path, file, png)),
+        None => Character::load(path),
+    }
+    .map_err(|e| format!("{}: {e}", path.display()))
 }
 
 pub struct Loader(pub Shared);
@@ -100,7 +135,13 @@ impl CharacterLoader for Loader {
             .find(|e| e.id == id)
             .map(|e| e.path.clone())
             .ok_or_else(|| format!("no character {id:?}"))?;
-        let c = Character::load(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+        let t = std::time::Instant::now();
+        let pre = lib.preload.take().filter(|(p, _)| p == id);
+        let c = match pre.and_then(|(_, h)| h.join().ok()) {
+            Some(r) => r,
+            None => load_character(&path, lib.sheets.as_ref()),
+        }?;
+        log::debug!("loaded {id} in {:?}", t.elapsed());
         for w in &c.warnings {
             log::warn!("{id}: {w}");
         }

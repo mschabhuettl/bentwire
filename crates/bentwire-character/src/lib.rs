@@ -114,6 +114,9 @@ pub fn cheap_check_path(path: impl AsRef<Path>) -> Result<Family, Error> {
     cheap_check(&String::from_utf8(text).map_err(|_| Error::Manifest("not UTF-8".into()))?)
 }
 
+/// Decodes one sheet file: (package path, PNG bytes) to the decoded file.
+pub type SheetDecoder<'a> = dyn FnMut(&str, &[u8]) -> Result<Image, Error> + 'a;
+
 /// A loaded character: manifest plus decoded media.
 pub struct Character {
     pub manifest: Manifest,
@@ -135,7 +138,17 @@ impl Character {
         Self::from_package(&Package::open(path)?)
     }
 
+    /// `load` with `decode(file, png bytes)` in place of `image::decode_png` for the sheets
+    /// (the daemon's sheet cache, B-CHAR-7).
+    pub fn load_with(path: impl AsRef<Path>, decode: &mut SheetDecoder) -> Result<Self, Error> {
+        Self::from_package_with(&Package::open(path)?, decode)
+    }
+
     pub fn from_package(pkg: &Package) -> Result<Self, Error> {
+        Self::from_package_with(pkg, &mut |_, b| image::decode_png(b))
+    }
+
+    pub fn from_package_with(pkg: &Package, decode: &mut SheetDecoder) -> Result<Self, Error> {
         let text = String::from_utf8(pkg.read("character.toml")?)
             .map_err(|_| Error::Manifest("character.toml is not UTF-8".into()))?;
         let manifest = parse::parse_manifest(&text)?;
@@ -159,7 +172,7 @@ impl Character {
             for (key, file) in files {
                 let r = pkg
                     .read(file)
-                    .and_then(|b| image::decode_png(&b))
+                    .and_then(|b| decode(file, &b))
                     .map_err(|e| e.to_string())
                     .and_then(|img| image::check_grid(s, key, &img).map(|_| img));
                 if let Err(e) = &r {

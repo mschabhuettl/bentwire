@@ -1,6 +1,7 @@
 //! PNG sheets (character-format 5.1, 5.2) and the normative compositor (5.3).
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::Error;
 use crate::model::{Layer, Manifest, Sheet};
@@ -40,12 +41,36 @@ impl Rgba {
     }
 }
 
+/// Read-only pixel bytes, shared: a decoded buffer or a mapped file of the daemon's sheet
+/// cache.
+#[derive(Clone)]
+pub struct Bytes(pub Arc<dyn AsRef<[u8]> + Send + Sync>);
+
+impl std::ops::Deref for Bytes {
+    type Target = [u8];
+    fn deref(&self) -> &[u8] {
+        (*self.0).as_ref()
+    }
+}
+
+impl From<Vec<u8>> for Bytes {
+    fn from(v: Vec<u8>) -> Self {
+        Bytes(Arc::new(v))
+    }
+}
+
+impl std::fmt::Debug for Bytes {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Bytes({})", self.len())
+    }
+}
+
 /// Pixels of a decoded PNG file.
 #[derive(Clone, Debug)]
 pub enum Pixels {
     /// One byte per pixel plus the colour table (memory format of character-format 5.2).
     Indexed {
-        data: Vec<u8>,
+        data: Bytes,
         /// `PLTE` entries as stored.
         plte: Vec<[u8; 3]>,
         /// `tRNS` alpha values as stored (may be shorter than `plte`).
@@ -53,7 +78,23 @@ pub enum Pixels {
         /// RGBA per index (index >= PLTE length never occurs, checked at decode).
         table: Box<[[u8; 4]; 256]>,
     },
-    Rgba(Vec<u8>),
+    Rgba(Bytes),
+}
+
+/// Pixel slices borrowed once, so the per-pixel reads of the compositor stay plain slice reads.
+enum View<'a> {
+    Indexed(&'a [u8], &'a [[u8; 4]; 256]),
+    Rgba(&'a [u8]),
+}
+
+impl View<'_> {
+    #[inline]
+    fn pixel(&self, i: usize) -> [u8; 4] {
+        match self {
+            View::Indexed(data, table) => table[data[i] as usize],
+            View::Rgba(d) => [d[i * 4], d[i * 4 + 1], d[i * 4 + 2], d[i * 4 + 3]],
+        }
+    }
 }
 
 /// (palette entry count, RGB bytes, transparent index).
@@ -68,23 +109,25 @@ pub struct Image {
 }
 
 impl Image {
+    fn view(&self) -> View<'_> {
+        match &self.pixels {
+            Pixels::Indexed { data, table, .. } => View::Indexed(data, table),
+            Pixels::Rgba(d) => View::Rgba(d),
+        }
+    }
+
     #[inline]
     pub fn pixel(&self, x: u32, y: u32) -> [u8; 4] {
-        let i = y as usize * self.width as usize + x as usize;
-        match &self.pixels {
-            Pixels::Indexed { data, table, .. } => table[data[i] as usize],
-            Pixels::Rgba(d) => [d[i * 4], d[i * 4 + 1], d[i * 4 + 2], d[i * 4 + 3]],
-        }
+        self.view()
+            .pixel(y as usize * self.width as usize + x as usize)
     }
 
     /// The whole file as RGBA (not canonicalized: colours of alpha-0 pixels are kept).
     pub fn to_rgba(&self) -> Rgba {
         let mut out = Rgba::new(self.width, self.height);
-        for y in 0..self.height {
-            for x in 0..self.width {
-                let i = (y as usize * self.width as usize + x as usize) * 4;
-                out.data[i..i + 4].copy_from_slice(&self.pixel(x, y));
-            }
+        let v = self.view();
+        for (i, px) in out.data.as_chunks_mut::<4>().0.iter_mut().enumerate() {
+            *px = v.pixel(i);
         }
         out
     }
@@ -170,7 +213,7 @@ pub fn decode_png(bytes: &[u8]) -> Result<Image, Error> {
         return Ok(Image {
             width: w,
             height: h,
-            pixels: Pixels::Rgba(out),
+            pixels: Pixels::Rgba(out.into()),
         });
     }
     let mut r = dec.read_info().map_err(e)?;
@@ -213,21 +256,26 @@ pub fn decode_png(bytes: &[u8]) -> Result<Image, Error> {
             plte.len()
         )));
     }
-    let mut table = Box::new([[0, 0, 0, 255]; 256]);
-    for (i, c) in plte.iter().enumerate() {
-        let a = trns.as_ref().and_then(|t| t.get(i).copied()).unwrap_or(255);
-        table[i] = [c[0], c[1], c[2], a];
-    }
     Ok(Image {
         width: w,
         height: h,
         pixels: Pixels::Indexed {
-            data,
+            data: data.into(),
+            table: palette_table(&plte, trns.as_deref()),
             plte,
             trns,
-            table,
         },
     })
+}
+
+/// RGBA per index of an indexed file: `PLTE` with `tRNS` alpha (255 where `tRNS` is short).
+pub fn palette_table(plte: &[[u8; 3]], trns: Option<&[u8]>) -> Box<[[u8; 4]; 256]> {
+    let mut table = Box::new([[0, 0, 0, 255]; 256]);
+    for (i, c) in plte.iter().enumerate() {
+        let a = trns.and_then(|t| t.get(i).copied()).unwrap_or(255);
+        table[i] = [c[0], c[1], c[2], a];
+    }
+    table
 }
 
 /// The decoded files of all sheets, keyed by (sheet id, density key; 1 = the base file).
@@ -334,6 +382,7 @@ pub fn compose(m: &Manifest, sheets: &SheetSet, layers: &[Layer], out: [u32; 2])
             continue;
         }
         let (px, py, sw, sh) = (px as u32, py as u32, sw as u32, sh as u32);
+        let (view, iw) = (img.view(), img.width as usize);
         let identity = dw == sw as i64 && dh == sh as i64;
         // Clip to the canvas.
         let dx_lo = (-x0).max(0);
@@ -360,7 +409,7 @@ pub fn compose(m: &Manifest, sheets: &SheetSet, layers: &[Layer], out: [u32; 2])
             };
             let row = ((y0 + dy) as usize) * ow as usize;
             for (k, dx) in (dx_lo..dx_hi).enumerate() {
-                let s = img.pixel(px + cols_map[k], py + sy);
+                let s = view.pixel((py + sy) as usize * iw + (px + cols_map[k]) as usize);
                 let a = s[3] as u32;
                 if a == 0 {
                     continue;
