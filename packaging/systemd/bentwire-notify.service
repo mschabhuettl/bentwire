@@ -9,7 +9,8 @@ After=graphical-session.target
 
 [Service]
 ExecStart=/usr/bin/bentwire-notify
-Restart=on-failure
+# Exit 1 is a bad flag or notify.toml; do not loop on that.
+Restart=on-abnormal
 
 [Install]
 WantedBy=graphical-session.target

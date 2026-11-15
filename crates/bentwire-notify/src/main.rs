@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 use std::time::Duration;
 use zbus::blocking::{Connection, MessageIterator};
-use zbus::message::Type;
+use zbus::message::{Message, Type};
 use zbus::zvariant::OwnedValue;
 
 const BUS_NAME: &str = "org.bentwire.Agent";
@@ -121,12 +121,43 @@ fn strip_tags(s: &str) -> String {
     out
 }
 
+/// The five XML entities and numeric ones (GLib escapes `'` as `&#39;`).
 fn decode_entities(s: &str) -> String {
-    s.replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&quot;", "\"")
-        .replace("&apos;", "'")
-        .replace("&amp;", "&")
+    let mut out = String::new();
+    let mut rest = s;
+    while let Some(p) = rest.find('&') {
+        out.push_str(&rest[..p]);
+        rest = &rest[p..];
+        let decoded = rest.find(';').and_then(|end| {
+            let c = match &rest[1..end] {
+                "lt" => '<',
+                "gt" => '>',
+                "quot" => '"',
+                "apos" => '\'',
+                "amp" => '&',
+                e => {
+                    let n = match e.strip_prefix("#x").or_else(|| e.strip_prefix("#X")) {
+                        Some(h) => u32::from_str_radix(h, 16).ok()?,
+                        None => e.strip_prefix('#')?.parse().ok()?,
+                    };
+                    char::from_u32(n)?
+                }
+            };
+            Some((c, end))
+        });
+        match decoded {
+            Some((c, end)) => {
+                out.push(c);
+                rest = &rest[end + 1..];
+            }
+            None => {
+                out.push('&');
+                rest = &rest[1..];
+            }
+        }
+    }
+    out.push_str(rest);
+    out
 }
 
 /// The Speak text for a notification, `None` when there is nothing to say.
@@ -151,6 +182,19 @@ fn speech(summary: &str, body: &str) -> Option<String> {
     Some(format!("{}...", cut.trim_end()))
 }
 
+/// app_name, summary and body of a Notify call.
+fn notification(msg: &Message) -> Option<(String, String, String)> {
+    let h = msg.header();
+    if h.message_type() != Type::MethodCall
+        || h.interface().map(|i| i.as_str()) != Some(NOTIFY_IFACE)
+        || h.member().map(|m| m.as_str()) != Some("Notify")
+    {
+        return None;
+    }
+    let (app, _, _, summary, body, ..) = msg.body().deserialize::<Notify>().ok()?;
+    Some((app, summary, body))
+}
+
 extern "C" fn quit(_: libc::c_int) {
     unsafe { libc::_exit(0) }
 }
@@ -171,14 +215,7 @@ fn run(f: &Filter) -> zbus::Result<()> {
     let mut failing = false;
     for msg in messages {
         let Ok(msg) = msg else { break };
-        let h = msg.header();
-        if h.message_type() != Type::MethodCall
-            || h.interface().map(|i| i.as_str()) != Some(NOTIFY_IFACE)
-            || h.member().map(|m| m.as_str()) != Some("Notify")
-        {
-            continue;
-        }
-        let Ok((app, _, _, summary, body, ..)) = msg.body().deserialize::<Notify>() else {
+        let Some((app, summary, body)) = notification(&msg) else {
             continue;
         };
         if !f.allows(&app) {
@@ -262,6 +299,10 @@ mod tests {
             speech("New mail", "<b>Hi</b> &amp; &lt;b&gt;\n\n  there").unwrap(),
             "New mail: Hi & <b> there"
         );
+        assert_eq!(
+            decode_entities("It&#39;s &#x41;&#X42; &amp;amp; & a&b; &#xZZ; &#1114112;"),
+            "It's AB &amp; & a&b; &#xZZ; &#1114112;"
+        );
         assert_eq!(speech("  Title ", "").unwrap(), "Title");
         assert_eq!(speech("", "<i></i>"), None);
         assert_eq!(speech("", "only body").unwrap(), "only body");
@@ -284,6 +325,40 @@ mod tests {
         let p = bentwire_core::speak::parse(alts[0]).unwrap();
         assert!(p.bookmarks.is_empty());
         assert_eq!(p.words.join(" "), t);
+    }
+
+    #[test]
+    fn b_notify_1_parse_notify_call() {
+        let hints: HashMap<&str, zbus::zvariant::Value> = HashMap::new();
+        let body = (
+            "Mail",
+            0u32,
+            "",
+            "Hi",
+            "there",
+            Vec::<&str>::new(),
+            hints,
+            -1i32,
+        );
+        let call = |member: &'static str| {
+            Message::method_call("/org/freedesktop/Notifications", member)
+                .unwrap()
+                .interface(NOTIFY_IFACE)
+                .unwrap()
+        };
+        let m = call("Notify").build(&body).unwrap();
+        assert_eq!(
+            notification(&m),
+            Some(("Mail".into(), "Hi".into(), "there".into()))
+        );
+        assert_eq!(
+            notification(&call("CloseNotification").build(&body).unwrap()),
+            None
+        );
+        assert_eq!(
+            notification(&call("Notify").build(&("Mail", 1u32)).unwrap()),
+            None
+        );
     }
 
     #[test]

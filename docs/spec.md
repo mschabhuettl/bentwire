@@ -2068,10 +2068,11 @@ three installed ids within edit distance 2 or that extend the id with `-`
   `type='method_call',interface='org.freedesktop.Notifications',member='Notify'`) and
   calls `Speak` on a second connection for every notification its filter allows. The
   notification daemon is not replaced and still shows the notification.
-- Text: `summary: body`, or the non-empty one of the two; if both are empty, nothing is said. In the
-  body the tags `b`, `i`, `u`, `a` and `img` are removed and `&lt; &gt; &quot; &apos;
-  &amp;` decoded; then `|` (R-SPEAK-3) and `\` (B-SPEAK-1) become `/`, whitespace runs
-  become one space, and text over 300 characters is cut to 297 plus `...`.
+- Text: `summary: body`, or the non-empty one of the two; if both are empty, nothing is
+  said. In the body the tags `b`, `i`, `u`, `a` and `img` are removed and the entities
+  `&lt; &gt; &quot; &apos; &amp;`, `&#N;` and `&#xH;` decoded; then `|` (R-SPEAK-3) and
+  `\` (B-SPEAK-1) become `/`, whitespace runs become one space, and text over 300
+  characters is cut to 297 plus `...`.
 - Filter on `app_name`, case-insensitive: `ignore` always drops; a non-empty `only`
   drops every app not in it. Flags `--only APP` and `--ignore APP` (repeatable) replace
   the list of the same key from `$XDG_CONFIG_HOME/bentwire/notify.toml` (`only = [...]`,

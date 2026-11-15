@@ -176,7 +176,9 @@ fn b_notify_1_bridge_speaks_filtered_notifications() {
             break;
         }
     }
-    while spoken.recv_timeout(Duration::from_millis(200)).is_ok() {}
+    // The bridge is sequential: once this one arrives, every earlier probe is consumed.
+    notify(&client, "probe", "synced", "");
+    while spoken.recv_timeout(Duration::from_secs(5)).unwrap() != "synced" {}
 
     notify(&client, "Spammy", "ignored", "x");
     notify(&client, "Other", "not in only", "x");
