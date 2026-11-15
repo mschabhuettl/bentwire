@@ -26,6 +26,7 @@ async function main() {
   // Subscribe before the first call so that no signal is missed. RequestComplete and
   // AskComplete are unicast to this connection (B-Q-2); the others are broadcast.
   const pending = new Map(); // request id -> callback(status, reason)
+  const early = new Map(); // request id -> [status, reason], completed before `await` resumed
   const answers = new Map(); // ask id -> [result, checked]
   ch.on('AskComplete', (id, result, checked) => answers.set(id, [result, checked]));
   ch.on('RequestComplete', (id, status, reason) => {
@@ -33,22 +34,35 @@ async function main() {
     if (done) {
       pending.delete(id);
       done(status, reason);
+    } else {
+      early.set(id, [status, reason]);
     }
   });
+  // The reply and RequestComplete can arrive together, and dbus-next may then run the
+  // signal handler before the awaited call returns: look in `early` first.
+  const whenComplete = (id, done) => {
+    if (early.has(id)) {
+      const [status, reason] = early.get(id);
+      early.delete(id);
+      done(status, reason);
+    } else {
+      pending.set(id, done);
+    }
+  };
   for (const member of ['Click', 'DblClick', 'Shown', 'Hidden']) {
     ch.on(member, (...args) => console.log(member, ...args));
   }
 
   await ch.Show(false);
   const spoken = await ch.Speak('Hello from JavaScript!');
-  pending.set(spoken, (status, reason) => console.log('spoken:', status, reason || 'ok'));
+  whenComplete(spoken, (status, reason) => console.log('spoken:', status, reason || 'ok'));
   await ch.Play('Wave');
   const ask = await ch.Ask({
     heading: new dbus.Variant('s', 'JavaScript example'),
     text: new dbus.Variant('s', 'Coffee or tea?'),
     buttons: new dbus.Variant('as', ['&Coffee', '&Tea']),
   });
-  pending.set(ask, (status, reason) => {
+  whenComplete(ask, (status, reason) => {
     if (status !== 0) console.log(`ask ended with status ${status} ${reason}`);
     const [result] = answers.get(ask) || [0, []];
     answers.delete(ask);
