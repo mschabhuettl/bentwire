@@ -795,6 +795,15 @@ impl Core {
     fn enqueue(&mut self, r: Req) {
         // R-IDLE-4: any newly queued request resets idle.
         self.idle_reset();
+        // B-MENU-4: a client request ends the Animate! plays (internal Play outside the
+        // gallery), so a looping one (R-Q-6) does not hold it back.
+        if r.id != 0 && self.gallery.is_none() {
+            let animate = |q: &Req| q.id == 0 && matches!(q.kind, Kind::Play(_));
+            self.queue.retain(|q| !animate(q));
+            if self.running.as_ref().is_some_and(|x| animate(&x.req)) {
+                self.interrupt_running(errors::INTERRUPTED);
+            }
+        }
         self.queue.push_back(r);
     }
 

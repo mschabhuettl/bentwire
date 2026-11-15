@@ -2087,6 +2087,44 @@ fn b_menu_4_animate_shuffle() {
     assert_eq!(t.count(|s| matches!(s, Signal::RequestStart { .. })), 0);
 }
 
+/// B-MENU-4: a client request ends a running Animate! play, also a looping one (R-Q-6),
+/// and drops queued ones, so it does not wait behind them.
+#[test]
+fn b_menu_4_client_request_ends_animate() {
+    let mut m = character("c", 100);
+    for a in m.animations.iter_mut() {
+        if ["Greeting", "Explain", "Wave"].contains(&a.name.as_str()) {
+            let mut f1 = fr(100);
+            f1.branches = vec![Branch::Prob { target: 0, p: 100 }];
+            let mut f0 = fr(100);
+            f0.exit = Exit::To(2);
+            f1.exit = Exit::To(2);
+            a.frames = vec![f0, f1, fr(50)];
+        }
+    }
+    let st = StateFile {
+        character: "c".into(),
+        left: 500,
+        top: 500,
+        visible: true,
+        chosen: true,
+        ..Default::default()
+    };
+    let mut t = T::with(vec![m], Some(st), vec![0; 16]);
+    t.advance(1000);
+    for _ in 0..2 {
+        t.ev(Event::Menu(MenuInput::Dismiss));
+        t.press(PointerKind::Press, Surface::Character, 2, 510, 510);
+        t.press(PointerKind::Release, Surface::Character, 2, 510, 510);
+        t.ev(Event::Menu(MenuInput::Activate(4)));
+    }
+    t.advance(t.now + 3000);
+    let sp = t.req(Call::Speak("hello".into()));
+    // The loop leaves through its exit (50 ms); the second Animate! never starts.
+    t.advance(t.now + 200);
+    assert_eq!(t.count(|s| *s == Signal::RequestStart { id: sp }), 1);
+}
+
 #[test]
 fn b_gal_1_gallery() {
     let mut t = T::with(
