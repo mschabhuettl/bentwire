@@ -12,6 +12,9 @@ D-Bus API (`org.bentwire.Agent1`) and the character format (`format = 1`) are fr
 - The Choose Assistant gallery shows one of the character's intro phrases (its ExtraData,
   or the greeting lines of an Office 97 actor) instead of the description, a new one each
   time the character is shown. Characters without them keep the description.
+- `bentwire-notify`, an optional notification bridge: the character says desktop
+  notifications, filtered per app with `--only` and `--ignore` or
+  `~/.config/bentwire/notify.toml`, with an optional systemd user unit.
 
 ## [0.1.3] - 2026-11-15
 

@@ -67,3 +67,9 @@ prints the usage.
 Exit status: 0 success; 1 usage, D-Bus or method error (error name and message on
 stderr); 2 the request failed (for `ask`: nothing is printed, the reason goes to stderr);
 3 interrupted, or `ask` result `none`.
+
+## Bridges
+
+- `bentwire-notify`: the character says desktop notifications, with a filter per app
+  (`--only`, `--ignore`, `~/.config/bentwire/notify.toml`). Details in
+  [`crates/bentwire-notify/README.md`](../crates/bentwire-notify/README.md).
