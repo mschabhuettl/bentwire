@@ -7,6 +7,8 @@ D-Bus API (`org.bentwire.Agent1`) and the character format (`format = 1`) are fr
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-21
+
 ### Fixed
 
 - After Animate! a notification or any other client request no longer waits forever
@@ -210,7 +212,8 @@ First release.
 - Configuration file `~/.config/bentwire/config.toml`, reloaded on `SIGHUP`.
 - Documentation: behaviour spec, format research, sources, credits, decisions, roadmap.
 
-[Unreleased]: https://github.com/mschabhuettl/bentwire/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/mschabhuettl/bentwire/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/mschabhuettl/bentwire/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/mschabhuettl/bentwire/compare/v0.1.3...v0.2.0
 [0.1.3]: https://github.com/mschabhuettl/bentwire/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/mschabhuettl/bentwire/compare/v0.1.1...v0.1.2
