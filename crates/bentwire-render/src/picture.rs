@@ -90,8 +90,8 @@ pub fn downsample(pic: &RgbaImage, n: u32) -> RgbaImage {
                 continue;
             }
             let o = ((y * w + x) * 4) as usize;
-            for k in 0..3 {
-                out.data[o + k] = ((2 * sc[k] + sa) / (2 * sa)) as u8;
+            for (d, c) in out.data[o..o + 3].iter_mut().zip(sc) {
+                *d = ((2 * c + sa) / (2 * sa)) as u8;
             }
             out.data[o + 3] = ((2 * sa + nn) / (2 * nn)) as u8;
         }
