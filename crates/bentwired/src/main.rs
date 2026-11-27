@@ -228,6 +228,16 @@ fn run(args: args::Args) -> Result<(), String> {
             .iter()
             .all(|c| config::BUILTIN.contains(&c.id.as_str()))
         && state_file.as_ref().is_none_or(|s| s.visible);
+    // B-CFG-2: a hand-copied builtin character of 0.3 and older is reported once.
+    let placeholder = (!state.placeholder_hint_shown)
+        .then(|| {
+            lib.borrow()
+                .entries
+                .iter()
+                .find(|e| e.id == config::PLACEHOLDER)
+                .map(|e| e.path.clone())
+        })
+        .flatten();
     let headless = args.headless;
     // A-FONT-1: headless output must not depend on the machine's fonts.
     let fonts = || {
@@ -327,6 +337,7 @@ fn run(args: args::Args) -> Result<(), String> {
         config_paths: config.character_paths.clone(),
         state_path: state_path.clone(),
         install_hint_shown: state.install_hint_shown || install_hint,
+        placeholder_hint_shown: state.placeholder_hint_shown || placeholder.is_some(),
         next_token: 0,
         pending: HashMap::new(),
         last_scene: None,
@@ -342,18 +353,30 @@ fn run(args: args::Args) -> Result<(), String> {
     let now = app.clock.now();
     let out = app.core.start(now);
     app.process(out);
+    if let Some(p) = &placeholder {
+        log::info!(
+            "{}: bentwire-placeholder was the builtin character up to bentwire 0.3 and is \
+             replaced by wire; this copy is not needed and can be removed",
+            p.display()
+        );
+    }
     if install_hint {
         log::info!(
             "{}",
             bentwire_core::l10n::install_hint(bentwire_core::api::Lang::En)
         );
+    }
+    if install_hint || placeholder.is_some() {
         let st = config::State {
-            install_hint_shown: true,
+            install_hint_shown: app.install_hint_shown,
+            placeholder_hint_shown: app.placeholder_hint_shown,
             ..state
         };
         if let Err(e) = st.save(&state_path) {
             log::warn!("writing {}: {e}", state_path.display());
         }
+    }
+    if install_hint {
         app.event(Event::InstallHint);
     }
     if !headless {

@@ -81,6 +81,7 @@ pub struct App {
     pub state_path: PathBuf,
     /// B-CHAR-6 flag, kept in every state file written.
     pub install_hint_shown: bool,
+    pub placeholder_hint_shown: bool,
     pub next_token: u64,
     /// Calls waiting for the core's reply: the message and its trace record.
     pub pending: HashMap<u64, (Message, serde_json::Value)>,
@@ -539,6 +540,7 @@ impl App {
                         visible: Some(s.visible),
                         chosen: Some(s.chosen),
                         install_hint_shown: self.install_hint_shown,
+                        placeholder_hint_shown: self.placeholder_hint_shown,
                         scale: Some(s.scale),
                         scale_chosen: Some(s.scale_chosen),
                         speech: s.speech,

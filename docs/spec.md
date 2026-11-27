@@ -1666,6 +1666,11 @@ The daemon reads the config file at start and when it receives SIGHUP or the D-B
   character up to 0.3.0). A `character` of `bentwire-placeholder` is read as `wire`,
   chosen or not as before;
 - `install_hint_shown`: B-CHAR-6 was shown (default false);
+- `placeholder_hint_shown`: a character `bentwire-placeholder` (the builtin character up to
+  0.3.0, copied by hand under a search root) was found at start and the log said once
+  `<path>: bentwire-placeholder was the builtin character up to bentwire 0.3 and is replaced
+  by wire; this copy is not needed and can be removed` (default false). The copy stays a
+  normal character; the daemon never deletes it;
 - `scale`, the size factor `left` and `top` were saved at, and `scale_chosen`, the user
   chose it (B-SCALE-1); a file without them counts as 1, not chosen;
 - `speech`: speech output as the user set it (B-TTS-1), written only once set; without it
