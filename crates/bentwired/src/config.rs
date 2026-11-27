@@ -162,6 +162,16 @@ pub fn discovery_cache_file() -> PathBuf {
     xdg("XDG_CACHE_HOME", ".cache").join("bentwire/discovery.json")
 }
 
+/// Installed add-ons (B-ADDON-2).
+pub fn addons_dir() -> PathBuf {
+    data_home().join("bentwire/addons")
+}
+
+/// The list of enabled add-ons (B-ADDON-3).
+pub fn addons_file() -> PathBuf {
+    xdg("XDG_CONFIG_HOME", ".config").join("bentwire/addons.toml")
+}
+
 pub fn data_home() -> PathBuf {
     xdg("XDG_DATA_HOME", ".local/share")
 }

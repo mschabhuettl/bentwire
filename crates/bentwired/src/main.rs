@@ -1,3 +1,4 @@
+mod addons;
 mod app;
 mod args;
 mod audio;
@@ -75,12 +76,18 @@ fn run(args: args::Args) -> Result<(), String> {
     let mut event_loop: calloop::EventLoop<App> =
         calloop::EventLoop::try_new().map_err(|e| e.to_string())?;
     // Block the signals before any thread is spawned (signalfd).
-    let signals = Signals::new(&[UnixSignal::SIGTERM, UnixSignal::SIGINT, UnixSignal::SIGHUP])
-        .map_err(|e| e.to_string())?;
+    let signals = Signals::new(&[
+        UnixSignal::SIGTERM,
+        UnixSignal::SIGINT,
+        UnixSignal::SIGHUP,
+        UnixSignal::SIGCHLD,
+    ])
+    .map_err(|e| e.to_string())?;
     event_loop
         .handle()
         .insert_source(signals, |ev, _, app: &mut App| match ev.signal() {
             UnixSignal::SIGHUP => app.reload(),
+            UnixSignal::SIGCHLD => app.bridges.reap(),
             // B-RUN-1: save (the core's Quit emits PersistState) and exit 0.
             _ => {
                 app.event(Event::Call {
@@ -299,6 +306,7 @@ fn run(args: args::Args) -> Result<(), String> {
         grab: None,
         deferred: Vec::new(),
         batch: false,
+        bridges: addons::Bridges::default(),
     };
     let now = app.clock.now();
     let out = app.core.start(now);
@@ -336,6 +344,11 @@ fn run(args: args::Args) -> Result<(), String> {
             .map_err(|e| e.to_string())?;
     }
 
+    // B-ADDON-5: the bridges start once the daemon owns its name and runs.
+    app.bridges.reconcile(addons::enabled(
+        &config::addons_dir(),
+        &config::addons_file(),
+    ));
     while !app.quit {
         app.backend.flush();
         let timeout = app.timeout();
@@ -344,7 +357,9 @@ fn run(args: args::Args) -> Result<(), String> {
             .map_err(|e| e.to_string())?;
         app.backend_events();
         app.tick();
+        app.bridges.restart_due();
     }
+    app.bridges.stop_all();
     let _ = conn.release_name(dbus::BUS_NAME);
     Ok(())
 }

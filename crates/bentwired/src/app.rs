@@ -90,6 +90,8 @@ pub struct App {
     pub deferred: Vec<Event>,
     /// Inside a batch of backend events: the scene is updated once at its end.
     pub batch: bool,
+    /// Bridge add-ons (B-ADDON-5).
+    pub bridges: crate::addons::Bridges,
 }
 
 impl App {
@@ -622,15 +624,21 @@ impl App {
         }
     }
 
-    /// Time until the next core deadline (real clock only).
+    /// Time until the next core deadline (real clock only) or bridge restart (always real
+    /// time, B-ADDON-5).
     pub fn timeout(&self) -> Option<Duration> {
-        match self.clock {
+        let core = match self.clock {
             Clock::Real(_) => self
                 .core
                 .next_deadline()
                 .map(|d| Duration::from_millis(d.saturating_sub(self.clock.now()))),
             Clock::Fake(_) => None,
-        }
+        };
+        let bridge = self
+            .bridges
+            .next_restart()
+            .map(|t| t.saturating_duration_since(Instant::now()));
+        core.into_iter().chain(bridge).min()
     }
 
     /// Run due timers on the real clock.
@@ -644,7 +652,7 @@ impl App {
         }
     }
 
-    /// SIGHUP: reload config and rediscover characters (B-CFG-1).
+    /// SIGHUP: reload config, rediscover characters (B-CFG-1) and add-ons (B-ADDON-3).
     pub fn reload(&mut self) {
         match config::Config::load(&config::config_path()) {
             Ok(c) => {
@@ -658,6 +666,10 @@ impl App {
         self.lib.borrow_mut().scan();
         let catalog = self.lib.borrow().catalog();
         self.event(Event::Catalog(catalog));
+        self.bridges.reconcile(crate::addons::enabled(
+            &config::addons_dir(),
+            &config::addons_file(),
+        ));
     }
 }
 

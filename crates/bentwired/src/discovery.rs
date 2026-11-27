@@ -1,6 +1,7 @@
 //! Character discovery: search roots, packs and the cheap check (B-CHAR-1, A-PACK-1).
 //! Display names and startup selection are the core's (B-CHAR-3, B-CHAR-4).
 
+use bentwire_character::addon::{self, Kind};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 use std::io::Read;
@@ -67,10 +68,17 @@ struct CheapCharacter {
     display: Option<(u32, u32)>,
 }
 
-/// Search roots in order (A-PACK-1): `--characters`, config `character_paths`,
-/// `$XDG_DATA_HOME/bentwire`, each `$XDG_DATA_DIRS` entry plus `/bentwire`.
+/// Search roots in order (A-PACK-1): `--characters`, config `character_paths`, the enabled
+/// character and balloon-theme add-ons (B-ADDON-4), `$XDG_DATA_HOME/bentwire`, each
+/// `$XDG_DATA_DIRS` entry plus `/bentwire`.
 pub fn roots(cli: &[PathBuf], config_paths: &[PathBuf]) -> Vec<PathBuf> {
     let mut r: Vec<PathBuf> = cli.iter().chain(config_paths).cloned().collect();
+    r.extend(
+        crate::addons::enabled(&crate::config::addons_dir(), &crate::config::addons_file())
+            .into_iter()
+            .filter(|(_, a)| a.kind != Kind::Bridge)
+            .map(|(dir, _)| dir),
+    );
     r.push(crate::config::data_home().join("bentwire"));
     r.extend(
         crate::config::data_dirs()
@@ -104,7 +112,7 @@ fn scan_root(root: &Path, old: &Cache, new: &mut Cache) -> Vec<Entry> {
     if root.join("character.toml").is_file() {
         return check_cached(root, old, new).into_iter().collect();
     }
-    if root.join("pack.toml").is_file() {
+    if is_pack(root) {
         return scan_dir(root, false, old, new);
     }
     let chars = root.join("characters");
@@ -115,6 +123,11 @@ fn scan_root(root: &Path, old: &Cache, new: &mut Cache) -> Vec<Entry> {
         return scan_dir(root, true, old, new);
     }
     Vec::new()
+}
+
+/// A pack folder, or an add-on folder, which is read like one (B-ADDON-4).
+fn is_pack(dir: &Path) -> bool {
+    dir.join("pack.toml").is_file() || dir.join(addon::MANIFEST).is_file()
 }
 
 fn sorted_children(dir: &Path) -> Vec<PathBuf> {
@@ -226,7 +239,7 @@ pub fn find_theme(roots: &[PathBuf]) -> Option<PathBuf> {
             .find(|d| d.join("theme.toml").is_file())
     };
     for root in roots {
-        if root.join("pack.toml").is_file() {
+        if is_pack(root) {
             if let Some(t) = theme_in(root) {
                 return Some(t);
             }
@@ -377,6 +390,53 @@ mod tests {
         std::fs::create_dir_all(&t).unwrap();
         std::fs::write(t.join("theme.toml"), "").unwrap();
         assert_eq!(find_theme(&[r2.clone(), r1.clone()]), Some(t));
+    }
+
+    /// B-ADDON-4: an enabled add-on folder is a root read like a pack (or is a character
+    /// itself); bridges and disabled add-ons are not roots.
+    #[test]
+    fn b_addon_4_addon_folders_are_pack_roots() {
+        let dir = tempdir();
+        let put = |name: &str, kind: &str| {
+            let d = dir.join(name);
+            std::fs::create_dir_all(&d).unwrap();
+            let cmd = if kind == "bridge" {
+                "command = [\"x\"]"
+            } else {
+                ""
+            };
+            std::fs::write(
+                d.join("addon.toml"),
+                format!("name = \"{name}\"\nkind = \"{kind}\"\nversion = \"1\"\n{cmd}"),
+            )
+            .unwrap();
+            d
+        };
+        let many = put("many", "character");
+        write_char(&many, "one", "agent");
+        write_char(&many, "two", "agent");
+        put("single", "character");
+        write_char(&dir, "single", "agent");
+        let theme = put("theme", "balloon-theme");
+        std::fs::create_dir_all(theme.join("balloon-themes/t")).unwrap();
+        std::fs::write(theme.join("balloon-themes/t/theme.toml"), "").unwrap();
+        put("off", "character");
+        write_char(&dir.join("off"), "hidden", "agent");
+        put("br", "bridge");
+        let list = dir.join("addons.toml");
+        let names = ["many", "single", "theme", "br", "missing"].map(String::from);
+        bentwire_character::addon::write_enabled(&list, &names).unwrap();
+        let en = crate::addons::enabled(&dir, &list);
+        let en: Vec<&str> = en.iter().map(|(_, a)| a.name.as_str()).collect();
+        assert_eq!(en, ["br", "many", "single", "theme"]);
+        let roots: Vec<PathBuf> = crate::addons::enabled(&dir, &list)
+            .into_iter()
+            .filter(|(_, a)| a.kind != Kind::Bridge)
+            .map(|(d, _)| d)
+            .collect();
+        let ids: Vec<String> = discover(&roots).into_iter().map(|e| e.id).collect();
+        assert_eq!(ids, ["one", "single", "two"]);
+        assert_eq!(find_theme(&roots), Some(theme.join("balloon-themes/t")));
     }
 
     /// B-CHAR-1: the cache survives a daemon restart in its file; an entry whose manifest
