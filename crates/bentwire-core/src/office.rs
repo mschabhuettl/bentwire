@@ -826,65 +826,143 @@ fn pieces_width(p: &[Piece], cx: &Ctx, font: &FontSpec) -> Vec<i32> {
     v
 }
 
-/// R-OB-31: the two candidate body sizes (landscape, portrait) and the minimum body
-/// size `(min_w, min_h)`.
+/// A-CORE-1: area of unwrapped text, one line per `\n`, each line `lh` high:
+/// (area, height). Empty text has none.
+fn text_area(p: &[Piece], cx: &Ctx, font: &FontSpec, lh: i32) -> (i64, i32) {
+    if p.iter().all(|x| x.text.is_empty()) {
+        return (0, 0);
+    }
+    let w = pieces_width(p, cx, font);
+    let area = w.iter().map(|&w| i64::from(w) * i64::from(lh)).sum();
+    (area, w.len() as i32 * lh)
+}
+
+/// R-OB-31, A-CORE-1: the two candidate body sizes (landscape, portrait), each widened
+/// until it is not too narrow (R-OB-34), and the minimum body size `(min_w, min_h)`.
 pub fn sizes(a: &AskModel, cx: &Ctx) -> ([(i32, i32); 2], (i32, i32)) {
     let tm = cx.tm();
-    let hlh = cx.m.line_height(&cx.heading);
-    let mut area: i64 = 0;
-    if !a.heading.is_empty() || a.icon.is_some() {
-        let hx = if a.icon.is_some() { 37 } else { 0 };
-        let hw = cx.m.text_width(&a.heading, &cx.heading);
-        let hh = if a.icon.is_some() { hlh.max(32) } else { hlh };
-        area += i64::from(hx + hw) * i64::from(hh);
-    }
-    for w in pieces_width(&a.text, cx, &cx.body) {
-        if w > 0 {
-            area += i64::from(w) * i64::from(tm);
-        }
-    }
+    let g = cx.g();
     let pc = cx.prefix_col();
-    for l in a.labels.iter().chain(&a.checkboxes) {
-        let w = cx.m.text_width(&mnemonic(l).0, &cx.body);
-        area += i64::from(w + pc + 17) * i64::from(tm.max(15));
+    let (mut area, mut min_w, mut min_h) = (0i64, 0, 0);
+    if a.icon.is_some() {
+        (area, min_w, min_h) = (1024, 32, 32);
+    }
+    if a.icon.is_some() || !a.heading.is_empty() {
+        let hlh = cx.m.line_height(&cx.heading);
+        let (ha, hh) = text_area(&plain(&a.heading), cx, &cx.heading, hlh);
+        area += ha;
+        min_h = min_h.max(hh);
+        area += 12 * i64::from(min_h);
+        min_h += 6;
+    }
+    let (ta, th) = text_area(&a.text, cx, &cx.body, tm);
+    if th > 0 {
+        area += ta + 12 * i64::from(th);
+        min_h += th;
+    }
+    let label_floor = if a.label_type == LabelType::Buttons {
+        15
+    } else {
+        tm
+    };
+    let rows = a
+        .labels
+        .iter()
+        .map(|l| (markup(l), label_floor))
+        .chain(a.checkboxes.iter().map(|l| (plain(&mnemonic(l).0), 13)));
+    for (p, floor) in rows {
+        let (ta, th) = text_area(&p, cx, &cx.body, tm);
+        let row = g + floor.max(th);
+        area += ta + i64::from(pc + 17) * i64::from(row);
+        min_h += row;
+        min_w = min_w.max(pc + 5);
     }
     let row = cx.row_w(&a.buttons);
     if row > 0 {
+        min_w = min_w.max(row);
         area += i64::from(row + 12) * i64::from(cx.button_h);
-    }
-    let min_w = 12
-        + row
-            .max(if a.icon.is_some() { 37 + 10 } else { 0 })
-            .max(pc + 5 + 10);
-    let mut min_h = 12;
-    if a.icon.is_some() {
-        min_h += 32;
-    }
-    if row > 0 {
         min_h += cx.button_h;
     }
-    let min_h = min_h.max(12 + tm);
+    let (min_w, min_h) = (min_w + 12, min_h + 6);
+    area += 12 * i64::from(min_w);
     let grow = |landscape: bool| {
         let (mut w, mut h) = (min_w, min_h);
-        let fits = |w: i32, h: i32| i64::from(w - 12) * i64::from(h - 12) >= area;
-        while !fits(w, h) {
+        let prop = |w: i32, h: i32| {
+            let (w, h) = (i64::from(w), i64::from(h));
             if landscape {
-                if f64::from(h) > 0.618 * f64::from(w) {
-                    w += 10;
-                } else {
-                    w += 10;
-                    h = h.max((0.618 * f64::from(w)) as i32);
-                }
-            } else if f64::from(w) > 0.618 * f64::from(h) {
-                h += 10;
+                618 * w >= 1000 * h
             } else {
-                h += 10;
-                w = w.max((0.618 * f64::from(h)) as i32);
+                1000 * w >= 618 * h
+            }
+        };
+        let mut phase = if prop(w, h) { 1 } else { 0 };
+        while i64::from(w) * i64::from(h) < area {
+            match phase {
+                0 => {
+                    w += 10;
+                    if prop(w, h) {
+                        phase = 2;
+                    }
+                }
+                1 => {
+                    h += 10;
+                    if !prop(w, h) {
+                        phase = 2;
+                    }
+                }
+                _ if landscape => {
+                    w += 10;
+                    h = w * 618 / 1000;
+                }
+                _ => {
+                    h += 10;
+                    w = h * 618 / 1000;
+                }
             }
         }
-        (w, h)
+        (wide_enough(a, w, cx), h)
     };
     ([grow(true), grow(false)], (min_w, min_h))
+}
+
+/// Widest word (split at spaces, tabs and newlines, as `wrap_pieces` does) of `p`.
+fn widest_word(p: &[Piece], cx: &Ctx, font: &FontSpec) -> i32 {
+    let text: String = p.iter().map(|x| x.text.as_str()).collect();
+    text.split([' ', '\t', '\n'])
+        .map(|w| cx.m.text_width(w, font))
+        .max()
+        .unwrap_or(0)
+}
+
+/// A-CORE-1, R-OB-34 "too narrow": body width `w`, grown by 10 px until the heading's
+/// widest word fits beside the icon's 37 px indent and every word of the heading, text,
+/// labels and check boxes fits its line.
+fn wide_enough(a: &AskModel, mut w: i32, cx: &Ctx) -> i32 {
+    let tx = cx.prefix_col() + 5;
+    let hx = if a.icon.is_some() { 37 } else { 0 };
+    let heading = if a.heading.is_empty() {
+        0
+    } else {
+        hx + widest_word(&plain(&a.heading), cx, &cx.heading)
+    };
+    let need = [heading, widest_word(&a.text, cx, &cx.body)]
+        .into_iter()
+        .chain(
+            a.labels
+                .iter()
+                .map(|l| tx + widest_word(&markup(l), cx, &cx.body)),
+        )
+        .chain(
+            a.checkboxes
+                .iter()
+                .map(|l| tx + widest_word(&plain(&mnemonic(l).0), cx, &cx.body)),
+        )
+        .max()
+        .unwrap_or(0);
+    while w - 12 < need {
+        w += 10;
+    }
+    w
 }
 
 /// Which candidate (R-OB-34).
@@ -1062,7 +1140,12 @@ pub fn place_sized(
     if min_w + 16 > m.w || min_h > m.h {
         return Err(TooBig);
     }
-    let shapes = fixed.map_or(shapes, |f| [f, f]);
+    let one = fixed.map(|f| [f]);
+    let shapes = one.as_ref().map_or(&shapes[..], |f| &f[..]);
+    let lays: Vec<Layout> = shapes
+        .iter()
+        .map(|&(w, _)| layout_in(a, w, cx, it, fixed))
+        .collect();
     let c = intersect(character, m);
     let c = if c.w == 0 || c.h == 0 {
         // Character fully off its output: anchor at the bottom-right corner (R-OB-17).
@@ -1071,25 +1154,28 @@ pub fn place_sized(
         c
     };
     let order = candidate_order(c, m);
-    let mut best: Option<(i64, Candidate, Layout)> = None;
-    for &(w, _) in &shapes {
-        let lay = layout_in(a, w, cx, it, fixed);
-        let h = lay.content_h + 12;
-        for &k in &order {
-            let (win, _) = candidate_rects(k, c, w, h);
+    let rows = a.labels.len() + a.checkboxes.len();
+    let mut best: Option<(i64, Candidate, &Layout)> = None;
+    for &k in &order {
+        // B-OB-3, R-OB-34: the better of the two shapes counts for the candidate.
+        let mut shape: Option<(i64, &Layout)> = None;
+        for lay in &lays {
+            let (win, _) = candidate_rects(k, c, lay.content_w + 12, lay.content_h + 12);
             let s = score(win, m);
-            if best.as_ref().is_none_or(|b| s < b.0) {
-                best = Some((s, k, lay.clone()));
-            }
-            if s == 0 {
-                break;
+            if shape.is_none_or(|(bs, bl)| s < bs || (s == bs && rows > 1 && squarer(lay, bl))) {
+                shape = Some((s, lay));
             }
         }
-        if best.as_ref().is_some_and(|b| b.0 == 0) {
+        let (s, lay) = shape.expect("a shape");
+        if best.is_none_or(|b| s < b.0) {
+            best = Some((s, k, lay));
+        }
+        if s == 0 {
             break;
         }
     }
     let (s, k, lay) = best.expect("four candidates");
+    let lay = lay.clone();
     let (w, h) = (lay.content_w + 12, lay.content_h + 12);
     let (mut win, _) = candidate_rects(k, c, w, h);
     let mut move_by = (0, 0);
@@ -1115,6 +1201,16 @@ pub fn place_sized(
     let c2 = Rect::new(c.x + move_by.0, c.y + move_by.1, c.w, c.h);
     let (_, body) = candidate_rects(k, c2, w, h);
     Ok(assemble(k, lay, body, win, c2, move_by))
+}
+
+/// R-OB-34 shape tie: body `a` is squarer than `b` (smaller integer long / short side
+/// ratio, then smaller area).
+fn squarer(a: &Layout, b: &Layout) -> bool {
+    let key = |l: &Layout| {
+        let (w, h) = (l.content_w + 12, l.content_h + 12);
+        (w.max(h) / w.min(h).max(1), i64::from(w) * i64::from(h))
+    };
+    key(a) < key(b)
 }
 
 fn assemble(k: Candidate, lay: Layout, body: Rect, win: Rect, c: Rect, mv: (i32, i32)) -> Placed {
@@ -1558,9 +1654,154 @@ mod tests {
         // Landscape is wider than tall, portrait the reverse.
         assert!(l.0 > l.1, "{l:?}");
         assert!(p.1 > p.0, "{p:?}");
-        // Both reach the area.
-        let area = (60 * 5 * 7 - 7 + 7) as i64 * 16 + (19 + 12) as i64 * 22;
-        assert!(i64::from(l.0 - 12) * i64::from(l.1 - 12) >= area - 7 * 16);
+        // Both reach the area (A-CORE-1, worked out in r_ob_31_growth_phases).
+        assert!(i64::from(l.0) * i64::from(l.1) >= 35458, "{l:?}");
+        assert!(i64::from(p.0) * i64::from(p.1) >= 35458, "{p:?}");
+    }
+
+    // A-CORE-1, R-OB-31: the size method's terms, worked by hand. Fixed metrics: 7 px per
+    // character, TM.height 12, G 6, prefix column 17, button height 22.
+    #[test]
+    fn a_core_1_r_ob_31_area_terms_and_minimum() {
+        let m = Fixed { cw: 7, lh: 12 };
+        let c = cx(&m);
+        let spec = |label_type: &str| AskSpec {
+            heading: Some("Hi".into()),
+            icon: Some("info".into()),
+            text: Some("abc\nde".into()),
+            labels: Some(vec!["one".into(), "two".into()]),
+            label_type: Some(label_type.into()),
+            checkboxes: Some(vec!["&Box".into()]),
+            ..Default::default()
+        };
+        // Icon: A 1024, 32 x 32. Heading "Hi": A += 14 x 12, min h max(32, 12) = 32,
+        // A += 12 x 32, min h 38. Text: A += 35 x 12 + 12 x 24, min h 62. Two button
+        // labels, row 6 + max(15, 12) = 21: A += 2 x (21 x 12 + 34 x 21), min h 104,
+        // min w 22. Check box, row 6 + max(13, 12) = 19: A += 21 x 12 + 34 x 19, min h
+        // 123. Button row 37 ("OK" 14 -> 15 + 22): min w 37, A += 49 x 22, min h 145.
+        // Body: 49 x 151, A += 12 x 49 = 6780 <= 49 x 151, so no growth. Too narrow:
+        // "Hi" beside the icon needs 37 + 14 = 51 px of content, so both widen to 69.
+        let a = validate(&spec("buttons"), Lang::En).unwrap();
+        assert_eq!(sizes(&a, &c), ([(69, 151), (69, 151)], (49, 151)));
+        // Bullet labels: the row floor is TM.height, row 6 + 12 = 18, so 6 px less each.
+        let a = validate(&spec("bullets"), Lang::En).unwrap();
+        assert_eq!(sizes(&a, &c), ([(69, 145), (69, 145)], (49, 145)));
+    }
+
+    // R-OB-31: the three growth phases in 10 px steps with the integer 618 / 1000 test.
+    #[test]
+    fn r_ob_31_growth_phases() {
+        let m = Fixed { cw: 7, lh: 16 };
+        let c = cx(&m);
+        let a = validate(
+            &AskSpec {
+                text: Some("word ".repeat(60)),
+                ..Default::default()
+            },
+            Lang::En,
+        )
+        .unwrap();
+        // Text: A = 2100 x 16 + 12 x 16, min h 16. Button row 37: A += 49 x 22, min h 38.
+        // Body 49 x 44, A += 12 x 49: A = 35458.
+        // Landscape: phase 0 widens to 79 (618 x 79 >= 1000 x 44), then phase 2 sets
+        // h = w x 618 / 1000 up to 249 x 153 = 38097 (239 x 147 = 35133 is short).
+        // Portrait: in proportion, phase 1 raises h to 84 (1000 x 49 < 618 x 84), then
+        // phase 2 up to 150 x 244 (144 x 234 = 33696 is short).
+        let (shapes, min) = sizes(&a, &c);
+        assert_eq!(min, (49, 44));
+        assert_eq!(shapes, [(249, 153), (150, 244)]);
+    }
+
+    // R-OB-34, A-CORE-1 "too narrow": a width whose line cannot hold the widest word
+    // grows by 10 px until it can.
+    #[test]
+    fn r_ob_34_fit_widens_refused_width() {
+        let m = Fixed { cw: 7, lh: 12 };
+        let c = cx(&m);
+        let base = AskSpec {
+            text: Some("x".into()),
+            ..Default::default()
+        };
+        let a = validate(&base, Lang::En).unwrap();
+        // Minimum 49 x 40 (content 37 wide), no growth needed for so little text.
+        assert_eq!(sizes(&a, &c).0[0].0, 49);
+        // A 10-character word (70 px) in the text: the shapes 79 x 48 and 49 x 60 (area
+        // 2818) both widen to 89 (content 77 >= 70).
+        let a = validate(
+            &AskSpec {
+                text: Some("x abcdefghij".into()),
+                ..base.clone()
+            },
+            Lang::En,
+        )
+        .unwrap();
+        assert_eq!(sizes(&a, &c).0.map(|s| s.0), [89, 89]);
+        // A heading word beside the icon: 37 + 6 x 7 = 79, content >= 79. The shapes are
+        // 59 x 78 and 49 x 88 (area 3974), both widened to 99.
+        let a = validate(
+            &AskSpec {
+                heading: Some("a abcdef".into()),
+                icon: Some("info".into()),
+                ..base.clone()
+            },
+            Lang::En,
+        )
+        .unwrap();
+        assert_eq!(sizes(&a, &c).0.map(|s| s.0), [99, 99]);
+        // A label word after the prefix column + 5: 22 + 70 = 92. The shapes are 59 x 61
+        // and 49 x 71 (area 3448), both widened to 109 (content 97).
+        let a = validate(
+            &AskSpec {
+                labels: Some(vec!["abcdefghij".into()]),
+                ..base.clone()
+            },
+            Lang::En,
+        )
+        .unwrap();
+        assert_eq!(sizes(&a, &c).0.map(|s| s.0), [109, 109]);
+        // The wrapped layout at that width keeps the word on one line.
+        let lay = layout(&a, 97, &c, &Interaction::default());
+        assert_eq!(lay.scene.labels[0].lines.len(), 1);
+    }
+
+    // B-OB-3, R-OB-34: both shapes score 0 for the first candidate. With more than one
+    // label and check-box row the squarer body wins (integer long / short ratio, then the
+    // smaller area); otherwise the landscape shape stays.
+    #[test]
+    fn r_ob_34_shape_tie_rule() {
+        let m = Fixed { cw: 7, lh: 16 };
+        let c = cx(&m);
+        let out = Rect::new(0, 0, 1000, 800);
+        let ch = Rect::new(100, 500, 100, 100);
+        let it = Interaction::default();
+        let ask = |text: Option<&str>, labels: &[String]| {
+            validate(
+                &AskSpec {
+                    text: text.map(Into::into),
+                    labels: Some(labels.to_vec()),
+                    ..Default::default()
+                },
+                Lang::En,
+            )
+            .unwrap()
+        };
+        let long = "a".repeat(27);
+        // Shapes 89 x 92 and 75 x 122, both widened for the 189 px label word to 229 and
+        // 225. Laid out, both bodies are 114 high: ratios 229 / 114 = 2 and 225 / 114 = 1.
+        let a = ask(Some("word word "), &[long.clone(), "x".into()]);
+        assert_eq!(sizes(&a, &c).0.map(|s| s.0), [229, 225]);
+        let p = place(&a, &it, ch, out, &c).unwrap();
+        assert_eq!(p.candidate, Candidate::AboveLeftAligned);
+        assert_eq!((p.scene.body.w, p.scene.body.h), (225, 114));
+        // One row: the landscape shape stays.
+        let a = ask(Some("word word "), std::slice::from_ref(&long));
+        let p = place(&a, &it, ch, out, &c).unwrap();
+        assert_eq!(p.scene.body.w, sizes(&a, &c).0[0].0);
+        // Equal ratios: 389 x 91 and 387 x 91 (both 4), the smaller area wins.
+        let a = ask(None, &["a".repeat(50), "x".into()]);
+        assert_eq!(sizes(&a, &c).0.map(|s| s.0), [389, 387]);
+        let p = place(&a, &it, ch, out, &c).unwrap();
+        assert_eq!((p.scene.body.w, p.scene.body.h), (387, 91));
     }
 
     #[test]
