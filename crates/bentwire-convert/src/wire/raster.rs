@@ -67,6 +67,20 @@ pub enum Shape {
     Shadow(P, f64, f64, f64),
 }
 
+impl Shape {
+    /// The shape under p -> o + (p - c) * z, its sizes times z.
+    pub fn scaled(&self, c: P, z: f64, o: P) -> Shape {
+        let m = |p: &P| (o.0 + (p.0 - c.0) * z, o.1 + (p.1 - c.1) * z);
+        match self {
+            Shape::Stroke(v, w, r) => Shape::Stroke(v.iter().map(m).collect(), w * z, *r),
+            Shape::Disc(p, r, role) => Shape::Disc(m(p), r * z, *role),
+            Shape::Ellipse(p, rx, ry, r) => Shape::Ellipse(m(p), rx * z, ry * z, *r),
+            Shape::Polygon(v, r) => Shape::Polygon(v.iter().map(m).collect(), *r),
+            Shape::Shadow(p, rx, ry, a) => Shape::Shadow(m(p), rx * z, ry * z, *a),
+        }
+    }
+}
+
 /// A canvas of `w` x `h` output pixels showing canvas units from `origin` at `k` pixels
 /// per unit.
 pub struct Canvas {

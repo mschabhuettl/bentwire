@@ -29,7 +29,9 @@ const FORE: f64 = 16.0;
 /// Mouth centre below the head centre (head-local).
 const MOUTH_Y: f64 = 8.0;
 /// Mouth picture cell (mouth sheet).
-pub const MOUTH: [u32; 2] = [14, 10];
+pub const MOUTH: [u32; 2] = [16, 12];
+/// The whole figure is drawn this much larger than the measures above.
+const ZOOM: f64 = 1.2;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Eyes {
@@ -199,7 +201,7 @@ impl Rig {
         let top = COIL_BOTTOM - COIL_H * p.coil;
         Rig {
             p: *p,
-            ws: (p.sx + p.sy) / 2.0,
+            ws: (p.sx + p.sy) / 2.0 * ZOOM,
             head: (CX + p.lean, top - COIL_RY - NECK - HEAD_R + p.nod),
             rot: dir(p.tilt),
         }
@@ -208,8 +210,8 @@ impl Rig {
     /// Figure coordinates to canvas.
     fn t(&self, q: P) -> P {
         (
-            CX + (q.0 - CX) * self.p.sx + self.p.dx,
-            GROUND + (q.1 - GROUND) * self.p.sy + self.p.dy,
+            CX + (q.0 - CX) * self.p.sx * ZOOM + self.p.dx,
+            GROUND + (q.1 - GROUND) * self.p.sy * ZOOM + self.p.dy,
         )
     }
 
@@ -311,8 +313,8 @@ pub fn shapes(p: &Pose, retro: bool) -> Vec<Shape> {
     let ground = r.t((CX, GROUND - 1.0));
     out.push(Shape::Shadow(
         ground,
-        16.0 * p.sx * (2.0 - p.coil.min(1.5)),
-        3.0 * p.sx,
+        16.0 * ZOOM * p.sx * (2.0 - p.coil.min(1.5)),
+        3.0 * ZOOM * p.sx,
         0.22,
     ));
     // Coil: back half-turns first (darker), then the front ones.
@@ -588,7 +590,7 @@ fn hand_prop(r: &Rig, out: &mut Vec<Shape>, c: P, hd: f64, retro: bool) {
 
 fn head_prop(r: &Rig, out: &mut Vec<Shape>) {
     let hd = r.t(r.head);
-    let at = |dx: f64, dy: f64| (hd.0 + dx, hd.1 + dy);
+    let at = |dx: f64, dy: f64| (hd.0 + dx * r.ws, hd.1 + dy * r.ws);
     match r.p.prop {
         Prop::Question => {
             let mut q = arc(at(26.0, -24.0), 4.6, 180.0, 360.0 + 70.0, 12);
@@ -695,7 +697,8 @@ pub fn mouth_at(p: &Pose) -> (i32, i32) {
 /// t/d/s, e, a, sh, o/w), then 7 = the neutral smile. Each sits on a face-coloured patch
 /// that covers the smile below it.
 pub fn mouth_shapes(t: u8, retro: bool) -> Vec<Shape> {
-    let c = (MOUTH[0] as f64 / 2.0, MOUTH[1] as f64 / 2.0);
+    let centre = (MOUTH[0] as f64 / 2.0, MOUTH[1] as f64 / 2.0);
+    let c = (0.0, 0.0);
     let mut out = vec![Shape::Ellipse(c, 6.6, 4.6, Role::Face)];
     let ink = if retro { 1.3 } else { 1.2 };
     match t {
@@ -750,15 +753,16 @@ pub fn mouth_shapes(t: u8, retro: bool) -> Vec<Shape> {
             }
         }
     }
-    out
+    out.iter().map(|s| s.scaled(c, ZOOM, centre)).collect()
 }
 
 /// The tray icon: the head, from `origin` at `k` pixels per unit.
 pub fn icon_view() -> (P, f64) {
     let r = Rig::new(&REST);
-    let side = 2.0 * (HEAD_R + 6.0);
+    let head = r.t(r.head);
+    let side = 2.0 * (HEAD_R + 6.0) * ZOOM;
     (
-        (r.head.0 - side / 2.0, r.head.1 - side / 2.0 - 3.0),
+        (head.0 - side / 2.0, head.1 - side / 2.0 - 3.0),
         32.0 / side,
     )
 }

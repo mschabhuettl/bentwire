@@ -1226,7 +1226,7 @@ pub fn wire(style: Style) -> Result<PackageData, Error> {
     for s in rig::mouth_shapes(7, style == Style::Retro) {
         // The smile layer, shifted to the rest pose's mouth.
         let (x, y) = rig::mouth_at(&REST);
-        cv.draw(&shift(&s, x as f64, y as f64));
+        cv.draw(&s.scaled((0.0, 0.0), 1.0, (x as f64, y as f64)));
     }
     let icon = match style {
         Style::Modern => encode_png_rgba(32, 32, &cv.rgba())?,
@@ -1273,16 +1273,4 @@ pub fn wire(style: Style) -> Result<PackageData, Error> {
         ],
         files,
     })
-}
-
-fn shift(s: &raster::Shape, dx: f64, dy: f64) -> raster::Shape {
-    use raster::Shape::*;
-    let m = |p: &raster::P| (p.0 + dx, p.1 + dy);
-    match s {
-        Stroke(v, w, r) => Stroke(v.iter().map(m).collect(), *w, *r),
-        Disc(c, r, role) => Disc(m(c), *r, *role),
-        Ellipse(c, rx, ry, r) => Ellipse(m(c), *rx, *ry, *r),
-        Polygon(v, r) => Polygon(v.iter().map(m).collect(), *r),
-        Shadow(c, rx, ry, a) => Shadow(m(c), *rx, *ry, *a),
-    }
 }
