@@ -840,6 +840,12 @@ fn text_area(p: &[Piece], cx: &Ctx, font: &FontSpec, lh: i32) -> (i64, i32) {
 /// R-OB-31, A-CORE-1: the two candidate body sizes (landscape, portrait), each widened
 /// until it is not too narrow (R-OB-34), and the minimum body size `(min_w, min_h)`.
 pub fn sizes(a: &AskModel, cx: &Ctx) -> ([(i32, i32); 2], (i32, i32)) {
+    sizes_within(a, cx, i32::MAX)
+}
+
+/// [`sizes`] with the too-narrow widening clamped to body width `max_w` (R-OB-34: the fit
+/// widens within the free space).
+fn sizes_within(a: &AskModel, cx: &Ctx, max_w: i32) -> ([(i32, i32); 2], (i32, i32)) {
     let tm = cx.tm();
     let g = cx.g();
     let pc = cx.prefix_col();
@@ -920,7 +926,7 @@ pub fn sizes(a: &AskModel, cx: &Ctx) -> ([(i32, i32); 2], (i32, i32)) {
                 }
             }
         }
-        (wide_enough(a, w, cx), h)
+        (wide_enough(a, w, cx, max_w), h)
     };
     ([grow(true), grow(false)], (min_w, min_h))
 }
@@ -936,8 +942,8 @@ fn widest_word(p: &[Piece], cx: &Ctx, font: &FontSpec) -> i32 {
 
 /// A-CORE-1, R-OB-34 "too narrow": body width `w`, grown by 10 px until the heading's
 /// widest word fits beside the icon's 37 px indent and every word of the heading, text,
-/// labels and check boxes fits its line.
-fn wide_enough(a: &AskModel, mut w: i32, cx: &Ctx) -> i32 {
+/// labels and check boxes fits its line, or until it reaches `max_w`.
+fn wide_enough(a: &AskModel, mut w: i32, cx: &Ctx, max_w: i32) -> i32 {
     let tx = cx.prefix_col() + 5;
     let hx = if a.icon.is_some() { 37 } else { 0 };
     let heading = if a.heading.is_empty() {
@@ -959,8 +965,8 @@ fn wide_enough(a: &AskModel, mut w: i32, cx: &Ctx) -> i32 {
         )
         .max()
         .unwrap_or(0);
-    while w - 12 < need {
-        w += 10;
+    while w - 12 < need && w < max_w {
+        w = (w + 10).min(max_w);
     }
     w
 }
@@ -1136,7 +1142,7 @@ pub fn place_sized(
     cx: &Ctx,
     fixed: Option<(i32, i32)>,
 ) -> Result<Placed, TooBig> {
-    let (shapes, (min_w, min_h)) = sizes(a, cx);
+    let (shapes, (min_w, min_h)) = sizes_within(a, cx, m.w - 16);
     if min_w + 16 > m.w || min_h > m.h {
         return Err(TooBig);
     }
@@ -1762,6 +1768,34 @@ mod tests {
         // The wrapped layout at that width keeps the word on one line.
         let lay = layout(&a, 97, &c, &Interaction::default());
         assert_eq!(lay.scene.labels[0].lines.len(), 1);
+    }
+
+    // R-OB-34: the too-narrow widening is clamped to the free space; here the output
+    // (body plus the 16 px tail). A word wider than that is broken as before.
+    #[test]
+    fn r_ob_34_widening_clamped_to_output() {
+        let m = Fixed { cw: 7, lh: 16 };
+        let c = cx(&m);
+        let out = Rect::new(0, 0, 800, 600);
+        let a = validate(
+            &AskSpec {
+                text: Some("x".repeat(150)),
+                ..Default::default()
+            },
+            Lang::En,
+        )
+        .unwrap();
+        let p = place(
+            &a,
+            &Interaction::default(),
+            Rect::new(500, 400, 100, 100),
+            out,
+            &c,
+        )
+        .unwrap();
+        let w = p.scene.window;
+        assert!(w.x >= 0 && w.right() <= 800, "{w:?}");
+        assert_eq!(p.scene.body.w, 784);
     }
 
     // B-OB-3, R-OB-34: both shapes score 0 for the first candidate. With more than one
