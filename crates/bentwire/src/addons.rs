@@ -169,6 +169,9 @@ fn install_into(tmp: &Path, dir: &Path, src: &str, sha: Option<&str>) -> Result<
         if sha.is_some() {
             return Err(Fail::Usage("--sha256 is for archives and URLs".into()));
         }
+        if !Path::new(src).join(MANIFEST).is_file() {
+            return Err(fail(format!("{src}: no {MANIFEST}")));
+        }
         copy_tree(Path::new(src), &stage).map_err(|e| fail(format!("{src}: {e}")))?;
         None
     } else {
@@ -231,7 +234,7 @@ fn not_allowed(p: &Path) -> String {
     )
 }
 
-/// Copy a folder; links and special files are refused.
+/// Copy a folder; links and special files are refused, modes become 0755 or 0644.
 fn copy_tree(from: &Path, to: &Path) -> Result<(), String> {
     std::fs::create_dir(to).map_err(|e| format!("{}: {e}", to.display()))?;
     let rd = std::fs::read_dir(from).map_err(|e| format!("{}: {e}", from.display()))?;
@@ -244,7 +247,15 @@ fn copy_tree(from: &Path, to: &Path) -> Result<(), String> {
         if m.is_dir() {
             copy_tree(&p, &t)?;
         } else if m.is_file() {
-            std::fs::copy(&p, &t).map_err(|e| format!("{}: {e}", p.display()))?;
+            use std::os::unix::fs::PermissionsExt;
+            let mode = if m.permissions().mode() & 0o111 != 0 {
+                0o755
+            } else {
+                0o644
+            };
+            std::fs::copy(&p, &t)
+                .and_then(|_| std::fs::set_permissions(&t, std::fs::Permissions::from_mode(mode)))
+                .map_err(|e| format!("{}: {e}", p.display()))?;
         } else {
             return Err(not_allowed(&p));
         }
@@ -458,6 +469,20 @@ mod tests {
         std::os::unix::fs::symlink("/etc", src.join("etc")).unwrap();
         let e = copy_tree(&src, &d.join("copy")).unwrap_err();
         assert!(e.contains("links"), "{e}");
+        // Folder modes become 0755 or 0644 like archive modes.
+        use std::os::unix::fs::PermissionsExt;
+        let plain = d.join("plain");
+        std::fs::create_dir_all(&plain).unwrap();
+        for (f, m) in [("run", 0o777), ("data", 0o666)] {
+            std::fs::write(plain.join(f), "x").unwrap();
+            std::fs::set_permissions(plain.join(f), std::fs::Permissions::from_mode(m)).unwrap();
+        }
+        copy_tree(&plain, &d.join("pcopy")).unwrap();
+        let mode = |f: &str| {
+            let m = std::fs::metadata(d.join("pcopy").join(f)).unwrap();
+            m.permissions().mode() & 0o7777
+        };
+        assert_eq!((mode("run"), mode("data")), (0o755, 0o644));
         std::fs::remove_dir_all(&d).unwrap();
     }
 }

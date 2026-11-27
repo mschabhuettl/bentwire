@@ -2218,8 +2218,8 @@ bridges `command`; other keys are errors.
   archive), a device or fifo, an absolute path or one with a `..` component fails the
   install. pax headers of tar archives are skipped. Files get mode 0755 when any execute
   bit is set, else 0644, and the time of the install as modification time (the discovery
-  cache, B-CHAR-1, keys on it). Any failure leaves the installed copy in place and
-  exits 1.
+  cache, B-CHAR-1, keys on it); this holds for folders too. A failure before the new copy
+  is renamed into place leaves the installed copy as it was and exits 1.
 - A character or balloon-theme add-on is enabled by its install. A bridge is never enabled
   by an install: a bridge that replaces an enabled add-on of the same name is disabled
   first, before its files are in place.
@@ -2267,9 +2267,11 @@ character of the same id or the pack's theme; disabling it brings those back.
   thread).
 - A bridge that exits, or cannot be started, is started again after a wait: 1 s after the
   first exit, doubling after each further one up to 60 s, and back to 1 s after a run of
-  60 s or more. SIGCHLD wakes the daemon to notice an exit; the wait is real time, also in
+  60 s or more. A restart whose `addon.toml` changed meanwhile (a reinstall) waits for the
+  next SIGHUP instead. SIGCHLD wakes the daemon to notice an exit; the wait is real time, also in
   headless mode.
-- A bridge that is disabled or removed gets SIGTERM to its process group, and so does an
+- Signals go to the bridge's process group, or to the bridge alone if it left the group.
+  A bridge that is disabled or removed gets SIGTERM to its process group, and so does an
   enabled one whose `addon.toml` changed (a reinstall), which is then started again. When
   the daemon quits (Quit, SIGTERM, SIGINT, the end of the session bus, B-RUN-1) every
   bridge gets SIGTERM to its process group, and SIGKILL if it still runs 2 s later.

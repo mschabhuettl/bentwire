@@ -126,11 +126,15 @@ impl Bridge {
     }
 }
 
-/// Signal the process group of a bridge (its own, `process_group(0)`).
+/// Signal the process group of a bridge (its own, `process_group(0)`), or the bridge alone
+/// when it left that group.
 fn signal(c: &Child, sig: libc::c_int) {
-    // SAFETY: plain kill(2); the child is not reaped yet, so its group id is still ours.
+    let pid = c.id() as libc::pid_t;
+    // SAFETY: plain kill(2); the child is not reaped yet, so its pid and group id are ours.
     unsafe {
-        libc::kill(-(c.id() as libc::pid_t), sig);
+        if libc::kill(-pid, sig) != 0 {
+            libc::kill(pid, sig);
+        }
     }
 }
 
@@ -210,7 +214,12 @@ impl Bridges {
         let now = Instant::now();
         for b in &mut self.list {
             if b.child.is_none() && b.restart_at.is_some_and(|t| t <= now) {
-                b.spawn();
+                // A reinstalled add-on runs only after the next SIGHUP finds it enabled.
+                if stamp(&b.dir) == b.stamp {
+                    b.spawn();
+                } else {
+                    b.restart_at = None;
+                }
             }
         }
     }

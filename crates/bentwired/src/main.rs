@@ -75,6 +75,11 @@ fn local_hour() -> u8 {
 fn run(args: args::Args) -> Result<(), String> {
     let mut event_loop: calloop::EventLoop<App> =
         calloop::EventLoop::try_new().map_err(|e| e.to_string())?;
+    // An inherited SIGCHLD = SIG_IGN would reap the bridges behind try_wait (B-ADDON-5).
+    // SAFETY: before any thread is spawned.
+    unsafe {
+        libc::signal(libc::SIGCHLD, libc::SIG_DFL);
+    }
     // Block the signals before any thread is spawned (signalfd).
     let signals = Signals::new(&[
         UnixSignal::SIGTERM,
