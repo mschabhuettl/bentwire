@@ -7,6 +7,12 @@ D-Bus API (`org.bentwire.Agent1`) and the character format (`format = 1`) are fr
 
 ## [Unreleased]
 
+### Changed
+
+- Faster start: the daemon keeps the characters it found in
+  `~/.cache/bentwire/discovery.json` and reads only manifests that changed since the last
+  start (about 120 ms less with the classics pack).
+
 ## [0.2.1] - 2026-11-21
 
 ### Fixed

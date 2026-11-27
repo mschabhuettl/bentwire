@@ -100,7 +100,7 @@ fn run(args: args::Args) -> Result<(), String> {
     let state_path = config::state_path();
     let state = config::State::load(&state_path);
     let roots = discovery::roots(&args.characters, &config.character_paths);
-    let mut lib = library::Library::new(roots);
+    let mut lib = library::Library::with_cache_file(roots, config::discovery_cache_file());
     lib.sheets = Some(sheets::SheetCache {
         dir: config::sheet_cache_dir(),
     });

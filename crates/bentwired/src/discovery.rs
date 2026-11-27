@@ -1,7 +1,7 @@
 //! Character discovery: search roots, packs and the cheap check (B-CHAR-1, A-PACK-1).
 //! Display names and startup selection are the core's (B-CHAR-3, B-CHAR-4).
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -12,7 +12,7 @@ use std::time::SystemTime;
 /// what changed.
 pub type Cache = HashMap<PathBuf, (Option<SystemTime>, u64, Option<Entry>)>;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Entry {
     pub id: String,
     pub path: PathBuf,
@@ -23,7 +23,7 @@ pub struct Entry {
     pub display: (u32, u32),
 }
 
-#[derive(Debug, Clone, Default, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct Info {
     pub lang: String,
@@ -153,6 +153,55 @@ fn check_cached(path: &Path, old: &Cache, new: &mut Cache) -> Option<Entry> {
     };
     new.insert(path.to_path_buf(), (key.0, key.1, e.clone()));
     e
+}
+
+/// The cache file layout: the daemon version (a new version may check differently) and
+/// the entries.
+#[derive(Serialize, Deserialize)]
+struct CacheFile {
+    version: String,
+    entries: Vec<(PathBuf, Option<SystemTime>, u64, Option<Entry>)>,
+}
+
+/// B-CHAR-1: the cache kept in `file` by an earlier daemon; empty when it is missing,
+/// unreadable or from another version.
+pub fn load_cache(file: &Path) -> Cache {
+    let Ok(bytes) = std::fs::read(file) else {
+        return Cache::new();
+    };
+    match serde_json::from_slice::<CacheFile>(&bytes) {
+        Ok(c) if c.version == env!("CARGO_PKG_VERSION") => c
+            .entries
+            .into_iter()
+            .map(|(p, t, n, e)| (p, (t, n, e)))
+            .collect(),
+        Ok(_) => Cache::new(),
+        Err(e) => {
+            log::debug!("discovery cache {}: {e}", file.display());
+            Cache::new()
+        }
+    }
+}
+
+/// Write `cache` to `file` (temp file, then rename); failures are only logged.
+pub fn save_cache(file: &Path, cache: &Cache) {
+    let c = CacheFile {
+        version: env!("CARGO_PKG_VERSION").into(),
+        entries: cache
+            .iter()
+            .map(|(p, (t, n, e))| (p.clone(), *t, *n, e.clone()))
+            .collect(),
+    };
+    let tmp = file.with_extension(format!("tmp{}", std::process::id()));
+    let res = (|| {
+        std::fs::create_dir_all(file.parent().unwrap_or(Path::new(".")))?;
+        std::fs::write(&tmp, serde_json::to_vec(&c)?)?;
+        std::fs::rename(&tmp, file)
+    })();
+    if let Err(e) = res {
+        let _ = std::fs::remove_file(&tmp);
+        log::debug!("discovery cache {}: {e}", file.display());
+    }
 }
 
 /// A-THEME-1: the first `balloon-themes/<id>/theme.toml` of a pack under the roots,
@@ -315,6 +364,58 @@ mod tests {
         std::fs::create_dir_all(&t).unwrap();
         std::fs::write(t.join("theme.toml"), "").unwrap();
         assert_eq!(find_theme(&[r2.clone(), r1.clone()]), Some(t));
+    }
+
+    /// B-CHAR-1: the cache survives a daemon restart in its file; an entry whose manifest
+    /// keeps its modification time and size is not read again, a changed one is.
+    #[test]
+    fn b_char_1_cache_file() {
+        let root = tempdir();
+        let chars = root.join("characters");
+        write_char(&chars, "one", "agent");
+        write_char(&chars, "two", "agent");
+        let file = tempdir().join("sub/discovery.json");
+        assert!(load_cache(&file).is_empty());
+        let mut cache = Cache::new();
+        let e = discover_cached(std::slice::from_ref(&root), &mut cache);
+        save_cache(&file, &cache);
+        let mut loaded = load_cache(&file);
+        assert_eq!(loaded, cache);
+        // Same size and modification time, other content: the cached entry is used.
+        let m = chars.join("one/character.toml");
+        let t = std::fs::metadata(&m).unwrap().modified().unwrap();
+        let text = std::fs::read_to_string(&m)
+            .unwrap()
+            .replace("N-one", "X-one");
+        std::fs::write(&m, text).unwrap();
+        std::fs::File::options()
+            .write(true)
+            .open(&m)
+            .unwrap()
+            .set_modified(t)
+            .unwrap();
+        assert_eq!(discover_cached(std::slice::from_ref(&root), &mut loaded), e);
+        // Another modification time: read again.
+        let later = t + std::time::Duration::from_secs(2);
+        std::fs::File::options()
+            .write(true)
+            .open(&m)
+            .unwrap()
+            .set_modified(later)
+            .unwrap();
+        let e2 = discover_cached(std::slice::from_ref(&root), &mut loaded);
+        assert_eq!(e2[0].info[0].name, "X-one");
+        // Another version or a damaged file: an empty cache.
+        let other = std::fs::read_to_string(&file).unwrap().replacen(
+            &format!("\"version\":\"{}\"", env!("CARGO_PKG_VERSION")),
+            "\"version\":\"0.0.0\"",
+            1,
+        );
+        assert!(other.contains("0.0.0"));
+        std::fs::write(&file, other).unwrap();
+        assert!(load_cache(&file).is_empty());
+        std::fs::write(&file, "{").unwrap();
+        assert!(load_cache(&file).is_empty());
     }
 
     /// B-GAL-1: ExtraData from `extra`, and for Office 97 actors from string group 40.

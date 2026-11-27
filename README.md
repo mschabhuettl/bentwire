@@ -248,7 +248,8 @@ unknown keys are ignored.
 
 State (character, position, visibility, size) is kept in `~/.local/state/bentwire/state.toml`.
 Decoded character pictures are cached in `~/.cache/bentwire/sheets/` (`$XDG_CACHE_HOME`, at
-most 512 MiB); deleting it is safe.
+most 512 MiB), the characters found in `~/.cache/bentwire/discovery.json`; deleting either
+is safe.
 
 **Balloon font.** The word balloon of `say` uses the character's own font: "MS Sans Serif"
 13 px for the Microsoft Agent characters; Office 97 actors name no font and get the same

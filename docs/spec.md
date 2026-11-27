@@ -156,6 +156,13 @@ clock. Timer resolution is 1 ms.
   without a restart. An entry whose manifest file (`character.toml` or the `.bwc`) keeps
   its modification time and size is not read again. **bentwire decision.** Reason: simpler
   than watching the directories, and these are the only places that use the list.
+- These check results are also kept in `$XDG_CACHE_HOME/bentwire/discovery.json` (default
+  `~/.cache/bentwire/discovery.json`), written (temp file, then rename) after a scan that
+  changed them and read at start, so a start reads only the manifests that changed since
+  the last one. A file from another daemon version, or one that does not parse, counts as
+  empty; a write that fails is only logged. **bentwire decision.** Reason: reading and
+  parsing the 62 manifests of the classics pack took about 120 ms of every start (issue
+  #44).
 
 **B-CHAR-2 Loading.**
 - Loading follows character-format 4 to 7. An unknown `format` major or `family` is

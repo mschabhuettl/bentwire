@@ -157,6 +157,11 @@ pub fn sheet_cache_dir() -> PathBuf {
     xdg("XDG_CACHE_HOME", ".cache").join("bentwire/sheets")
 }
 
+/// The discovery cache (B-CHAR-1).
+pub fn discovery_cache_file() -> PathBuf {
+    xdg("XDG_CACHE_HOME", ".cache").join("bentwire/discovery.json")
+}
+
 pub fn data_home() -> PathBuf {
     xdg("XDG_DATA_HOME", ".local/share")
 }

@@ -26,6 +26,8 @@ pub struct Library {
     /// The A-THEME-1 balloon theme under the roots at the last scan.
     pub theme: Option<PathBuf>,
     pub cache: crate::discovery::Cache,
+    /// Where `cache` is kept between daemon starts; `None` keeps it in memory only.
+    cache_file: Option<PathBuf>,
     /// Decoded sheets on disk (B-CHAR-7); `None` decodes every load (tests, tools).
     pub sheets: Option<SheetCache>,
     /// The startup character loading in a thread (`preload`).
@@ -35,6 +37,7 @@ pub struct Library {
 pub type Shared = Rc<RefCell<Library>>;
 
 impl Library {
+    #[cfg(test)]
     pub fn new(roots: Vec<PathBuf>) -> Library {
         let mut lib = Library {
             roots,
@@ -44,10 +47,28 @@ impl Library {
         lib
     }
 
+    /// `new` with the discovery cache kept in `file` between starts (B-CHAR-1).
+    pub fn with_cache_file(roots: Vec<PathBuf>, file: PathBuf) -> Library {
+        let mut lib = Library {
+            roots,
+            cache: crate::discovery::load_cache(&file),
+            cache_file: Some(file),
+            ..Default::default()
+        };
+        lib.scan();
+        lib
+    }
+
     /// Discover the characters and the theme under the roots again.
     pub fn scan(&mut self) {
         let t = std::time::Instant::now();
+        let before = self.cache_file.is_some().then(|| self.cache.clone());
         let entries = crate::discovery::discover_cached(&self.roots, &mut self.cache);
+        if let (Some(file), Some(before)) = (&self.cache_file, before)
+            && before != self.cache
+        {
+            crate::discovery::save_cache(file, &self.cache);
+        }
         if entries.len() != self.entries.len() {
             log::info!("{} characters found", entries.len());
         }
@@ -367,6 +388,18 @@ mod tests {
         let (n, failures) = load_and_play_all(&root);
         assert!(n >= 1, "no characters in {}", root.display());
         assert!(failures.is_empty(), "{failures:#?}");
+    }
+
+    /// B-CHAR-1: the daemon writes its discovery cache and the next start uses it.
+    #[test]
+    fn b_char_1_library_keeps_the_cache_file() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../characters/builtin");
+        let file = crate::config::tests::tempdir().join("discovery.json");
+        let a = Library::with_cache_file(vec![root.clone()], file.clone());
+        assert!(!a.entries.is_empty());
+        assert_eq!(crate::discovery::load_cache(&file), a.cache);
+        let b = Library::with_cache_file(vec![root], file);
+        assert_eq!(b.entries, a.entries);
     }
 
     /// Every character of every pack under $BENTWIRE_PACKS (a `characters/` directory,
