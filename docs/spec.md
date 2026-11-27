@@ -1678,6 +1678,11 @@ The daemon reads the config file at start and when it receives SIGHUP or the D-B
   output (then topmost). A remembered position (B-CFG-2) wins. Reason: on a
   multi-monitor desktop the character should first appear on the screen the user works
   on, not on whichever output comes first in the layout.
+- At start the frame is pulled inside an output as on an output change (B-WL-4), without
+  a `Move`; a position partly off its output is not kept across a restart. Reason: a
+  position saved for another character (the 96 px `bentwire-placeholder` of 0.3, now the
+  128 px `wire`, or a chosen character that no longer loads) or on an output that is gone
+  would leave the character partly or wholly off screen.
 - Visible.
 - At start, a visible character is shown with an animated Show (cause 4).
 

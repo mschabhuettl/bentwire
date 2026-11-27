@@ -403,6 +403,35 @@ fn b_char_4_b_cfg_2_unchosen_state_keeps_position_only() {
     );
 }
 
+#[test]
+fn b_cfg_3_saved_position_is_pulled_inside_at_start() {
+    let st = |left, top| StateFile {
+        character: "wire".into(),
+        left,
+        top,
+        chosen: true,
+        ..Default::default()
+    };
+    // Saved for the 96 px placeholder at the bottom right; wire is 128 px.
+    let t = T::with(
+        vec![CharacterModel::new("wire", Family::Agent, (128, 128))],
+        Some(st(1920 - 96, 1080 - 96)),
+        vec![],
+    );
+    let p = t.core.properties();
+    assert_eq!((p.left, p.top), (1920 - 128, 1080 - 128));
+    assert!(
+        !t.signals()
+            .iter()
+            .any(|s| matches!(s.1, Signal::Move { .. }))
+    );
+    // Inside: kept. On an output that is gone: onto the first output.
+    let t = T::with(vec![character("wire", 1)], Some(st(5, 7)), vec![]);
+    assert_eq!((t.core.properties().left, t.core.properties().top), (5, 7));
+    let t = T::with(vec![character("wire", 1)], Some(st(-3000, 50)), vec![]);
+    assert_eq!((t.core.properties().left, t.core.properties().top), (0, 50));
+}
+
 fn last_persist(t: &T) -> Option<StateFile> {
     t.log.iter().rev().find_map(|(_, o)| match o {
         Output::PersistState(s) => Some(s.clone()),
