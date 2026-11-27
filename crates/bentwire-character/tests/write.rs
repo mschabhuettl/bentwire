@@ -203,3 +203,49 @@ fn splitmix64_reference_values() {
     assert_eq!(g.next_u64(), 0xE220_A839_7B1D_CDAF);
     assert_eq!(g.next_u64(), 0x6E78_9E6A_A1B9_65F4);
 }
+
+/// Issue #21: indexed sheets are written at the smallest bit depth that holds the palette,
+/// RGBA with the better of two filter choices; decoding gives back the same indices,
+/// palette and tRNS, or the same RGBA.
+#[test]
+fn png_round_trips_at_every_bit_depth() {
+    for (colours, depth) in [(2usize, 1u8), (4, 2), (5, 4), (16, 4), (17, 8), (256, 8)] {
+        let (w, h) = (13u32, 7u32);
+        let plte: Vec<[u8; 3]> = (0..colours).map(|i| [i as u8, 7, 255 - i as u8]).collect();
+        let idx: Vec<u8> = (0..w * h)
+            .map(|i| ((i * 7 + i / 5) as usize % colours) as u8)
+            .collect();
+        let png = encode_png_indexed(w, h, &idx, &plte, Some(&[255, 0])).unwrap();
+        assert_eq!(png[24], depth, "{colours} colours");
+        let img = image::decode_png(&png).unwrap();
+        assert_eq!((img.width, img.height), (w, h));
+        match img.pixels {
+            image::Pixels::Indexed {
+                data,
+                plte: p,
+                trns,
+                ..
+            } => {
+                assert_eq!(&data[..], &idx[..], "{colours} colours");
+                assert_eq!(p, plte);
+                assert_eq!(trns.as_deref(), Some(&[255u8, 0][..]));
+            }
+            _ => panic!("indexed"),
+        }
+    }
+    // Noise (no filter wins) and a gradient (a per-row filter wins).
+    let (w, h) = (64u32, 9u32);
+    let noise: Vec<u8> = (0..w * h * 4).map(|i| (i * 37 % 251) as u8).collect();
+    let ramp: Vec<u8> = (0..w * h * 4)
+        .map(|i| (i / 4 % w + i / (4 * w)) as u8)
+        .collect();
+    for rgba in [noise, ramp] {
+        let img = image::decode_png(&encode_png_rgba(w, h, &rgba).unwrap()).unwrap();
+        match img.pixels {
+            image::Pixels::Rgba(d) => assert_eq!(&d[..], &rgba[..]),
+            _ => panic!("rgba"),
+        }
+    }
+    assert!(encode_png_indexed(0, 1, &[], &[[0; 3]], None).is_err());
+    assert!(encode_png_rgba(2, 2, &[0; 15]).is_err());
+}

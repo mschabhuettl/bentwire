@@ -292,7 +292,9 @@ pub fn manifest_to_toml(m: &Manifest, header: &[&str]) -> String {
     o
 }
 
-/// Indexed 8-bit PNG: `PLTE` as given (source order), optional `tRNS`.
+/// Indexed PNG: `PLTE` as given (source order), optional `tRNS`. The bit depth is the
+/// smallest of 1, 2, 4, 8 that holds the palette and every index (issue #21); the indices,
+/// and so the decoded picture, are the same at any depth.
 pub fn encode_png_indexed(
     w: u32,
     h: u32,
@@ -300,42 +302,141 @@ pub fn encode_png_indexed(
     plte: &[[u8; 3]],
     trns: Option<&[u8]>,
 ) -> Result<Vec<u8>, Error> {
-    let mut out = Vec::new();
-    {
-        let mut e = png::Encoder::new(&mut out, w, h);
-        e.set_color(png::ColorType::Indexed);
-        e.set_depth(png::BitDepth::Eight);
-        e.set_palette(plte.iter().flatten().copied().collect::<Vec<u8>>());
-        if let Some(t) = trns {
-            e.set_trns(t.to_vec());
+    png_size(w, h, idx.len(), 1)?;
+    let n = plte
+        .len()
+        .max(idx.iter().max().map_or(0, |&m| m as usize + 1));
+    let depth: u8 = match n {
+        0..=2 => 1,
+        3..=4 => 2,
+        5..=16 => 4,
+        _ => 8,
+    };
+    let per = 8 / depth as usize;
+    let line = (w as usize).div_ceil(per);
+    let mut raw = Vec::with_capacity((line + 1) * h as usize);
+    for row in idx.chunks_exact(w as usize).take(h as usize) {
+        raw.push(0);
+        for px in row.chunks(per) {
+            let mut b = 0u8;
+            for (i, &v) in px.iter().enumerate() {
+                b |= v << (8 - depth as usize * (i + 1));
+            }
+            raw.push(b);
         }
-        png_settings(&mut e);
-        let mut wr = e.write_header().map_err(|x| Error::Image(x.to_string()))?;
-        wr.write_image_data(idx)
-            .map_err(|x| Error::Image(x.to_string()))?;
     }
-    Ok(out)
+    let mut out = png_start(w, h, depth, 3);
+    png_chunk(&mut out, b"PLTE", plte.as_flattened());
+    if let Some(t) = trns {
+        png_chunk(&mut out, b"tRNS", t);
+    }
+    png_end(out, &raw)
 }
 
-/// RGBA 8-bit PNG.
+/// RGBA 8-bit PNG: no filter or the per-row filter with the smallest sum of absolute
+/// values, whichever compresses smaller.
 pub fn encode_png_rgba(w: u32, h: u32, rgba: &[u8]) -> Result<Vec<u8>, Error> {
-    let mut out = Vec::new();
-    {
-        let mut e = png::Encoder::new(&mut out, w, h);
-        e.set_color(png::ColorType::Rgba);
-        e.set_depth(png::BitDepth::Eight);
-        png_settings(&mut e);
-        let mut wr = e.write_header().map_err(|x| Error::Image(x.to_string()))?;
-        wr.write_image_data(rgba)
-            .map_err(|x| Error::Image(x.to_string()))?;
+    png_size(w, h, rgba.len(), 4)?;
+    let line = w as usize * 4;
+    let mut none = Vec::with_capacity((line + 1) * h as usize);
+    let mut adaptive = Vec::with_capacity(none.capacity());
+    let zero = vec![0u8; line];
+    let mut prev: &[u8] = &zero;
+    for row in rgba.chunks_exact(line).take(h as usize) {
+        none.push(0);
+        none.extend_from_slice(row);
+        let best = (0..5u8)
+            .map(|f| (f, png_filter(f, row, prev)))
+            .min_by_key(|(_, v)| {
+                v.iter()
+                    .map(|&b| (b as i8).unsigned_abs() as u64)
+                    .sum::<u64>()
+            })
+            .expect("five filters");
+        adaptive.push(best.0);
+        adaptive.extend_from_slice(&best.1);
+        prev = row;
     }
-    Ok(out)
+    let a = png_end(png_start(w, h, 8, 6), &none)?;
+    let b = png_end(png_start(w, h, 8, 6), &adaptive)?;
+    Ok(if b.len() < a.len() { b } else { a })
 }
 
-fn png_settings<W: std::io::Write>(e: &mut png::Encoder<'_, W>) {
-    e.set_compression(png::Compression::Best);
-    e.set_filter(png::FilterType::NoFilter);
-    e.set_adaptive_filter(png::AdaptiveFilterType::NonAdaptive);
+/// PNG filter `f` of `row` (4 bytes per pixel) against the row above.
+fn png_filter(f: u8, row: &[u8], up: &[u8]) -> Vec<u8> {
+    (0..row.len())
+        .map(|i| {
+            let a = if i >= 4 { row[i - 4] } else { 0 };
+            let b = up[i];
+            let c = if i >= 4 { up[i - 4] } else { 0 };
+            let p = match f {
+                0 => 0,
+                1 => a,
+                2 => b,
+                3 => ((a as u16 + b as u16) / 2) as u8,
+                _ => {
+                    let (pa, pb, pc) = (
+                        (b as i16 - c as i16).abs(),
+                        (a as i16 - c as i16).abs(),
+                        (a as i16 + b as i16 - 2 * c as i16).abs(),
+                    );
+                    if pa <= pb && pa <= pc {
+                        a
+                    } else if pb <= pc {
+                        b
+                    } else {
+                        c
+                    }
+                }
+            };
+            row[i].wrapping_sub(p)
+        })
+        .collect()
+}
+
+/// PNG signature and `IHDR` (no interlace).
+fn png_start(w: u32, h: u32, depth: u8, color: u8) -> Vec<u8> {
+    let mut out = b"\x89PNG\r\n\x1a\n".to_vec();
+    let mut ihdr = Vec::with_capacity(13);
+    ihdr.extend_from_slice(&w.to_be_bytes());
+    ihdr.extend_from_slice(&h.to_be_bytes());
+    ihdr.extend_from_slice(&[depth, color, 0, 0, 0]);
+    png_chunk(&mut out, b"IHDR", &ihdr);
+    out
+}
+
+fn png_chunk(out: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
+    out.extend_from_slice(&(data.len() as u32).to_be_bytes());
+    out.extend_from_slice(kind);
+    out.extend_from_slice(data);
+    let mut crc = crc32fast::Hasher::new();
+    crc.update(kind);
+    crc.update(data);
+    out.extend_from_slice(&crc.finalize().to_be_bytes());
+}
+
+fn png_size(w: u32, h: u32, len: usize, bpp: usize) -> Result<(), Error> {
+    if w == 0 || h == 0 || len != w as usize * h as usize * bpp {
+        return Err(Error::Image(format!(
+            "{w}x{h} PNG with {len} bytes of pixels"
+        )));
+    }
+    Ok(())
+}
+
+/// One `IDAT` with the filtered rows `raw`, deflated by libdeflate at its strongest level
+/// (deterministic for a given libdeflate version), then `IEND`.
+fn png_end(mut out: Vec<u8>, raw: &[u8]) -> Result<Vec<u8>, Error> {
+    let mut c = libdeflater::Compressor::new(
+        libdeflater::CompressionLvl::new(12).expect("level 12 exists"),
+    );
+    let mut z = vec![0; c.zlib_compress_bound(raw.len())];
+    let n = c
+        .zlib_compress(raw, &mut z)
+        .map_err(|e| Error::Image(format!("deflate: {e}")))?;
+    png_chunk(&mut out, b"IDAT", &z[..n]);
+    png_chunk(&mut out, b"IEND", &[]);
+    Ok(out)
 }
 
 /// FLAC of `pcm` with fixed settings (the bit-exact PCM of character-format 6).

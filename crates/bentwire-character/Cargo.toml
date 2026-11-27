@@ -16,6 +16,7 @@ claxon = "0.4"
 flate2 = "1"
 crc32fast = "1"
 flacenc = { version = "0.5", default-features = false }
+libdeflater = "1.26"
 
 [dev-dependencies]
 agent-fixtures.workspace = true
