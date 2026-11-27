@@ -92,6 +92,8 @@ fn b_addon_3_cli_reload_without_answer_times_out() {
     let fake = connect(&e.addr);
     fake.request_name("org.bentwire.Agent").unwrap();
     let wire = addon(&e.dir.join("src"), "wire", "character", "1.0", "");
+    // Build the CLI before timing (the first use builds it, as in a package's check()).
+    common::cli_bin();
     let t = Instant::now();
     let (code, so, se) = cli(&e, &["addons", "install", wire.to_str().unwrap()]);
     let took = t.elapsed();
