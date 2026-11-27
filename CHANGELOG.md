@@ -7,11 +7,29 @@ D-Bus API (`org.bentwire.Agent1`) and the character format (`format = 1`) are fr
 
 ## [Unreleased]
 
+### Added
+
+- Speech output with espeak-ng: `say` texts and `ask` headings and texts are spoken and
+  the mouth follows the phonemes. Off by default; `bentwire speech on`, the tray item
+  "Speech", the D-Bus property `Speech` or `speech = true`. `bentwire say --speak` /
+  `--no-speak` decides per text (`SpeakWith`). espeak-ng is optional and loaded at run
+  time.
+- Add-ons: `bentwire addons list|install|enable|disable|remove` installs characters,
+  balloon themes and bridges from a folder, a `.zip` or `.tar.gz`, or an HTTPS URL
+  (`--sha256`). Enabled bridges run as their own processes, are restarted with backoff
+  when they exit and stop with the daemon; an install never enables a bridge. Format in
+  `docs/addon-format.md`.
+
 ### Changed
 
 - Faster start: the daemon keeps the characters it found in
   `~/.cache/bentwire/discovery.json` and reads only manifests that changed since the last
   start (about 120 ms less with the classics pack).
+
+### Fixed
+
+- Programs the daemon starts (`xdg-open` for Options...) no longer inherit blocked
+  signals.
 
 ## [0.2.1] - 2026-11-21
 

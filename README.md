@@ -226,6 +226,17 @@ and ask, publishes the answers (`button:1`, `ok`, ...) and visibility, and annou
 to Home Assistant through MQTT discovery; Node-RED uses the same topics. Config, topics and
 example automations in [crates/bentwire-mqtt/README.md](crates/bentwire-mqtt/README.md).
 
+**Speech**: with espeak-ng installed (optional, loaded at run time), `bentwire speech on`,
+the tray item "Speech" or `speech = true` makes the character speak `say` texts and `ask`
+questions while its mouth follows the phonemes. `bentwire say --speak` / `--no-speak`
+decides per text. Off by default.
+
+**Add-ons**: characters, balloon themes and bridges packaged with an `addon.toml` install
+with `bentwire addons install <folder|archive|https URL>` and are switched with `bentwire
+addons enable|disable`; enabled bridges run as their own processes next to the daemon.
+`bentwire-notify` and `bentwire-mqtt` can run as bridge add-ons instead of systemd units.
+See [docs/addon-format.md](docs/addon-format.md).
+
 ## Configuration
 
 `~/.config/bentwire/config.toml` (`$XDG_CONFIG_HOME`). All keys are optional. The
@@ -241,6 +252,7 @@ unknown keys are ignored.
 | `balloon` | `true` | Show the word balloon for `say` |
 | `balloon_font` | `""` | One font for every character's balloon; empty = each character's own |
 | `speaking_speed` | `1.0` | Word pacing factor, 0.5 to 1.5 |
+| `speech` | `false` | Speak with espeak-ng (optional); once set in the tray, with `bentwire speech` or over D-Bus, that choice wins over this key |
 | `idle` | `true` | Idle animations on at start |
 | `double_click_ms` | `500` | Double-click interval |
 | `character_paths` | `[]` | Extra character search roots, searched first |
