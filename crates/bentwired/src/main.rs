@@ -220,6 +220,7 @@ fn run(args: args::Args) -> Result<(), String> {
         scale: state.scale.unwrap_or(1),
         scale_chosen: state.scale_chosen.unwrap_or(false),
         speech: state.speech,
+        smooth: state.smooth,
     });
     // B-CHAR-6: once, when only builtin characters are installed and one starts visible.
     let install_hint = !state.install_hint_shown

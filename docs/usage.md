@@ -46,6 +46,7 @@ prints the usage.
 | `animations` | Animation names of the current character | one per line |
 | `scale [<n>]` | Character size factor 1 to 4; without `n`, print it | the factor, or nothing |
 | `speech [on \| off]` | Speech output on or off (persisted); without an argument, print it | `on` or `off`, or nothing |
+| `smooth [on \| off]` | Smooth edges on or off (persisted); without an argument, print it | `on` or `off`, or nothing |
 | `status` | Properties | `character`, `visible`, `left`, `top`, `idle` as `key=value` lines |
 | `quit` | Stop the daemon | nothing |
 | `convert <source> <dest> [--palette FILE] [--lang TAG] [--codepage LABEL]` | Convert a character file locally, no daemon | nothing |
@@ -81,6 +82,16 @@ same drawing: `wire`, smooth and sharp on HiDPI outputs, which the daemon shows 
 other character is chosen or installed, and `wire-retro`, 12 colours and hard edges as in
 1997 (`bentwire select wire-retro`). Both have the Agent animation set (`bentwire
 animations` lists it) and move their mouth with speech output.
+
+## Smooth edges
+
+The Office 97 and Microsoft Bob vector actors are drawn with hard edges, as Office 97 drew
+them. `bentwire smooth on`, the tray menu's "Smooth Edges" item, the D-Bus property
+`Smooth` or `smooth = true` in `~/.config/bentwire/config.toml` draws them anti-aliased
+instead: the picture is taken from the character's 2x sheet and averaged down. It is off
+by default; the first three are remembered and win over the config file. It works at size
+1 on a 1x screen; at sizes 2 to 4 and on HiDPI screens these characters already use their
+2x pictures and the setting changes nothing. Bitmap characters are not affected.
 
 ## Speech output
 

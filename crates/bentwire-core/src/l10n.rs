@@ -33,6 +33,8 @@ pub enum MenuString {
     Size,
     /// B-TRAY-1 speech output item (B-TTS-1).
     Speech,
+    /// B-TRAY-1 smooth edges item (B-SMOOTH-1).
+    Smooth,
 }
 
 pub fn menu_string(lang: Lang, s: MenuString) -> &'static str {
@@ -52,6 +54,8 @@ pub fn menu_string(lang: Lang, s: MenuString) -> &'static str {
         (Lang::De, Size) => "&Größe",
         (Lang::En, Speech) => "S&peech",
         (Lang::De, Speech) => "&Sprachausgabe",
+        (Lang::En, Smooth) => "S&mooth Edges",
+        (Lang::De, Smooth) => "&Kanten glätten",
     }
 }
 

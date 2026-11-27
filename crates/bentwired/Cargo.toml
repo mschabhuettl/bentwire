@@ -33,3 +33,5 @@ wayland-protocols-plasma = { version = "0.3", features = ["client"] }
 [dev-dependencies]
 wayland-protocols-wlr = { version = "0.3", features = ["client"] }
 serde_json.workspace = true
+agent-fixtures.workspace = true
+bentwire-convert.workspace = true

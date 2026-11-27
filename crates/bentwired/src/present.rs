@@ -8,7 +8,7 @@ use bentwire_render::balloon::{self, agent_balloon_region, office_balloon_region
 use bentwire_render::canvas::{Rect, Region, RgbaImage};
 use bentwire_render::font::Fonts;
 use bentwire_render::menu::{MenuGeometry, draw_menu, menu_layout, submenu_scene};
-use bentwire_render::picture::picture_buffer;
+use bentwire_render::picture::{downsample, picture_buffer};
 use bentwire_render::theme::Theme;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -81,16 +81,19 @@ pub fn scale_of(outputs: &[OutputInfo], id: Option<u32>) -> (u32, bool) {
 }
 
 /// The character picture at buffer scale `k` and the scene's size factor (B-SCALE-1):
-/// at `k` or at `k` times the factor, see [`library::density`]. The buffer maps it to the
-/// surface (logical size times `k`) by nearest neighbour.
+/// at `k` or at `k` times the factor, see [`library::density`]. With smooth edges
+/// (B-SMOOTH-1) it is composed at [`library::smooth_density`] and box-filtered down to that.
+/// The buffer maps it to the surface (logical size times `k`) by nearest neighbour.
 pub fn character_picture(scene: &Scene, lib: &Library, k: u32) -> Option<RgbaImage> {
     let ch = scene.character.as_ref()?;
     let c = lib.get(&ch.id)?;
-    Some(library::picture(
-        c,
-        &ch.picture,
-        library::density(c, k, ch.scale),
-    ))
+    let d = library::density(c, k, ch.scale);
+    Some(
+        match ch.smooth.then(|| library::smooth_density(c, d)).flatten() {
+            Some(s) => downsample(&library::picture(c, &ch.picture, s), s / d),
+            None => library::picture(c, &ch.picture, d),
+        },
+    )
 }
 
 /// B-WL-7: when `scene` differs from `last` only in the character's position (a drag),
@@ -403,6 +406,13 @@ mod tests {
         render(&scene, l, &fonts, None).character.unwrap().buf
     }
 
+    /// The character picture of `scene` with smooth edges `smooth` (B-SMOOTH-1).
+    fn picture_with(l: &Library, scene: &Scene, smooth: bool, k: u32) -> RgbaImage {
+        let mut s = scene.clone();
+        s.character.as_mut().unwrap().smooth = smooth;
+        character_picture(&s, l, k).unwrap()
+    }
+
     fn rest_scene(id: &str, size: u32, scale: u32, out_scale: f64) -> Scene {
         Scene {
             character: Some(CharacterScene {
@@ -413,6 +423,7 @@ mod tests {
                 width: size * scale,
                 height: size * scale,
                 scale,
+                smooth: false,
                 picture: Picture::Frame {
                     animation: "RestPose".into(),
                     frame: 0,
@@ -493,6 +504,81 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// Decoded PNG as straight RGBA with transparent pixels zeroed (as `compose` leaves them).
+    fn png_rgba(path: &Path) -> RgbaImage {
+        let b = std::fs::read(path).unwrap_or_else(|_| panic!("missing {}", path.display()));
+        let img = bentwire_character::image::decode_png(&b).unwrap();
+        let mut out = RgbaImage::new(img.width, img.height);
+        for y in 0..img.height {
+            for x in 0..img.width {
+                let p = img.pixel(x, y);
+                if p[3] > 0 {
+                    let o = ((y * img.width + x) * 4) as usize;
+                    out.data[o..o + 4].copy_from_slice(&p);
+                }
+            }
+        }
+        out
+    }
+
+    /// B-SMOOTH-1 snapshots: the synthetic vector actor of `agent-fixtures`, converted,
+    /// pose 2 at size factor 1 on a 1x output. Off is the converter's 1x raster
+    /// (byte-identical to 0.4, the golden of `wmf_golden.rs`); on is its 2x raster
+    /// box-filtered 2:1, kept as `tests/golden/smooth_wmf_actor_pose2.png`
+    /// (`BENTWIRE_BLESS=1` rewrites it). At density 2 there is no denser sheet: on = off.
+    #[test]
+    fn b_smooth_1_vector_actor_snapshots_off_and_on() {
+        let dir = crate::config::tests::tempdir();
+        let act = dir.join("vec.act");
+        std::fs::write(&act, agent_fixtures::act::wmf_actor().to_bytes()).unwrap();
+        bentwire_convert::convert(&act, &dir.join("characters/vec")).unwrap();
+        let shared = std::rc::Rc::new(std::cell::RefCell::new(Library::new(vec![
+            dir.join("characters"),
+        ])));
+        let id = shared.borrow().catalog()[0].id.clone();
+        library::Loader(shared.clone()).load(&id).unwrap();
+        let l = shared.take();
+        let mut scene = rest_scene(&id, 0, 1, 1.0);
+        let c = scene.character.as_mut().unwrap();
+        (c.width, c.height, c.picture) = (192, 144, Picture::Pose(2));
+
+        let golden = Path::new(env!("CARGO_MANIFEST_DIR")).join("../bentwire-convert/tests/golden");
+        let off = picture_with(&l, &scene, false, 1);
+        assert_eq!(off, png_rgba(&golden.join("wmf_actor_pose2_x1.png")));
+        let on = picture_with(&l, &scene, true, 1);
+        let x2 = png_rgba(&golden.join("wmf_actor_pose2_x2.png"));
+        assert_eq!(on, downsample(&x2, 2));
+        assert_ne!(on, off);
+        // Real anti-aliasing: partial alpha and mixed colours on the edges only.
+        assert!(on.data.chunks(4).any(|p| p[3] > 0 && p[3] < 255));
+        let path =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/smooth_wmf_actor_pose2.png");
+        if std::env::var_os("BENTWIRE_BLESS").is_some() {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            let png = bentwire_character::write::encode_png_rgba(on.width, on.height, &on.data);
+            std::fs::write(&path, png.unwrap()).unwrap();
+        }
+        assert_eq!(on, png_rgba(&path));
+
+        // Density 2 (size factor 2, or a 2x output): the 2x sheet as is, whatever the setting.
+        assert_eq!(
+            picture_with(&l, &scene, true, 2),
+            picture_with(&l, &scene, false, 2)
+        );
+        scene.character.as_mut().unwrap().scale = 2;
+        assert_eq!(
+            picture_with(&l, &scene, true, 1),
+            picture_with(&l, &scene, false, 1)
+        );
+        // A bitmap character (no hidpi sheets) is drawn as without smoothing.
+        let p = lib("tests/fixtures/characters", "pebble");
+        let s = rest_scene("pebble", 32, 1, 1.0);
+        assert_eq!(
+            picture_with(&p, &s, true, 1),
+            picture_with(&p, &s, false, 1)
+        );
     }
 
     #[test]

@@ -19,6 +19,8 @@ pub struct Config {
     pub scale: u32,
     /// B-TTS-1 speech output.
     pub speech: bool,
+    /// B-SMOOTH-1 smooth edges.
+    pub smooth: bool,
 }
 
 impl Default for Config {
@@ -35,6 +37,7 @@ impl Default for Config {
             character_paths: Vec::new(),
             scale: 1,
             speech: false,
+            smooth: false,
         }
     }
 }
@@ -53,6 +56,7 @@ pub const DEFAULT_CONFIG_TEXT: &str = "\
 # character_paths = []      # extra search roots (A-PACK-1)
 # scale = 1                 # character size: 1, 2, 3 or 4 (the Size menu wins once used)
 # speech = false            # speak with espeak-ng (the tray item wins once used)
+# smooth = false            # smooth edges of vector characters (the tray item wins once used)
 ";
 
 impl Config {
@@ -88,6 +92,7 @@ impl Config {
             double_click_ms: self.double_click_ms,
             scale: self.scale,
             speech: self.speech,
+            smooth: self.smooth,
         }
     }
 }
@@ -110,6 +115,8 @@ pub struct State {
     pub scale_chosen: Option<bool>,
     /// B-TTS-1: speech output as the user set it; absent until then.
     pub speech: Option<bool>,
+    /// B-SMOOTH-1: smooth edges as the user set them; absent until then.
+    pub smooth: Option<bool>,
 }
 
 /// The characters of the builtin pack (A-CHAR-1, B-CHAR-6).
@@ -253,6 +260,7 @@ pub(crate) mod tests {
             scale: Some(3),
             scale_chosen: Some(true),
             speech: Some(true),
+            smooth: Some(false),
         };
         s.save(&p).unwrap();
         assert_eq!(State::load(&p), s);
@@ -282,6 +290,21 @@ pub(crate) mod tests {
         assert!(!toml::to_string(&st).unwrap().contains("speech"));
         let st: State = toml::from_str("speech = false").unwrap();
         assert_eq!(st.speech, Some(false));
+    }
+
+    #[test]
+    fn b_smooth_1_config_and_state_keys() {
+        assert!(!Config::default().to_core().smooth);
+        let c: Config = toml::from_str("smooth = true").unwrap();
+        assert!(c.to_core().smooth);
+        // Not set by the user: not written, so older state files stay as they were.
+        let st = State {
+            character: Some("a".into()),
+            ..Default::default()
+        };
+        assert!(!toml::to_string(&st).unwrap().contains("smooth"));
+        let st: State = toml::from_str("smooth = true").unwrap();
+        assert_eq!(st.smooth, Some(true));
     }
 
     #[test]

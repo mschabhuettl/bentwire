@@ -544,6 +544,7 @@ impl App {
                         scale: Some(s.scale),
                         scale_chosen: Some(s.scale_chosen),
                         speech: s.speech,
+                        smooth: s.smooth,
                     };
                     if let Err(e) = st.save(&self.state_path) {
                         log::warn!("writing {}: {e}", self.state_path.display());
@@ -785,6 +786,7 @@ fn call_method(c: &api::Call) -> &'static str {
         SetIdleOn(_) => "SetIdleOn",
         SetScale(_) => "SetScale",
         SetSpeech(_) => "SetSpeech",
+        SetSmooth(_) => "SetSmooth",
     }
 }
 
@@ -802,7 +804,7 @@ fn call_args(c: &api::Call) -> serde_json::Value {
         StopAll(t) => json!([t]),
         SetIdleOn(b) => json!([b]),
         SetScale(n) => json!([n]),
-        SetSpeech(b) => json!([b]),
+        SetSpeech(b) | SetSmooth(b) => json!([b]),
         SpeakWith { text, speech } => json!([text, {"speech": speech}]),
         ListCharacters | Quit => json!([]),
     }

@@ -267,6 +267,7 @@ unknown keys are ignored.
 | `double_click_ms` | `500` | Double-click interval |
 | `character_paths` | `[]` | Extra character search roots, searched first |
 | `scale` | `1` | Character size 1 to 4; once chosen in the Size menu, with `bentwire scale` or over D-Bus, that choice wins over this key |
+| `smooth` | `false` | Smooth (anti-aliased) edges for vector characters such as the Office 97 actors, at size 1 on a 1x screen; once set in the tray, with `bentwire smooth` or over D-Bus, that choice wins over this key |
 
 State (character, position, visibility, size) is kept in `~/.local/state/bentwire/state.toml`.
 Decoded character pictures are cached in `~/.cache/bentwire/sheets/` (`$XDG_CACHE_HOME`, at

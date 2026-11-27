@@ -18,6 +18,7 @@
     <property name="Version" type="s" access="read"/>
     <property name="Scale" type="u" access="readwrite"/>
     <property name="Speech" type="b" access="readwrite"/>
+    <property name="Smooth" type="b" access="readwrite"/>
   </interface>
   <!-- /org/bentwire/Character -->
   <interface name="org.bentwire.Character1">

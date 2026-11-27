@@ -101,6 +101,8 @@ pub struct Config {
     pub scale: u32,
     /// Speech output (B-TTS-1).
     pub speech: bool,
+    /// Smooth edges (B-SMOOTH-1).
+    pub smooth: bool,
 }
 
 /// B-SCALE-1: the size factors offered.
@@ -119,6 +121,7 @@ impl Default for Config {
             double_click_ms: 500,
             scale: 1,
             speech: false,
+            smooth: false,
         }
     }
 }
@@ -138,6 +141,8 @@ pub struct StateFile {
     pub scale_chosen: bool,
     /// Speech output as the user set it (tray, `Speech` property); `None`: the config's.
     pub speech: Option<bool>,
+    /// Smooth edges as the user set them (tray, `Smooth` property); `None`: the config's.
+    pub smooth: Option<bool>,
 }
 
 impl Default for StateFile {
@@ -151,6 +156,7 @@ impl Default for StateFile {
             scale: 1,
             scale_chosen: false,
             speech: None,
+            smooth: None,
         }
     }
 }
@@ -347,6 +353,8 @@ pub enum Call {
     SetScale(u32),
     /// Agent1 `Speech` property write (B-TTS-1).
     SetSpeech(bool),
+    /// Agent1 `Smooth` property write (B-SMOOTH-1).
+    SetSmooth(bool),
 }
 
 /// A mark of an utterance's timeline (B-TTS-2).
@@ -557,6 +565,8 @@ pub struct CharacterScene {
     pub height: u32,
     /// Size factor (B-SCALE-1): the picture is drawn `scale` times its display size.
     pub scale: u32,
+    /// Smooth edges (B-SMOOTH-1): the picture is drawn from denser sheets, box-filtered.
+    pub smooth: bool,
     pub picture: Picture,
     /// Output the surface lives on (B-WL-2); only changes outside drags.
     pub output: Option<u32>,
@@ -718,6 +728,8 @@ pub enum MenuAction {
     Scale(u32),
     /// The tray's speech output check item (B-TRAY-1, B-TTS-1).
     Speech,
+    /// The tray's smooth edges check item (B-TRAY-1, B-SMOOTH-1).
+    Smooth,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -793,6 +805,8 @@ pub struct Properties {
     pub scale: u32,
     /// Agent1 `Speech` (B-TTS-1).
     pub speech: bool,
+    /// Agent1 `Smooth` (B-SMOOTH-1).
+    pub smooth: bool,
 }
 
 /// Error names (5.4).

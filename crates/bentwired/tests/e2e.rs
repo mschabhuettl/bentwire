@@ -2223,6 +2223,86 @@ fn b_scale_1_cli_dbus_round_trip_and_persistence() {
     assert_eq!((&s2["left"], &s2["top"]), (&s["left"], &s["top"]));
 }
 
+/// B-SMOOTH-1: the `Smooth` property and the CLI, applied live: with the builtin `wire`
+/// (2x sheets) the drawn frame changes at once and back; the choice is persisted.
+#[test]
+fn b_smooth_1_property_cli_live_and_persisted() {
+    let mut e = Env::new("smooth");
+    let frames = e.dir.join("frames");
+    let builtin = repo().join("characters/builtin");
+    e.start(&[
+        "--characters",
+        builtin.to_str().unwrap(),
+        "--dump-frames",
+        frames.to_str().unwrap(),
+        "--outputs",
+        "800x600+0+0",
+    ]);
+    e.advance(1000);
+    let conn = connect(&e.addr);
+    conn.call_method(
+        Some("org.freedesktop.DBus"),
+        "/org/freedesktop/DBus",
+        Some("org.freedesktop.DBus"),
+        "AddMatch",
+        &("type='signal',interface='org.freedesktop.DBus.Properties',member='PropertiesChanged'",),
+    )
+    .unwrap();
+    let it = zbus::blocking::MessageIterator::from(&conn);
+    assert_eq!(out(&e.cli(&["smooth"])), (0, "off\n".into(), String::new()));
+    let off = last_frame(&frames);
+    assert_eq!(
+        out(&e.cli(&["smooth", "on"])),
+        (0, String::new(), String::new())
+    );
+    e.advance(10);
+    assert_eq!(out(&e.cli(&["smooth"])).1, "on\n");
+    assert!(bool::try_from(e.prop(AGENT, AGENT_IF, "Smooth")).unwrap());
+    let on = last_frame(&frames);
+    assert_ne!(on, off);
+    let changed = it.flatten().take(20).any(|m| {
+        if m.header().member().map(|x| x.as_str()) != Some("PropertiesChanged") {
+            return false;
+        }
+        let (iface, changed, _): (
+            String,
+            std::collections::HashMap<String, zbus::zvariant::OwnedValue>,
+            Vec<String>,
+        ) = m.body().deserialize().unwrap();
+        iface == AGENT_IF
+            && changed
+                .get("Smooth")
+                .is_some_and(|v| bool::try_from(v).unwrap())
+    });
+    assert!(changed);
+    assert_eq!(out(&e.cli(&["smooth", "maybe"])).0, 1);
+    let bad = e.conn.call_method(
+        Some("org.bentwire.Agent"),
+        AGENT,
+        Some("org.freedesktop.DBus.Properties"),
+        "Set",
+        &(AGENT_IF, "Smooth", Value::from(1u32)),
+    );
+    assert!(
+        matches!(&bad, Err(zbus::Error::MethodError(n, _, _)) if n.as_str() == "org.freedesktop.DBus.Error.InvalidArgs"),
+        "{bad:?}"
+    );
+    e.cli(&["smooth", "off"]);
+    e.advance(10);
+    assert_eq!(last_frame(&frames), off);
+    e.cli(&["smooth", "on"]);
+    e.advance(10);
+    // Persisted (B-CFG-2): it wins over the config key after a restart.
+    e.client().call_unit(AGENT, AGENT_IF, "Quit", &()).unwrap();
+    assert_eq!(e.wait_exit(10), Some(0));
+    assert!(e.state().contains("smooth = true"), "{}", e.state());
+    std::fs::create_dir_all(e.dir.join("cfg/bentwire")).unwrap();
+    std::fs::write(e.dir.join("cfg/bentwire/config.toml"), "smooth = false\n").unwrap();
+    e.start(&["--characters", builtin.to_str().unwrap()]);
+    e.advance(1000);
+    assert!(bool::try_from(e.prop(AGENT, AGENT_IF, "Smooth")).unwrap());
+}
+
 #[test]
 fn b_scale_1_size_submenu_through_test1_and_trace() {
     let mut e = Env::new("scalemenu");

@@ -831,7 +831,9 @@ listed for the record.
 - **A: the package holds pictures only**: a 1x sheet without antialiasing, indexed, as the
   faithful rendering (0.75x of the `.ACT` for Clippit), plus an optional 2x sheet under
   `hidpi`; both rendered by a bentwire WMF rasterizer in the converter (24 record types,
-  act-format 4.6). Antialiasing is a converter option, off by default. With the 2x sheet the
+  act-format 4.6). Antialiasing is a converter option, off by default (not implemented;
+  bentwire 0.5 smooths at run time from the 2x sheet instead, spec B-SMOOTH-1, so the
+  format and the packs stay as they are). With the 2x sheet the
   pictures come to about 2.6x of the `.ACT` (0.75 + 1.85): vector actors with HiDPI sheets
   are the one case that is larger than its source. Tests for the rasterizer can only be
   golden images. Re-convert from the `.ACT` when the rasterizer improves.

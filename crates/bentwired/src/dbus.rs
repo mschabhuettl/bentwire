@@ -127,6 +127,11 @@ pub fn parse(msg: &Message, test: bool, test_full: bool) -> Option<Result<Call, 
                             bool::try_from(&*v).map_err(|_| invalid("Speech takes a boolean"))?;
                         Call::Core(CoreCall::SetSpeech(b))
                     }
+                    (AGENT_PATH, AGENT_IFACE, "Smooth") => {
+                        let b =
+                            bool::try_from(&*v).map_err(|_| invalid("Smooth takes a boolean"))?;
+                        Call::Core(CoreCall::SetSmooth(b))
+                    }
                     _ => {
                         let x = introspect(&path, false, false);
                         let known = x.contains(&format!("<interface name=\"{i}\">"))
@@ -451,6 +456,7 @@ pub fn agent_props_map(p: &Properties) -> HashMap<&'static str, Value<'static>> 
     m.insert("Character", Value::from(safe(&p.character)));
     m.insert("Scale", Value::from(p.scale));
     m.insert("Speech", Value::from(p.speech));
+    m.insert("Smooth", Value::from(p.smooth));
     m.insert(
         "Version",
         Value::from(env!("CARGO_PKG_VERSION").to_string()),
@@ -500,6 +506,7 @@ pub fn introspect(path: &str, test: bool, test_full: bool) -> String {
 <property name="Version" type="s" access="read"/>
 <property name="Scale" type="u" access="readwrite"/>
 <property name="Speech" type="b" access="readwrite"/>
+<property name="Smooth" type="b" access="readwrite"/>
 </interface>"#
             .to_string(),
         CHAR_PATH => {

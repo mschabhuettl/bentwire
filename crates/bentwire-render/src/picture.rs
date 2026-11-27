@@ -64,6 +64,41 @@ pub fn logical_shape(pic: &RgbaImage, w: u32, h: u32) -> Region {
     Region::from_alpha(&small)
 }
 
+/// B-SMOOTH-1: `pic` reduced by `n` on both axes, each pixel the box average of an `n x n`
+/// block: alpha = round(sum a / n^2), colour = round(sum c * a / sum a) (premultiplied
+/// average, back to straight alpha), transparent black where the block is. Halves round up.
+/// The sides of `pic` are multiples of `n`.
+pub fn downsample(pic: &RgbaImage, n: u32) -> RgbaImage {
+    let (w, h) = (pic.width / n, pic.height / n);
+    let mut out = RgbaImage::new(w, h);
+    let nn = u64::from(n * n);
+    for y in 0..h {
+        for x in 0..w {
+            let (mut sa, mut sc) = (0u64, [0u64; 3]);
+            for sy in y * n..(y + 1) * n {
+                for sx in x * n..(x + 1) * n {
+                    let o = ((sy * pic.width + sx) * 4) as usize;
+                    let p = &pic.data[o..o + 4];
+                    let a = u64::from(p[3]);
+                    sa += a;
+                    for k in 0..3 {
+                        sc[k] += u64::from(p[k]) * a;
+                    }
+                }
+            }
+            if sa == 0 {
+                continue;
+            }
+            let o = ((y * w + x) * 4) as usize;
+            for (d, c) in out.data[o..o + 3].iter_mut().zip(sc) {
+                *d = ((2 * c + sa) / (2 * sa)) as u8;
+            }
+            out.data[o + 3] = ((2 * sa + nn) / (2 * nn)) as u8;
+        }
+    }
+    out
+}
+
 /// Straight-alpha source-over blend of character-format 5.3 step 4.
 fn blend_straight(d: &mut [u8], s: &[u8]) {
     let a = s[3] as u32;
@@ -186,6 +221,29 @@ mod tests {
             &[9, 9, 9, 255]
         );
         assert_eq!(b.input_region, vec![Rect::new(1, 1, 1, 1)]);
+    }
+
+    #[test]
+    fn b_smooth_1_downsample_is_a_premultiplied_box_average() {
+        // One 2x2 block: opaque red, opaque blue, half-transparent white, transparent.
+        let mut pic = RgbaImage::new(4, 2);
+        pic.data[..8].copy_from_slice(&[255, 0, 0, 255, 0, 0, 255, 255]);
+        pic.data[16..24].copy_from_slice(&[255, 255, 255, 128, 9, 9, 9, 0]);
+        // Right block: fully transparent (its colour bytes do not count).
+        pic.data[8..12].copy_from_slice(&[7, 7, 7, 0]);
+        let d = downsample(&pic, 2);
+        assert_eq!((d.width, d.height), (2, 1));
+        // sum a = 638: alpha round(638 / 4) = 160; red (255 * 255 + 255 * 128) / 638
+        // = 153.08 -> 153; green 255 * 128 / 638 = 51.16 -> 51; blue as red.
+        assert_eq!(&d.data[..4], &[153, 51, 153, 160]);
+        assert_eq!(&d.data[4..], &[0, 0, 0, 0]);
+        // An opaque single-colour block stays exact; n = 1 is the identity on it.
+        let mut flat = RgbaImage::new(3, 3);
+        for p in flat.data.chunks_mut(4) {
+            p.copy_from_slice(&[10, 20, 30, 255]);
+        }
+        assert_eq!(downsample(&flat, 3).data, vec![10, 20, 30, 255]);
+        assert_eq!(downsample(&flat, 1), flat);
     }
 
     #[test]
