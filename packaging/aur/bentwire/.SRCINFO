@@ -13,6 +13,7 @@ pkgbase = bentwire
 	depends = glibc
 	depends = libgcc
 	depends = libxkbcommon
+	optdepends = espeak-ng: speech output
 	source = bentwire-0.2.1.tar.gz::https://github.com/mschabhuettl/bentwire/archive/v0.2.1/bentwire-0.2.1.tar.gz
 	sha256sums = c3346cb193a1ab014bfa8faa555b78570222fc76f81c18dd16591c04b7477016
 

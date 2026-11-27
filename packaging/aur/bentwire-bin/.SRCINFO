@@ -10,6 +10,7 @@ pkgbase = bentwire-bin
 	depends = glibc
 	depends = libgcc
 	depends = libxkbcommon
+	optdepends = espeak-ng: speech output
 	provides = bentwire=0.2.1
 	conflicts = bentwire
 	options = !debug

@@ -14,6 +14,7 @@ pkgbase = bentwire-git
 	depends = glibc
 	depends = libgcc
 	depends = libxkbcommon
+	optdepends = espeak-ng: speech output
 	provides = bentwire
 	conflicts = bentwire
 	source = bentwire::git+https://github.com/mschabhuettl/bentwire.git
