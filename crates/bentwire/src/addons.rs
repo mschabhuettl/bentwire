@@ -172,30 +172,47 @@ fn remove(name: &str) -> Result<(), Fail> {
     Ok(())
 }
 
+/// B-ADDON-3: how long the CLI waits for `Reload`.
+const RELOAD_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
 /// B-ADDON-3: a running daemon (none is started for this) reads the add-ons again
 /// (`Agent1.Reload`).
 fn tell_daemon() {
     use zbus::proxy::{CacheProperties, MethodFlags};
-    let Ok(conn) = zbus::blocking::Connection::session() else {
-        return;
-    };
-    let r = zbus::blocking::proxy::Builder::<zbus::blocking::Proxy>::new(&conn)
-        .destination(BUS_NAME)
-        .and_then(|b| b.path(AGENT_PATH))
-        .and_then(|b| b.interface(AGENT_IFACE))
-        .and_then(|b| b.cache_properties(CacheProperties::No).build())
-        .and_then(|p| {
-            p.call_with_flags::<_, _, ()>("Reload", MethodFlags::NoAutoStart.into(), &())
-        });
-    match r {
-        Ok(_) => {}
-        Err(zbus::Error::MethodError(n, ..))
+    let (tx, rx) = std::sync::mpsc::channel();
+    // zbus has no timeout for calls with flags; the thread ends with the process.
+    std::thread::spawn(move || {
+        // No session bus: no daemon either.
+        let Ok(conn) = zbus::blocking::Connection::session() else {
+            let _ = tx.send(Ok(None));
+            return;
+        };
+        let r = zbus::blocking::proxy::Builder::<zbus::blocking::Proxy>::new(&conn)
+            .destination(BUS_NAME)
+            .and_then(|b| b.path(AGENT_PATH))
+            .and_then(|b| b.interface(AGENT_IFACE))
+            .and_then(|b| b.cache_properties(CacheProperties::No).build())
+            .and_then(|p| {
+                p.call_with_flags::<_, _, ()>("Reload", MethodFlags::NoAutoStart.into(), &())
+            });
+        let _ = tx.send(r);
+    });
+    match rx.recv_timeout(RELOAD_TIMEOUT) {
+        Err(_) => eprintln!(
+            "bentwire: bentwired did not answer Reload within {} s; it applies this once it \
+             handles the call, or on its next start",
+            RELOAD_TIMEOUT.as_secs()
+        ),
+        Ok(Ok(_)) => {}
+        Ok(Err(zbus::Error::MethodError(n, ..)))
             if matches!(
                 n.as_str(),
                 "org.freedesktop.DBus.Error.NameHasNoOwner"
                     | "org.freedesktop.DBus.Error.ServiceUnknown"
             ) => {}
-        Err(e) => eprintln!("bentwire: bentwired did not reload ({e}); restart it to apply this"),
+        Ok(Err(e)) => {
+            eprintln!("bentwire: bentwired did not reload ({e}); restart it to apply this")
+        }
     }
 }
 
