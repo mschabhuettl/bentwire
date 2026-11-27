@@ -31,7 +31,7 @@ prints the usage.
 | Command | Does | Output |
 |---|---|---|
 | `play <name> [--wait]` | Play an animation or state (missing names fall back by B-FB-1) | request id |
-| `say <text> [--wait]` | Speak in the word balloon (`a\|b` picks one alternative; `\Mrk=n\` bookmarks) | request id |
+| `say <text> [--speak \| --no-speak] [--wait]` | Speak in the word balloon (`a\|b` picks one alternative; `\Mrk=n\` bookmarks); `--speak` / `--no-speak` speak it aloud or not, whatever the speech setting | request id |
 | `ask [<text>] [--heading H] [--icon I] [--buttons SET \| --button CAPTION ...] [--label L ...] [--label-type T] [--checkbox C ...] [--mode M] [--animation NAME]` | Office balloon; always waits for the answer | line 1: the result; line 2 with check boxes: `checked:` and comma-separated 0/1 values |
 | `moveto <x> <y> [--speed MS] [--wait]` | Slide to a position (default speed 1000) | request id |
 | `gestureat <x> <y> [--wait]` | Gesture towards a point | request id |
@@ -42,6 +42,7 @@ prints the usage.
 | `select <id>` | Switch character | nothing |
 | `animations` | Animation names of the current character | one per line |
 | `scale [<n>]` | Character size factor 1 to 4; without `n`, print it | the factor, or nothing |
+| `speech [on \| off]` | Speech output on or off (persisted); without an argument, print it | `on` or `off`, or nothing |
 | `status` | Properties | `character`, `visible`, `left`, `top`, `idle` as `key=value` lines |
 | `quit` | Stop the daemon | nothing |
 | `convert <source> <dest> [--palette FILE] [--lang TAG] [--codepage LABEL]` | Convert a character file locally, no daemon | nothing |
@@ -69,6 +70,25 @@ prints the usage.
 Exit status: 0 success; 1 usage, D-Bus or method error (error name and message on
 stderr); 2 the request failed (for `ask`: nothing is printed, the reason goes to stderr);
 3 interrupted, or `ask` result `none`.
+
+## Speech output
+
+With speech output on, `say` texts and `ask` headings and texts are spoken with
+[espeak-ng](https://github.com/espeak-ng/espeak-ng), and the character's mouth follows the
+phonemes. It is off by default. Turn it on with `bentwire speech on`, the tray menu's
+"Speech" item, the D-Bus property `Speech` or `speech = true` in
+`~/.config/bentwire/config.toml`; the first three are remembered and win over the config
+file. `bentwire say --speak` or `--no-speak` decides for one text.
+
+- espeak-ng is optional: bentwired loads `libespeak-ng.so.1` when it first speaks (Arch:
+  `pacman -S espeak-ng`, Debian and Ubuntu: `apt install libespeak-ng1`, Fedora: `dnf
+  install espeak-ng`). Without it the log says `speech: espeak-ng not available` once and
+  the text is shown word by word as without speech.
+- Speech plays through the same audio backends as the character's sounds and is off when
+  `sound_effects = false`.
+- The voice comes from the character's voice data (language, gender, pitch, speed; Earl,
+  Genie, Merlin and Peedy have one), otherwise espeak-ng's voice for the UI language
+  (`language`). `speaking_speed` scales the speed.
 
 ## Bridges
 
