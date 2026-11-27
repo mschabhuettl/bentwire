@@ -1404,7 +1404,8 @@ while a full-screen application runs (R-WIN-1 [INF]); compositors usually draw f
 windows above the top layer. KWin verification: section 6, item K2.
 
 **B-WL-4 Positions are not clamped.** (= agent-runtime R-WIN-4 [OBS] for the model.)
-- Left and Top are never clamped by MoveTo or drag.
+- Left and Top are never clamped by MoveTo or drag (at start they are pulled inside,
+  B-CFG-3).
 - The backend requests exactly that position. Parts beyond the surface's output are not
   shown, because a surface belongs to one output.
 - The output is chosen again (by recreating the surface) when the centre lies on another
@@ -2416,8 +2417,8 @@ bridges `command`; other keys are errors.
   error (a daemon older than `Reload`) prints `bentwire: bentwired did not reload (...);
   restart it to apply this` on stderr, exit status 0. The CLI waits 5 s for the reply;
   then it prints `bentwire: bentwired did not answer Reload within 5 s; it applies this
-  once it handles the call, or on its next start`, exit status 0 (the change is made, and
-  the call stays queued for the daemon). On `Reload` and on SIGHUP the daemon
+  once it handles the call, or on its next start`, exit status 0 (the change is made; a call
+  already sent stays queued for a busy daemon). On `Reload` and on SIGHUP the daemon
   reads the add-ons and the enabled list again, rescans the characters (B-CHAR-1, which
   then also applies B-CHAR-4 and finds the theme, A-THEME-1) and starts or stops bridges.
   When the current character's add-on is disabled or removed, B-CHAR-4 applies as after
