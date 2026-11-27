@@ -915,18 +915,20 @@ where they go beyond R-BAL-11 and R-LIP-1.
 used only when present and in range, otherwise its default:
 - `language`: `[voice].language` (a BCP 47 tag: 1 to 16 ASCII letters, digits and `-`),
   else the UI language (B-L10N-1).
-- `gender`: `[voice].gender` (earl 1, merlin 2, acs-format 3.2.2), read in SAPI 4
-  numbering, 1 female, 2 male [INF], else none.
-- `pitch`: `[voice].pitch`, read as the base pitch in Hz, the unit of Agent's `\Pit\`
-  tag [INF], if 1 to 1000 (Agent 1.5 files store 65535, probably "default",
-  agent15-format).
+- `gender` [INF]: `[voice].gender` (earl 1, merlin 2, acs-format 3.2.2), read in SAPI 4
+  numbering, 1 female, 2 male (inferred, not verified), else none.
+- `pitch` [INF]: `[voice].pitch`, read as the base pitch in Hz, the unit of Agent's
+  `\Pit\` tag (inferred, not verified), if 1 to 1000 (Agent 1.5 files store 65535,
+  probably "default", agent15-format).
 - Words per minute: R-BAL-8's effectiveSpeed with defaultSpeed = `[voice].speed` if 1 to
   1000 (4294967295 means "default"), else 170: `clamp(defaultSpeed x f, 50, 250)`, f =
   config `speaking_speed`.
 - espeak-ng: the language tag lowercased is the voice language (`en-us`), espeak-ng's
   gender numbers are the other way round (1 male, 2 female), the pitch is espeak-ng's
   0 to 100 scale with 50 at 100 Hz (200 Hz for a female voice), `clamp(50 x Hz / base,
-  0, 100)`, and the rate is clamped to espeak-ng's minimum of 80.
+  0, 100)`, and the rate is clamped to espeak-ng's minimum of 80. The gender and pitch
+  this gives rest on the two [INF] readings above; the 100 Hz and 200 Hz bases are a
+  bentwire choice.
 - Reason: the manifest keeps Agent's raw voice data; espeak-ng has no Agent voices, so
   language, gender, pitch and speed are what carries over. The research does not trace
   the meaning of gender and pitch; the numbering and unit above are the SAPI 4
@@ -957,14 +959,21 @@ used only when present and in range, otherwise its default:
 **B-TTS-5 Stopping.** The current utterance ends with `SpeechStop` when its Speak is
 interrupted (Stop, StopAll, user Hide, a character switch, also by the gallery's Back
 and Next, a client request ending an Animate! play, B-MENU-4), when its Ask balloon
-closes for any reason (also when the gallery opens), and when speech is turned off
-(B-TTS-1). The gallery opening alone does not end a running Speak, as without speech.
+closes for any reason (also when the gallery opens), when speech is turned off
+(B-TTS-1), and when the daemon quits (B-RUN-1), before it waits for its bridges. The gallery opening alone does not end a running Speak, as without speech.
 A new utterance first stops the current one. `End` ends it without `SpeechStop`.
 
 **B-TTS-6 espeak-ng in the daemon.**
-- `libespeak-ng.so.1` is loaded at run time with the first utterance; it is not a package
-  dependency. A missing library or a failed initialisation is logged once (`speech:
-  espeak-ng not available: ...`) and every utterance gets `SpeechFailed`.
+- `libespeak-ng.so.1` is loaded at run time; it is not a package dependency. A missing
+  library or a failed initialisation is logged once, with the first utterance (`speech:
+  espeak-ng not available: ...`), and every utterance gets `SpeechFailed`.
+- The daemon loads and initialises espeak-ng at start, on its main thread before it
+  starts any other thread, unless it runs headless or with `--no-audio`; this also
+  happens when speech output is off. Reason: `espeak_Initialize` sets the process locale
+  (espeak-ng 1.52 calls `setlocale(LC_CTYPE, "C.UTF-8")`, falling back to `UTF-8`,
+  `en_US.UTF-8` and `""`), and setlocale is not thread-safe in glibc. From then on
+  LC_CTYPE is that locale in the whole daemon instead of the C locale; bentwire does not
+  depend on it. `uselocale` per thread would not help, as the call is espeak-ng's own.
 - espeak-ng runs on its own thread in synchronous mode (it hands back PCM and events and
   plays nothing itself), with phoneme events in IPA. `Word` marks come from word events
   (their text position minus one, in characters), `Phoneme` marks from phoneme events (an
@@ -1643,8 +1652,8 @@ the acs-format parser:
 | `scale` | `1` | B-SCALE-1 (1 to 4) |
 | `speech` | `false` | B-TTS-1; Agent "Play spoken audio" |
 
-The daemon reads the config file at start and when it receives SIGHUP (which also reads
-the add-ons again, B-ADDON-3).
+The daemon reads the config file at start and when it receives SIGHUP or the D-Bus call
+`Reload` (which also read the add-ons again, B-ADDON-3).
 
 **B-CFG-2 State file.** `$XDG_STATE_HOME/bentwire/state.toml`:
 - `character`, `left`, `top`, `visible`;
@@ -1674,8 +1683,8 @@ the add-ons again, B-ADDON-3).
 - `bentwired` requests the bus name `org.bentwire.Agent` with DO_NOT_QUEUE. If the name
   is taken, it exits with status 1 and the message "already running".
 - A D-Bus activation file (`org.bentwire.Agent.service`) lets the CLI start it.
-- SIGTERM and `Quit` save the state and exit 0 without animation, after stopping the
-  bridge add-ons (B-ADDON-5).
+- SIGTERM and `Quit` save the state and exit 0 without animation, after stopping speech
+  and sounds (B-TTS-5) and then the bridge add-ons (B-ADDON-5).
 
 ### 3.14 Decisions added during the build
 
@@ -2119,6 +2128,7 @@ the menu. `--dump-frames DIR` writes
 | `ListCharacters` | `() -> a(sss)` | id, name, description (B-CHAR-1, B-CHAR-3), sorted by id |
 | `Select` | `(s id) -> ()` | B-CHAR-5. Errors: `NoSuchCharacter`, `InvalidCharacter` (with the load error) |
 | `Quit` | `() -> ()` | B-RUN-1 |
+| `Reload` | `() -> ()` | what SIGHUP does (B-CFG-1, B-ADDON-3); the reply comes when it is done |
 | property `Character` | `s`, read | current id, `""` if none |
 | property `Version` | `s`, read | daemon version |
 | property `Scale` | `u`, read and write | size factor 1 to 4 (B-SCALE-1); a write is the user's choice and is persisted; other values: `InvalidArgs` |
@@ -2224,8 +2234,8 @@ activation. If that also fails, it prints `bentwired is not running` and exits 1
 | `characters` | `ListCharacters` | `id<TAB>name` per line, current marked with `*` |
 | `characters install classics` | local, then `ListCharacters` if the daemon runs | `installed bentwire-classics <version> in <dir>`, then `bentwired now has <n> characters` |
 | `addons [list]` | local (B-ADDON-3) | `name<TAB>kind<TAB>version<TAB>enabled` or `disabled` per line, sorted by name |
-| `addons install <folder\|archive\|url> [--sha256 HEX]` | local (B-ADDON-2), then SIGHUP | `installed <name> <version> (<kind>) in <dir>`; for a bridge a second line `a bridge runs only once enabled: bentwire addons enable <name>` |
-| `addons enable\|disable\|remove <name>` | local (B-ADDON-3), then SIGHUP | nothing |
+| `addons install <folder\|archive\|url> [--sha256 HEX]` | local (B-ADDON-2), then `Reload` | `installed <name> <version> (<kind>) in <dir>`; for a bridge a second line `a bridge runs only once enabled: bentwire addons enable <name>` |
+| `addons enable\|disable\|remove <name>` | local (B-ADDON-3), then `Reload` | nothing |
 | `select <id>` | `Select` | nothing; for `NoSuchCharacter`, hint lines on stderr |
 | `animations` | `AnimationNames` | one per line |
 | `scale [<n>]` | `Scale` (read; write with `n`, 1 to 4) | without `n`: the factor; with `n`: nothing |
@@ -2353,11 +2363,18 @@ bridges `command`; other keys are errors.
   bit is set, else 0644, and the time of the install as modification time (the discovery
   cache, B-CHAR-1, keys on it); this holds for folders too. A failure before the new copy
   is renamed into place leaves the installed copy as it was and exits 1.
+- Limits: an archive or download has at most 256 MiB, unpacks to at most 1 GiB (for a tar
+  archive the whole tar stream, headers included; for a ZIP the bytes written) and has at
+  most 10000 entries, where every component of an entry's path counts (each may create a
+  folder). They are checked while downloading (curl's output is cut off) and
+  unpacking, so no more is ever written; the install fails with `<what> more than <limit>
+  (the limit for add-on archives)`. A folder is not limited.
 - A character or balloon-theme add-on is enabled by its install. A bridge is never enabled
   by an install: a bridge that replaces an enabled add-on of the same name is disabled
   first, before its files are in place.
 - Reason: installing must not run code the user did not enable; links are refused
-  outright, which is simpler than checking where each one points.
+  outright, which is simpler than checking where each one points. An archive from the net
+  must not fill the disk: a few KiB can unpack to many GiB. A folder is the user's own.
 
 **B-ADDON-3 Enabled add-ons.** **bentwire decision.**
 - The enabled list is `$XDG_CONFIG_HOME/bentwire/addons.toml`, `enabled = ["name", ...]`,
@@ -2368,8 +2385,10 @@ bridges `command`; other keys are errors.
   name fails with exit 1.
 - A disabled add-on is not used at all: its characters and theme are not found
   (B-ADDON-4) and a bridge is not run (B-ADDON-5).
-- After a change the CLI sends SIGHUP to the owner of `org.bentwire.Agent`
-  (`GetConnectionUnixProcessID`; a daemon is not started for this). On SIGHUP the daemon
+- After a change the CLI calls `Reload` (5.2) with the NO_AUTO_START flag, so a daemon
+  is not started for this; when the daemon does not run, nothing happens, and any other
+  error (a daemon older than `Reload`) prints `bentwire: bentwired did not reload (...);
+  restart it to apply this` on stderr, exit status 0. On `Reload` and on SIGHUP the daemon
   reads the add-ons and the enabled list again, rescans the characters (B-CHAR-1, which
   then also applies B-CHAR-4 and finds the theme, A-THEME-1) and starts or stops bridges.
   When the current character's add-on is disabled or removed, B-CHAR-4 applies as after
@@ -2377,8 +2396,10 @@ bridges `command`; other keys are errors.
   one stays until another is selected, as when a pack folder is deleted, and is no longer
   listed.
 - Reason: the enabled state is the user's choice, so it lives in the config directory, in
-  a file of its own that the CLI may rewrite; SIGHUP already means "read your files again"
-  and needs no new D-Bus method.
+  a file of its own that the CLI may rewrite. A method call reaches the owner of the bus
+  name and nobody else; a signal to the pid that `GetConnectionUnixProcessID` gives could
+  hit another process (the CLI in another PID namespace than the bus, or the pid reused
+  after the daemon exited), and SIGHUP ends most processes.
 
 **B-ADDON-4 Characters and themes from add-ons.** **bentwire decision.** (Extends
 A-PACK-1.) The folders of the enabled `character` and `balloon-theme` add-ons are search
@@ -2391,23 +2412,26 @@ character of the same id or the pack's theme; disabling it brings those back.
 
 **B-ADDON-5 Bridge add-ons.** **bentwire decision.**
 - Each enabled bridge runs as its own process, never inside the daemon. The daemon starts
-  the bridges once it owns its bus name and has started, and on SIGHUP (B-ADDON-3). The
-  program is `command[0]`, taken from the add-on folder when it is a relative path with a
-  `/`, else from `PATH`; it runs in the add-on folder with the daemon's environment, stdin
-  `/dev/null`, stdout and stderr inherited, no blocked signals (also for the daemon's other
+  the bridges once it owns its bus name and has started, and on SIGHUP and `Reload`
+  (B-ADDON-3). The program is `command[0]`, taken from the add-on folder when it is a
+  relative path with a `/`, else from `PATH`; it runs in the add-on folder with the
+  daemon's environment, stdin `/dev/null`, stdout and stderr inherited, no blocked signals (also for the daemon's other
   children, which would otherwise inherit the signals it reads through signalfd), in its
   own process group, and with `PR_SET_PDEATHSIG` = SIGTERM (spawned from the daemon's main
   thread).
 - A bridge that exits, or cannot be started, is started again after a wait: 1 s after the
   first exit, doubling after each further one up to 60 s, and back to 1 s after a run of
   60 s or more. A restart whose `addon.toml` changed meanwhile (a reinstall) waits for the
-  next SIGHUP instead. SIGCHLD wakes the daemon to notice an exit; the wait is real time, also in
-  headless mode.
+  next SIGHUP or `Reload` instead. SIGCHLD wakes the daemon to notice an exit; the wait is
+  real time, also in headless mode.
 - Signals go to the bridge's process group, or to the bridge alone if it left the group.
+  The daemon signals only a bridge it has not reaped yet, so that pid, and the process
+  group with that id, cannot belong to another process; no pidfd is needed.
   A bridge that is disabled or removed gets SIGTERM to its process group, and so does an
   enabled one whose `addon.toml` changed (a reinstall), which is then started again. When
-  the daemon quits (Quit, SIGTERM, SIGINT, the end of the session bus, B-RUN-1) every
-  bridge gets SIGTERM to its process group, and SIGKILL if it still runs 2 s later.
+  the daemon quits (Quit, SIGTERM, SIGINT, the end of the session bus, B-RUN-1), it first
+  stops speech and sounds, then every bridge gets SIGTERM to its process group, and
+  SIGKILL if it still runs 2 s later.
 - Reason: issue #18 and the roadmap ("no plugin code in the daemon process"); a crashing
   bridge must not spin, and a bridge must not outlive the daemon that started it.
 

@@ -154,7 +154,7 @@ impl Bridges {
             .filter(|(_, a)| a.kind == Kind::Bridge)
             .collect();
         // A reinstall (another manifest time) restarts the bridge even when the disable and
-        // enable in between came as one SIGHUP.
+        // enable in between came as one SIGHUP or Reload.
         let same = |b: &Bridge, (dir, a): &(PathBuf, Addon)| {
             b.name == a.name && b.dir == *dir && b.command == a.command && b.stamp == stamp(dir)
         };
@@ -214,7 +214,7 @@ impl Bridges {
         let now = Instant::now();
         for b in &mut self.list {
             if b.child.is_none() && b.restart_at.is_some_and(|t| t <= now) {
-                // A reinstalled add-on runs only after the next SIGHUP finds it enabled.
+                // A reinstalled add-on runs only after the next SIGHUP or Reload finds it enabled.
                 if stamp(&b.dir) == b.stamp {
                     b.spawn();
                 } else {

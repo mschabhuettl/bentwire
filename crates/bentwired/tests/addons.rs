@@ -89,6 +89,16 @@ fn read_pid(file: &Path) -> String {
 #[test]
 fn b_addon_2_3_cli_install_list_enable_disable_remove() {
     let e = Env::new("addcli");
+    // The CLI does not start a daemon to tell it about a change (NO_AUTO_START).
+    let marker = e.dir.join("activated");
+    std::fs::write(
+        e.dir.join("services/org.bentwire.Agent.service"),
+        format!(
+            "[D-BUS Service]\nName=org.bentwire.Agent\nExec=/bin/sh -c 'touch {}'\n",
+            marker.display()
+        ),
+    )
+    .unwrap();
     let src = e.dir.join("src");
     let dest = addons(&e);
     let wire = addon(&src, "wire", "character", "1.0", "");
@@ -221,6 +231,9 @@ fn b_addon_2_3_cli_install_list_enable_disable_remove() {
         0
     );
     assert_eq!(list(), "wire\tbridge\t1\tdisabled\n");
+    let (code, _, se) = cli(&e, &["addons", "enable", "wire"]);
+    assert_eq!((code, se.as_str()), (0, ""));
+    assert!(!marker.exists(), "a daemon was activated");
 }
 
 /// B-ADDON-3, B-ADDON-4: a running daemon is told by the CLI and lists a character add-on

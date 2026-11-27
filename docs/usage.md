@@ -83,15 +83,18 @@ phonemes. It is off by default. Turn it on with `bentwire speech on`, the tray m
 `~/.config/bentwire/config.toml`; the first three are remembered and win over the config
 file. `bentwire say --speak` or `--no-speak` decides for one text.
 
-- espeak-ng is optional: bentwired loads `libespeak-ng.so.1` when it first speaks (Arch:
+- espeak-ng is optional: bentwired loads `libespeak-ng.so.1` when it starts (Arch:
   `pacman -S espeak-ng`, Debian and Ubuntu: `apt install libespeak-ng1`, Fedora: `dnf
-  install espeak-ng`). Without it the log says `speech: espeak-ng not available` once and
-  the text is shown word by word as without speech.
+  install espeak-ng`; restart bentwired after installing it). Without it the log says
+  `speech: espeak-ng not available` once, when it first would speak, and the text is shown
+  word by word as without speech.
 - Speech plays through the same audio backends as the character's sounds and is off when
   `sound_effects = false`.
 - The voice comes from the character's voice data (language, gender, pitch, speed; Earl,
   Genie, Merlin and Peedy have one), otherwise espeak-ng's voice for the UI language
-  (`language`). `speaking_speed` scales the speed.
+  (`language`). `speaking_speed` scales the speed. How gender and pitch are read is
+  inferred, not verified (spec B-TTS-3 [INF]): the numbers are taken in the SAPI 4 sense
+  (gender 1 female, 2 male; pitch in Hz), so a voice may not match the original.
 
 ## Bridges
 
@@ -127,5 +130,5 @@ bentwire addons remove door-bell
   replace an enabled one.
 - An enabled bridge is started by `bentwired` and runs as long as the daemon does; if it
   exits, it is restarted after 1 s, 2 s, 4 s and so on up to a minute.
-- The CLI tells a running daemon about each change (SIGHUP). After changing the files by
-  hand, run `pkill -HUP -x bentwired` or restart the daemon.
+- The CLI tells a running daemon about each change (D-Bus `Reload`). After changing the
+  files by hand, run `pkill -HUP -x bentwired` or restart the daemon.

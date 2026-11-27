@@ -119,11 +119,14 @@ it; a `file://` URL is accepted as a local file). In an archive, `addon.toml` is
 or in its only top-level folder (as GitHub release tarballs have it). Archives and folders
 may hold only folders and regular files: links, devices and paths that are absolute or
 contain `..` make the install fail. Files keep only their executable bit (0755, else
-0644); times are those of the install.
+0644); times are those of the install. An archive or download may have at most 256 MiB,
+unpack to at most 1 GiB and hold at most 10000 entries (each folder in a path counts); the
+install stops as soon as it goes over one of them.
 
 | Path | What |
 |---|---|
 | `$XDG_DATA_HOME/bentwire/addons/<name>/` | an installed add-on (`~/.local/share/bentwire/addons/`) |
 | `$XDG_CONFIG_HOME/bentwire/addons.toml` | the enabled list, `enabled = ["name", ...]`, written by the CLI |
 
-A running daemon reads both again on SIGHUP, which the CLI sends after each change.
+A running daemon reads both again on SIGHUP and on the D-Bus method `Reload`, which the
+CLI calls after each change.

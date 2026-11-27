@@ -106,6 +106,8 @@ fn run(args: args::Args) -> Result<(), String> {
             }
         })
         .map_err(|e| e.to_string())?;
+    // B-TTS-6: espeak-ng sets LC_CTYPE when it initialises, so before any thread is spawned.
+    let engine = (!args.headless && !args.no_audio).then(speech::load);
 
     let config = config::Config::load(&config::config_path()).unwrap_or_else(|e| {
         log::warn!("{e}; using defaults");
@@ -279,9 +281,7 @@ fn run(args: args::Args) -> Result<(), String> {
         } else {
             audio::Audio::open()
         },
-        speech: if headless || args.no_audio {
-            None
-        } else {
+        speech: if let Some(engine) = engine {
             let (tx, rx) = calloop::channel::channel();
             event_loop
                 .handle()
@@ -292,10 +292,12 @@ fn run(args: args::Args) -> Result<(), String> {
                 })
                 .map_err(|e| e.to_string())?;
             let audio = audio::Audio::open();
-            let s = speech::Speech::spawn(move |a| {
+            let s = speech::Speech::spawn(engine, move |a| {
                 let _ = tx.send(a);
             });
             audio.map(|a| (s, a))
+        } else {
+            None
         },
         speech_pending: None,
         silent: headless || args.no_audio,
@@ -386,6 +388,9 @@ fn run(args: args::Args) -> Result<(), String> {
         app.tick();
         app.bridges.restart_due();
     }
+    // B-ADDON-5: nothing plays while the bridges stop (speech stopped with the core's Quit).
+    app.audio = None;
+    app.speech = None;
     app.bridges.stop_all();
     let _ = conn.release_name(dbus::BUS_NAME);
     Ok(())

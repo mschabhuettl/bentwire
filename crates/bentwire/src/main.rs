@@ -664,14 +664,18 @@ fn run_tool(cmd: &mut Command) -> Result<(), Fail> {
     }
 }
 
-/// Quiet curl (`-sS`: no progress meter, errors still shown); HTTPS or a local file, and
-/// redirects only to HTTPS.
-fn download(url: &str, to: &Path) -> Result<(), Fail> {
+/// Quiet curl (`-sS`: no progress meter, errors still shown) for `url`; HTTPS or a local
+/// file, and redirects only to HTTPS. It writes to stdout unless given `-o`.
+fn curl(url: &str) -> Command {
     let mut c = Command::new("curl");
     c.args(["-fsSL", "--proto", "=https,file", "--proto-redir", "=https"])
-        .args(["--retry", "2", "-o"])
-        .arg(to);
-    run_tool(c.arg(url)).map_err(|_| fail(format!("downloading {url} failed")))
+        .args(["--retry", "2"])
+        .arg(url);
+    c
+}
+
+fn download(url: &str, to: &Path) -> Result<(), Fail> {
+    run_tool(curl(url).arg("-o").arg(to)).map_err(|_| fail(format!("downloading {url} failed")))
 }
 
 fn sha256_hex(p: &Path) -> Result<String, Fail> {
