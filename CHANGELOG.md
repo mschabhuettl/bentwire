@@ -7,6 +7,31 @@ D-Bus API (`org.bentwire.Agent1`) and the character format (`format = 1`) are fr
 
 ## [Unreleased]
 
+### Changed
+
+- The Office balloon follows the original more closely, now proven from Office XP's
+  balloon library (docs/research/office-assistant.md): its size comes from the proven area
+  terms, minimum and growth steps, a refused width widens until the longest word fits (up
+  to the free space), and portrait and landscape are chosen by the original tie rule. Most
+  balloons get somewhat narrower.
+- Office balloon theme: buttons and bullets use the proven state order (normal, hot,
+  pressing, pressed, disabled); a focused button keeps its picture and shows a focus
+  rectangle around its caption; a disabled caption is grey #B2B2B2. Themes extracted by
+  older converters still load. `bentwire-convert --theme` writes the arrows as 5 frames of
+  17x9.
+- The converter writes smaller PNGs (the smallest indexed bit depth, libdeflate at level
+  12) with the same pixels; the builtin characters shrink by 4 to 11 %, the classics pack
+  2026.11.3 from 91 MB to 71 MB installed.
+- `addons`: no warning when the daemon is slow to answer `Reload`; a warning when the
+  session bus itself does not answer.
+- The "espeak-ng not available" reason stays on one log line.
+- `scripts/screenshots.sh` also draws the README picture of Quack.
+
+### Fixed
+
+- `addons install`: the tar header limit is 1 MiB (pax data of real archives can exceed
+  64 KiB), and the error names the limit.
+
 ## [0.5.1] - 2026-11-27
 
 ### Fixed
