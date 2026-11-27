@@ -355,12 +355,9 @@ fn extract(file: &Path, to: &Path, limits: &Limits) -> Result<(), String> {
     f.rewind().map_err(io)?;
     std::fs::create_dir(to).map_err(io)?;
     let unpacks = "archive unpacks to";
-    let too_many = || {
-        format!(
-            "archive has more than {} entries (the limit for add-on archives)",
-            limits.entries
-        )
-    };
+    let too_many = || too_many(limits.entries);
+    // Every component of an entry's path counts: each may create a folder.
+    let mut names = limits.entries;
     if magic[..n].starts_with(b"PK") {
         let mut z = zip::ZipArchive::new(f).map_err(|e| e.to_string())?;
         if z.len() > limits.entries {
@@ -383,7 +380,7 @@ fn extract(file: &Path, to: &Path, limits: &Limits) -> Result<(), String> {
                 what: unpacks,
                 limit: limits.unpacked,
             };
-            put(to, &name, dir, mode, &mut r)?;
+            put(to, &name, dir, mode, &mut r, (&mut names, limits.entries))?;
             left = r.left;
         }
     } else if magic[..n].starts_with(&[0x1f, 0x8b]) {
@@ -402,8 +399,12 @@ fn extract(file: &Path, to: &Path, limits: &Limits) -> Result<(), String> {
             let name = e.path().map_err(io)?.into_owned();
             let mode = e.header().mode().map_err(io)?;
             match e.header().entry_type() {
-                tar::EntryType::Regular => put(to, &name, false, mode, &mut e)?,
-                tar::EntryType::Directory => put(to, &name, true, mode, &mut e)?,
+                tar::EntryType::Regular => {
+                    put(to, &name, false, mode, &mut e, (&mut names, limits.entries))?
+                }
+                tar::EntryType::Directory => {
+                    put(to, &name, true, mode, &mut e, (&mut names, limits.entries))?
+                }
                 // pax headers (GitHub tarballs carry a global one).
                 tar::EntryType::XGlobalHeader | tar::EntryType::XHeader => {}
                 _ => return Err(not_allowed(&name)),
@@ -415,9 +416,21 @@ fn extract(file: &Path, to: &Path, limits: &Limits) -> Result<(), String> {
     Ok(())
 }
 
+fn too_many(limit: usize) -> String {
+    format!("archive has more than {limit} entries (the limit for add-on archives)")
+}
+
 /// Write one archive entry below `to`. Nothing but folders and regular files is ever
-/// created, so a checked relative path cannot leave `to`.
-fn put(to: &Path, name: &Path, dir: bool, mode: u32, r: &mut dyn Read) -> Result<(), String> {
+/// created, so a checked relative path cannot leave `to`. Its path components are taken
+/// from `names` (what is left, the limit) before anything is created.
+fn put(
+    to: &Path,
+    name: &Path,
+    dir: bool,
+    mode: u32,
+    r: &mut dyn Read,
+    names: (&mut usize, usize),
+) -> Result<(), String> {
     let mut rel = PathBuf::new();
     for c in name.components() {
         match c {
@@ -431,6 +444,11 @@ fn put(to: &Path, name: &Path, dir: bool, mode: u32, r: &mut dyn Read) -> Result
             }
         }
     }
+    let n = rel.components().count();
+    if n > *names.0 {
+        return Err(too_many(names.1));
+    }
+    *names.0 -= n;
     let p = to.join(rel);
     let err = |e: std::io::Error| format!("{}: {e}", name.display());
     if dir {
@@ -678,6 +696,12 @@ mod tests {
             };
             extract(f, &d.join(format!("eleven{i}")), &ten).unwrap();
         }
+        // Every folder in a path counts: one entry 11 levels deep creates nothing.
+        let deep = d.join("deep.zip");
+        zip_file(&deep, &[("a/a/a/a/a/a/a/a/a/a/f", None, b"x")], None);
+        let e = extract(&deep, &d.join("deep"), &small).unwrap_err();
+        assert!(e.contains("archive has more than 10 entries"), "{e}");
+        assert_eq!(std::fs::read_dir(d.join("deep")).unwrap().count(), 0);
         // Packed size.
         let tiny = Limits {
             packed: 100,

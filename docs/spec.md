@@ -1652,8 +1652,8 @@ the acs-format parser:
 | `scale` | `1` | B-SCALE-1 (1 to 4) |
 | `speech` | `false` | B-TTS-1; Agent "Play spoken audio" |
 
-The daemon reads the config file at start and when it receives SIGHUP (which also reads
-the add-ons again, B-ADDON-3).
+The daemon reads the config file at start and when it receives SIGHUP or the D-Bus call
+`Reload` (which also read the add-ons again, B-ADDON-3).
 
 **B-CFG-2 State file.** `$XDG_STATE_HOME/bentwire/state.toml`:
 - `character`, `left`, `top`, `visible`;
@@ -2365,7 +2365,8 @@ bridges `command`; other keys are errors.
   is renamed into place leaves the installed copy as it was and exits 1.
 - Limits: an archive or download has at most 256 MiB, unpacks to at most 1 GiB (for a tar
   archive the whole tar stream, headers included; for a ZIP the bytes written) and has at
-  most 10000 entries. They are checked while downloading (curl's output is cut off) and
+  most 10000 entries, where every component of an entry's path counts (each may create a
+  folder). They are checked while downloading (curl's output is cut off) and
   unpacking, so no more is ever written; the install fails with `<what> more than <limit>
   (the limit for add-on archives)`. A folder is not limited.
 - A character or balloon-theme add-on is enabled by its install. A bridge is never enabled
@@ -2411,18 +2412,18 @@ character of the same id or the pack's theme; disabling it brings those back.
 
 **B-ADDON-5 Bridge add-ons.** **bentwire decision.**
 - Each enabled bridge runs as its own process, never inside the daemon. The daemon starts
-  the bridges once it owns its bus name and has started, and on SIGHUP (B-ADDON-3). The
-  program is `command[0]`, taken from the add-on folder when it is a relative path with a
-  `/`, else from `PATH`; it runs in the add-on folder with the daemon's environment, stdin
-  `/dev/null`, stdout and stderr inherited, no blocked signals (also for the daemon's other
+  the bridges once it owns its bus name and has started, and on SIGHUP and `Reload`
+  (B-ADDON-3). The program is `command[0]`, taken from the add-on folder when it is a
+  relative path with a `/`, else from `PATH`; it runs in the add-on folder with the
+  daemon's environment, stdin `/dev/null`, stdout and stderr inherited, no blocked signals (also for the daemon's other
   children, which would otherwise inherit the signals it reads through signalfd), in its
   own process group, and with `PR_SET_PDEATHSIG` = SIGTERM (spawned from the daemon's main
   thread).
 - A bridge that exits, or cannot be started, is started again after a wait: 1 s after the
   first exit, doubling after each further one up to 60 s, and back to 1 s after a run of
   60 s or more. A restart whose `addon.toml` changed meanwhile (a reinstall) waits for the
-  next SIGHUP instead. SIGCHLD wakes the daemon to notice an exit; the wait is real time, also in
-  headless mode.
+  next SIGHUP or `Reload` instead. SIGCHLD wakes the daemon to notice an exit; the wait is
+  real time, also in headless mode.
 - Signals go to the bridge's process group, or to the bridge alone if it left the group.
   The daemon signals only a bridge it has not reaped yet, so that pid, and the process
   group with that id, cannot belong to another process; no pidfd is needed.
