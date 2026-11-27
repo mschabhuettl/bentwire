@@ -205,8 +205,14 @@ impl Tray {
             menu: Vec::new(),
             icon: vec![own_icon()],
         };
-        // Plasma may start its tray host after bentwired.
-        match t.assume_sni_available(true).spawn() {
+        // Plasma may start its tray host after bentwired. In a Flatpak sandbox the item
+        // registers under the unique name, so no org.kde.StatusNotifierItem-* name is owned.
+        let sandboxed = std::path::Path::new("/.flatpak-info").exists();
+        match t
+            .assume_sni_available(true)
+            .disable_dbus_name(sandboxed)
+            .spawn()
+        {
             Ok(handle) => Some(Tray { handle, last: None }),
             Err(e) => {
                 log::warn!("no tray icon: {e}");
