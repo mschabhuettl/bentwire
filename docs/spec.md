@@ -968,9 +968,10 @@ A new utterance first stops the current one. `End` ends it without `SpeechStop`.
   library or a failed initialisation is logged once, with the first utterance (`speech:
   espeak-ng not available: ...`), and every utterance gets `SpeechFailed`. What
   espeak-ng prints to stderr while it initialises (a missing `espeak-ng-data`) is caught
-  and becomes part of that line. Reason: initialisation runs at every start, also with
-  speech off, and espeak-ng's own message would fill the log on each one; once per run,
-  and only when speech is wanted, needs no record of its own.
+  and becomes part of that line, its line breaks escaped (`\n`, `\r`). Reason:
+  initialisation runs at every start, also with speech off, and espeak-ng's own message
+  would fill the log on each one; once per run, and only when speech is wanted, needs no
+  record of its own.
 - The daemon loads and initialises espeak-ng at start, on its main thread before it
   starts any other thread, unless it runs headless or with `--no-audio`; this also
   happens when speech output is off. Reason: `espeak_Initialize` sets the process locale
@@ -2439,7 +2440,7 @@ bridges `command`; other keys are errors.
   archive the whole tar stream, headers included; for a ZIP the bytes written) and has at
   most 10000 entries, where every component of an entry's path counts (each may create a
   folder); the headers of one tar entry (its header blocks with GNU long name and pax
-  extension data, which are held in memory) have at most 64 KiB. The limits are checked
+  extension data, which are held in memory) have at most 1 MiB. The limits are checked
   while downloading (curl's output is cut off) and unpacking, so no more is ever written
   or held; the install fails with `<what> more than <limit> (the limit for add-on
   archives)`. A folder is not limited.
@@ -2463,9 +2464,10 @@ bridges `command`; other keys are errors.
   is not started for this; when the daemon does not run, nothing happens, and any other
   error (a daemon older than `Reload`) prints `bentwire: bentwired did not reload (...);
   restart it to apply this` on stderr, exit status 0. The CLI waits 5 s for the reply;
-  then it prints `bentwire: bentwired did not answer Reload within 5 s; it applies this
-  once it handles the call, or on its next start`, exit status 0 (the change is made; a call
-  already sent stays queued for a busy daemon). On `Reload` and on SIGHUP the daemon
+  then it exits 0 without a message (the change is made; the call stays queued for a daemon
+  that is still rescanning). Only when the session bus itself has not answered by then
+  does it print `bentwire: the session bus did not answer within 5 s; restart bentwired
+  to apply this`, exit status 0. On `Reload` and on SIGHUP the daemon
   reads the add-ons and the enabled list again, rescans the characters (B-CHAR-1, which
   then also applies B-CHAR-4 and finds the theme, A-THEME-1) and starts or stops bridges.
   When the current character's add-on is disabled or removed, B-CHAR-4 applies as after

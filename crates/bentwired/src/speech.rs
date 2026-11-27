@@ -242,10 +242,7 @@ impl Engine {
             let (rate, said) =
                 stderr_to_string(|| init(AUDIO_OUTPUT_SYNCHRONOUS, 0, std::ptr::null(), options));
             if rate <= 0 {
-                return Err(match said.trim() {
-                    "" => "espeak_Initialize failed (no espeak-ng-data?)".into(),
-                    t => format!("espeak_Initialize failed: {t}"),
-                });
+                return Err(init_failed(&said));
             }
             set_callback(callback);
             Ok(Engine {
@@ -372,6 +369,18 @@ fn stderr_to_string<T>(f: impl FnOnce() -> T) -> (T, String) {
     (v, String::from_utf8_lossy(&said).into_owned())
 }
 
+/// B-TTS-6: the error for a failed `espeak_Initialize` with what espeak-ng printed, on one
+/// line (line breaks escaped).
+fn init_failed(said: &str) -> String {
+    match said.trim() {
+        "" => "espeak_Initialize failed (no espeak-ng-data?)".into(),
+        t => format!(
+            "espeak_Initialize failed: {}",
+            t.replace('\r', "\\r").replace('\n', "\\n")
+        ),
+    }
+}
+
 fn speakable(text: &str) -> bool {
     text.chars().count() <= MAX_SPOKEN_CHARS
 }
@@ -421,6 +430,18 @@ mod tests {
         );
         // fd 2 is back: nothing more is captured.
         assert_eq!(stderr_to_string(|| ()).1, "");
+    }
+
+    #[test]
+    fn b_tts_6_init_message_is_one_line() {
+        assert_eq!(
+            init_failed("Error processing file 'phontab'.\r\nNo such file.\n"),
+            "espeak_Initialize failed: Error processing file 'phontab'.\\r\\nNo such file."
+        );
+        assert_eq!(
+            init_failed(" \n"),
+            "espeak_Initialize failed (no espeak-ng-data?)"
+        );
     }
 
     #[test]
