@@ -5,9 +5,8 @@
 
 pub mod rig;
 
-use bentwire_character::{Info, PackageData, Pcm};
+use bentwire_character::{Info, Pcm};
 
-use crate::Error;
 use crate::own::{self, Design, Style};
 
 pub const WIRE: Design = Design {
@@ -23,11 +22,6 @@ pub const WIRE: Design = Design {
     sounds,
     adapt: |_| {},
 };
-
-/// Build Wire in `style`.
-pub fn wire(style: Style) -> Result<PackageData, Error> {
-    WIRE.build(style)
-}
 
 fn info(style: Style) -> Vec<Info> {
     let intro = [

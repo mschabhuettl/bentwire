@@ -144,7 +144,7 @@ systemctl --user daemon-reload && systemctl --user enable --now bentwired
 Release binaries for x86_64 Linux are attached to each
 [GitHub release](https://github.com/mschabhuettl/bentwire/releases).
 
-### Wire, the builtin character
+### Wire, the default builtin character
 
 <img src="docs/images/wire.png" width="840" alt="Wire, a copper wire coiled into a spring with a round face, says hello in the Agent word balloon: on the left smooth, on the right the retro rendering with hard pixels">
 

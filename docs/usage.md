@@ -74,7 +74,7 @@ Exit status: 0 success; 1 usage, D-Bus or method error (error name and message o
 stderr); 2 the request failed (for `ask`: nothing is printed, the reason goes to stderr);
 3 interrupted, or `ask` result `none`.
 
-## The builtin character
+## The builtin characters
 
 `characters/builtin` holds bentwire's own characters (CC0), each in two renderings of the
 same drawing. Wire, a piece of bent wire: `wire`, smooth and sharp on HiDPI outputs, which

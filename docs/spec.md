@@ -186,7 +186,7 @@ tags:
 1. the state file's character, if the user chose it (`chosen`, B-CFG-2);
 2. the config file's `character`;
 3. `clippit`;
-4. `wire` (the builtin character, A-CHAR-1);
+4. `wire` (the default builtin character, A-CHAR-1);
 5. the first id in sorted order.
 
 If none loads, the daemon still runs and the tray shows no character. Character methods
