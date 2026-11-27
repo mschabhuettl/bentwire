@@ -156,7 +156,7 @@ that moves with speech output.
 
 ### Quack, the rubber debugging duck
 
-<img src="docs/images/quack.png" width="536" alt="Quack, a yellow rubber duck with an orange beak floating on a little water: on the left smooth, on the right the retro rendering with hard pixels">
+<img src="docs/images/quack.png" width="496" alt="Quack, a yellow rubber duck with an orange beak floating on a little water, says hello in the Agent word balloon: on the left smooth, on the right the retro rendering with hard pixels">
 
 Quack is the second builtin character: a rubber duck to explain your bugs to, drawn by code
 the same way (`crates/bentwire-convert/src/quack/`, CC0), as `quack` and `quack-retro`

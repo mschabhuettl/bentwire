@@ -8,7 +8,8 @@
 # consecutive frames agree and differ from the frame before the action.
 #
 # usage: scripts/screenshots.sh [--classics DIR] [--gifs | --all] [BIN_DIR]
-#   without --classics: only characters/builtin; writes to docs/screenshots/.
+#   without --classics: only characters/builtin; writes to docs/screenshots/, and the
+#   README picture of Quack to docs/images/quack.png.
 #   --classics DIR: the classics pack in DIR; writes to DIR/screenshots/.
 #   default PNGs only, --gifs GIFs only (also scripts/gifs.sh), --all both.
 # Build first: cargo build -p bentwired -p bentwire && cargo build -p bentwired --examples
@@ -234,6 +235,37 @@ menu_shot() { # menu_shot <character> <language> <out.png>
     stop_daemon
 }
 
+readme_pair() { # readme_pair <out.png> <text> <character...>: each character saying the
+    # text, rendered by the headless backend on the fake clock (no desktop, transparent
+    # background), side by side
+    local out=$1 text=$2 c d ins=()
+    shift 2
+    for c in "$@"; do
+        d=$T/readme-$c
+        mkdir -p "$d/frames" "$d/cfg/bentwire" "$d/state/bentwire"
+        printf 'character = "%s"\nlanguage = "en"\nidle = false\nsound_effects = false\nballoon_font = "Tahoma"\n' \
+            "$c" >"$d/cfg/bentwire/config.toml"
+        printf 'character = "%s"\nleft = 500\ntop = 400\nvisible = false\ninstall_hint_shown = true\n' \
+            "$c" >"$d/state/bentwire/state.toml"
+        XDG_CONFIG_HOME=$d/cfg XDG_STATE_HOME=$d/state "$BIN/bentwired" --headless --seed 1 \
+            --test-interface --no-audio "${ROOTS[@]}" --outputs 1280x720+0+0 \
+            --dump-frames "$d/frames" >>"$T/bentwired.log" 2>&1 &
+        BW=$!
+        wait_for 10 busctl --user status org.bentwire.Agent
+        $TEST Advance u 100 >/dev/null
+        "$BIN/bentwire" show >/dev/null
+        $TEST Advance u 5000 >/dev/null
+        "$BIN/bentwire" say "$text" >/dev/null
+        # the whole text is out, the balloon not yet gone
+        $TEST Advance u 3000 >/dev/null
+        "$BIN/bentwire" quit >/dev/null
+        wait "$BW"
+        ins+=("$d/frames/$(find "$d/frames" -name '*.png' -printf '%f\n' | sort | tail -1)")
+    done
+    $PY pair "$out" 48 "${ins[@]}"
+    echo "  $(basename "$out")"
+}
+
 # ---------------------------------------------------------------------------- GIFs
 REC=
 record_start() { # record_start <name> <x y w h>: lossless recording of that rect
@@ -383,6 +415,8 @@ gif_tour() { # gif_tour <character...>: each appears, greets and leaves
 # ---------------------------------------------------------------------------- run
 echo "output into $OUT"
 if [ "$MODE" != gifs ]; then
+    [ -z "$CLASSICS" ] && readme_pair "$REPO/docs/images/quack.png" \
+        "Hi, I'm Quack! Tell me about your bug." quack quack-retro
     start_session 1
     shoot_set "$MAIN"
     menu_shot "$MAIN" en "$OUT/menu-en.png"

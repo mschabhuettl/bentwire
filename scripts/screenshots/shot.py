@@ -14,6 +14,9 @@ usage: shot.py has SNAPSHOT.json KIND...           exit 0 if every surface kind 
                                                    desktop), in logical coordinates: x y
        shot.py button SNAPSHOT.json CAPTION        centre of that Office balloon button: x y
        shot.py strip OUT.png x y w h IN.ppm...     the rect, column band i taken from IN i
+       shot.py pair OUT.png GAP IN.png...          the opaque part of each RGBA image, side
+                                                   by side GAP apart, bottom-aligned, on a
+                                                   transparent background
        shot.py frames DIR PTS OUTDIR FIRST LAST GRID
                                                    the distinct frames of DIR (00001.png...,
                                                    times in PTS, seconds) into OUTDIR, with
@@ -174,6 +177,19 @@ def main():
             x0 = x + i * band
             x1 = x + w if i == len(ims) - 1 else x0 + band
             canvas.paste(im.crop((x0, y, x1, y + h)), (x0 - x, 0))
+        canvas.save(out, optimize=False)
+        return True
+    if cmd == "pair":
+        out, gap = args[0], int(args[1])
+        ims = [Image.open(p).convert("RGBA") for p in args[2:]]
+        ims = [im.crop(im.getchannel("A").getbbox()) for im in ims]
+        w = sum(im.width for im in ims) + gap * (len(ims) - 1)
+        h = max(im.height for im in ims)
+        canvas = Image.new("RGBA", (w, h))
+        x = 0
+        for im in ims:
+            canvas.paste(im, (x, h - im.height))
+            x += im.width + gap
         canvas.save(out, optimize=False)
         return True
     if cmd == "frames":
