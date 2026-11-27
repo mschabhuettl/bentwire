@@ -966,7 +966,11 @@ A new utterance first stops the current one. `End` ends it without `SpeechStop`.
 **B-TTS-6 espeak-ng in the daemon.**
 - `libespeak-ng.so.1` is loaded at run time; it is not a package dependency. A missing
   library or a failed initialisation is logged once, with the first utterance (`speech:
-  espeak-ng not available: ...`), and every utterance gets `SpeechFailed`.
+  espeak-ng not available: ...`), and every utterance gets `SpeechFailed`. What
+  espeak-ng prints to stderr while it initialises (a missing `espeak-ng-data`) is caught
+  and becomes part of that line. Reason: initialisation runs at every start, also with
+  speech off, and espeak-ng's own message would fill the log on each one; once per run,
+  and only when speech is wanted, needs no record of its own.
 - The daemon loads and initialises espeak-ng at start, on its main thread before it
   starts any other thread, unless it runs headless or with `--no-audio`; this also
   happens when speech output is off. Reason: `espeak_Initialize` sets the process locale
