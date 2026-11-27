@@ -1,7 +1,7 @@
 #!/bin/bash
 # Real sound output through each audio backend, each in a fresh Arch container (rootless
-# podman). A null sink (ALSA: a file device) is recorded while the daemon shows the
-# placeholder and plays Show (its first frame has a sound); a test tone played by the
+# podman). A null sink (ALSA: a file device) is recorded while the daemon shows Wire
+# (builtin) and plays Show (its first frame has a sound); a test tone played by the
 # server's own tool proves the recording works. Prints peak and RMS per recording.
 #
 #   scripts/audio-backends.sh [BINDIR] [SETUP...]
@@ -15,10 +15,9 @@
 #   alsa            no sound server; ALSA default is a file device
 #   speech          PulseAudio with espeak-ng: `bentwire speech on`, then a `say` (B-TTS-6)
 #                   is recorded on its own and the mouths drawn meanwhile (Test1 Snapshot)
-#                   are counted. The placeholder holds a Speak frame without mouths, so it
-#                   shows none; for lip sync set BENTWIRE_AUDIO_CHARS to a search root with
-#                   a character whose Speaking frame has them (classics merlin: a directory
-#                   with characters/merlin.bwc).
+#                   are counted (Wire's Speak frames have all seven mouths; another
+#                   character: set BENTWIRE_AUDIO_CHARS to a search root with it, e.g. a
+#                   directory with characters/merlin.bwc).
 # Downloaded packages are kept in $BENTWIRE_PACMAN_CACHE (default ~/.cache/bentwire/pacman).
 set -euo pipefail
 

@@ -388,8 +388,7 @@ mod tests {
     #[test]
     fn b_char_7_cached_character_composes_the_same() {
         use bentwire_character::Character;
-        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../characters/builtin/bentwire-placeholder");
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../characters/builtin/wire");
         let c = cache();
         let plain = Character::load(&root).unwrap();
         let load = || Character::load_with(&root, &mut |f, png| c.decode(&root, f, png)).unwrap();

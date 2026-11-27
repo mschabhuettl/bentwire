@@ -849,7 +849,7 @@ mod tests {
 
     #[test]
     fn spec_5_5_select_hints() {
-        let ids: Vec<String> = ["bentwire-placeholder", "merlin", "merlin-15", "genie"]
+        let ids: Vec<String> = ["wire", "merlin", "merlin-15", "genie"]
             .map(String::from)
             .to_vec();
         assert_eq!(distance("merln", "merlin"), 1);

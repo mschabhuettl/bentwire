@@ -384,7 +384,7 @@ fn b_char_4_state_then_config_then_sorted() {
 fn b_char_4_b_cfg_2_unchosen_state_keeps_position_only() {
     // Not chosen (B-CFG-2): step 1 is skipped, position and visibility are kept.
     let st = StateFile {
-        character: "bentwire-placeholder".into(),
+        character: "wire".into(),
         left: 1,
         top: 2,
         visible: false,
@@ -392,10 +392,7 @@ fn b_char_4_b_cfg_2_unchosen_state_keeps_position_only() {
         ..Default::default()
     };
     let t = T::with(
-        vec![
-            character("bentwire-placeholder", 1),
-            character("clippit", 1),
-        ],
+        vec![character("wire", 1), character("clippit", 1)],
         Some(st),
         vec![],
     );
@@ -482,7 +479,7 @@ fn b_char_4_b_cfg_2_chosen_by_select_and_gallery_ok() {
 fn b_char_1_rescan_on_use_and_b_char_4_default_when_not_chosen() {
     let all = || {
         vec![
-            character("bentwire-placeholder", 100),
+            character("wire", 100),
             character("clippit", 100),
             character("merlin", 100),
         ]
@@ -491,37 +488,37 @@ fn b_char_1_rescan_on_use_and_b_char_4_default_when_not_chosen() {
         ReplyValue::Characters(v) => v.into_iter().map(|c| c.0).collect::<Vec<_>>(),
         r => panic!("{r:?}"),
     };
-    let (mut t, inst) = T::installed(all(), &["bentwire-placeholder"], None);
+    let (mut t, inst) = T::installed(all(), &["wire"], None);
     t.advance(1000);
-    assert_eq!(t.core.properties().character, "bentwire-placeholder");
+    assert_eq!(t.core.properties().character, "wire");
     // Installed while running: Select finds it without a restart, and it is a choice.
     inst.borrow_mut().push("merlin".into());
     t.call(Call::Select("merlin".into())).unwrap();
     assert_eq!(t.core.properties().character, "merlin");
     // Chosen: a rescan that brings clippit keeps the choice.
     inst.borrow_mut().push("clippit".into());
-    assert_eq!(ids(&mut t), ["bentwire-placeholder", "clippit", "merlin"]);
+    assert_eq!(ids(&mut t), ["clippit", "merlin", "wire"]);
     assert_eq!(t.core.properties().character, "merlin");
 
     // Never chosen: the rescan of ListCharacters switches to the default, clippit.
-    let (mut t, inst) = T::installed(all(), &["bentwire-placeholder"], None);
+    let (mut t, inst) = T::installed(all(), &["wire"], None);
     t.advance(1000);
     let pos = t.pos();
     inst.borrow_mut().push("clippit".into());
-    assert_eq!(ids(&mut t), ["bentwire-placeholder", "clippit"]);
+    assert_eq!(ids(&mut t), ["clippit", "wire"]);
     assert_eq!(t.core.properties().character, "clippit");
     assert_eq!(t.pos(), pos, "same size: same place");
     t.advance(t.now + 2000);
     assert_eq!(last_persist(&t).map(|s| s.chosen), Some(false));
-    // Removed again: back to the placeholder.
+    // Removed again: back to Wire.
     inst.borrow_mut().retain(|i| i != "clippit");
-    assert_eq!(ids(&mut t), ["bentwire-placeholder"]);
-    assert_eq!(t.core.properties().character, "bentwire-placeholder");
+    assert_eq!(ids(&mut t), ["wire"]);
+    assert_eq!(t.core.properties().character, "wire");
     // The SIGHUP Catalog event applies the default too.
     inst.borrow_mut().push("clippit".into());
     t.ev(Event::Catalog(vec![
         CatalogEntry {
-            id: "bentwire-placeholder".into(),
+            id: "wire".into(),
             info: vec![],
             display: (100, 100),
         },
@@ -533,22 +530,26 @@ fn b_char_1_rescan_on_use_and_b_char_4_default_when_not_chosen() {
     ]));
     assert_eq!(t.core.properties().character, "clippit");
 
-    // The gallery rescans when it opens: the new character is a candidate (Next enabled).
-    let (mut t, inst) = T::installed(all(), &["bentwire-placeholder"], None);
+    // The gallery rescans when it opens: the new character is a candidate (Back enabled).
+    let (mut t, inst) = T::installed(all(), &["wire"], None);
     t.advance(1000);
     inst.borrow_mut().push("merlin".into());
     open_gallery(&mut t);
-    assert_eq!(t.core.properties().character, "bentwire-placeholder");
+    assert_eq!(t.core.properties().character, "wire");
     let s = t.core.scene().office_balloon.unwrap();
-    assert_ne!(s.buttons[1].state, ControlState::Disabled);
-    key(&mut t, Key::Char('n'));
+    assert_ne!(s.buttons[0].state, ControlState::Disabled);
+    key(&mut t, Key::Char('b'));
     assert_eq!(t.core.properties().character, "merlin");
     // A rescan while the gallery is open keeps the candidate and switches nothing.
     inst.borrow_mut().push("clippit".into());
-    assert_eq!(ids(&mut t), ["bentwire-placeholder", "clippit", "merlin"]);
+    assert_eq!(ids(&mut t), ["clippit", "merlin", "wire"]);
     assert_eq!(t.core.properties().character, "merlin");
     let s = t.core.scene().office_balloon.unwrap();
-    assert_eq!(s.buttons[1].state, ControlState::Disabled, "merlin is last");
+    assert_ne!(
+        s.buttons[0].state,
+        ControlState::Disabled,
+        "clippit is before merlin"
+    );
     assert_eq!(s.heading[0].runs[0].text, "Name");
 }
 
@@ -577,7 +578,7 @@ fn b_char_4_rescan_installs_a_character_when_none_loaded() {
 /// character's AutoHide is on); it stays until a click on the character (R-BAL-10).
 #[test]
 fn b_char_6_install_hint_is_an_internal_speak_and_stays_until_clicked() {
-    let mut t = T::visible(character("bentwire-placeholder", 0));
+    let mut t = T::visible(character("wire", 0));
     let now = t.now;
     t.ev(Event::InstallHint);
     let mut seen = String::new();

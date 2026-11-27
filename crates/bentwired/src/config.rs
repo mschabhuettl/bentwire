@@ -110,7 +110,9 @@ pub struct State {
     pub speech: Option<bool>,
 }
 
-/// The builtin placeholder (A-CHAR-1).
+/// The characters of the builtin pack (A-CHAR-1, B-CHAR-6).
+pub const BUILTIN: [&str; 2] = ["wire", "wire-retro"];
+/// The builtin character up to 0.3, which a 0.1.1 state file names (B-CFG-2 upgrade rule).
 pub const PLACEHOLDER: &str = "bentwire-placeholder";
 
 impl State {

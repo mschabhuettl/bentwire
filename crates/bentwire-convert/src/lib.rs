@@ -6,10 +6,10 @@ pub mod act;
 pub mod build;
 pub mod classics;
 mod lcid_table;
-pub mod placeholder;
 pub mod sibling;
 pub mod sound;
 pub mod theme;
+pub mod wire;
 pub mod wmf;
 
 use std::path::Path;

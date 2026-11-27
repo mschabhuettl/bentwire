@@ -577,7 +577,7 @@ fn a_char_1_only_builtin_installed() {
         trace.to_str().unwrap(),
     ]);
     e.advance(3000);
-    assert_eq!(e.character(), "bentwire-placeholder");
+    assert_eq!(e.character(), "wire");
     // T-4: no audio device; sounds are logged with their decoded duration.
     let t = std::fs::read_to_string(&trace).unwrap();
     let pop = t
@@ -585,7 +585,7 @@ fn a_char_1_only_builtin_installed() {
         .map(|l| serde_json::from_str::<serde_json::Value>(l).unwrap())
         .find(|l| l["type"] == "sound_start")
         .expect("the startup Show plays a sound");
-    assert_eq!(pop["sound"], "pop");
+    assert_eq!(pop["sound"], "show");
     assert!(pop["duration_ms"].as_u64().unwrap() > 0, "{pop}");
     let c = e.client();
     let mut c = c;
@@ -800,11 +800,7 @@ fn b_ask_7_b_char_5_character_switch_closes_ask() {
     e.advance(3000);
     let mut c = e.client();
     let before = e.character();
-    let other = if before == "pebble" {
-        "bentwire-placeholder"
-    } else {
-        "pebble"
-    };
+    let other = if before == "pebble" { "wire" } else { "pebble" };
     let ask = open_ask(&e, &c, "modal");
     let stand = e.snapshot()["rest_opaque"].clone();
     c.call_unit(AGENT, AGENT_IF, "Select", &(other,)).unwrap();
@@ -825,7 +821,7 @@ fn b_ask_7_b_char_5_character_switch_closes_ask() {
 }
 
 #[test]
-fn r_speak_1_builtin_placeholder_say_wait_completes() {
+fn r_speak_1_builtin_wire_say_wait_completes() {
     // Only the builtin pack: its Speaking animation must end, or phase 1 never does.
     let mut e = Env::new("bisay");
     // The balloon checked here is the say's, not the B-CHAR-6 hint's.
@@ -833,7 +829,7 @@ fn r_speak_1_builtin_placeholder_say_wait_completes() {
     let builtin = repo().join("characters/builtin");
     e.start_raw(&["--characters", builtin.to_str().unwrap()]);
     e.advance(3000);
-    assert_eq!(e.character(), "bentwire-placeholder");
+    assert_eq!(e.character(), "wire");
     let mut c = e.client();
     let w = e.cli_bg(&["say", "hello", "--wait"]);
     let (code, _, se) = e.finish_advancing(w);
@@ -1197,13 +1193,13 @@ fn b_char_1_new_characters_without_restart_and_select_hints() {
 }
 
 /// A fake bentwire-classics release (no Microsoft data): `classics/` holds a pack.toml, the
-/// builtin placeholder under the id `clippit` and `marker` = `version`. Returns the
+/// builtin `wire` under the id `clippit` and `marker` = `version`. Returns the
 /// `file://` base URL for BENTWIRE_CLASSICS_URL.
 fn fake_release(dir: &std::path::Path, version: &str) -> String {
     let stage = dir.join(format!("stage-{version}"));
     let pack = stage.join("classics");
     copy_dir(
-        &repo().join("characters/builtin/bentwire-placeholder"),
+        &repo().join("characters/builtin/wire"),
         &pack.join("clippit"),
     );
     std::fs::write(
@@ -1243,7 +1239,7 @@ fn spec_5_5_characters_install_classics() {
     let builtin = repo().join("characters/builtin");
     e.start_raw(&["--characters", builtin.to_str().unwrap()]);
     e.advance(3000);
-    assert_eq!(e.character(), "bentwire-placeholder");
+    assert_eq!(e.character(), "wire");
     let dest = e.dir.join("data/bentwire/characters/classics");
     let url = fake_release(&e.dir, "9.9.1");
     let install = |url: &str| {
@@ -1257,7 +1253,7 @@ fn spec_5_5_characters_install_classics() {
     assert_eq!(
         so,
         format!(
-            "installed bentwire-classics 9.9.1 in {}\nbentwired now has 2 characters\n",
+            "installed bentwire-classics 9.9.1 in {}\nbentwired now has 3 characters\n",
             dest.display()
         )
     );
@@ -1341,7 +1337,7 @@ fn b_cli_1_install_on_a_terminal_prints_no_progress_bars() {
     );
 }
 
-/// B-CHAR-6: with only the builtin placeholder, the first start says how to get the
+/// B-CHAR-6: with only the builtin characters, the first start says how to get the
 /// classics, once (the flag is in the state file), and an explicit choice is kept.
 #[test]
 fn b_char_6_install_hint_once_with_only_builtin() {
@@ -1592,11 +1588,16 @@ fn corner_walk(e: &Env, ids: &[String], scale: u32) -> Vec<String> {
     missed
 }
 
-/// Characters for the browsing walk: copies of the builtin placeholder with other display
-/// sizes and descriptions of different lengths.
+/// Characters for the browsing walk: copies of the builtin `wire` with other display sizes
+/// and descriptions of different lengths (and no intro phrases, so the gallery shows them).
 fn walk_characters(dir: &std::path::Path) -> Vec<String> {
-    let src = repo().join("characters/builtin/bentwire-placeholder");
-    let toml = std::fs::read_to_string(src.join("character.toml")).unwrap();
+    let src = repo().join("characters/builtin/wire");
+    let toml: String = std::fs::read_to_string(src.join("character.toml"))
+        .unwrap()
+        .lines()
+        .filter(|l| !l.starts_with("extra = "))
+        .map(|l| format!("{l}\n"))
+        .collect();
     let words = "a wire clip drawn by code for the browsing walk";
     let mut ids = Vec::new();
     for (i, (w, h, n)) in [
@@ -1616,13 +1617,13 @@ fn walk_characters(dir: &std::path::Path) -> Vec<String> {
         let desc = vec![words; n].join(" ");
         let t = toml
             .replacen(
-                "canvas = [96, 96]",
-                &format!("canvas = [96, 96]\ndisplay = [{w}, {h}]"),
+                "canvas = [128, 128]",
+                &format!("canvas = [128, 128]\ndisplay = [{w}, {h}]"),
                 1,
             )
-            .replacen("name = \"Placeholder\"", &format!("name = \"Walk {i}\""), 1)
+            .replacen("name = \"Wire\"", &format!("name = \"Walk {i}\""), 1)
             .replacen(
-                "description = \"bentwire's own stand-in: a wire clip drawn by code (CC0).\"",
+                "description = \"bentwire's own character: a piece of bent wire with a face, drawn by code (CC0).\"",
                 &format!("description = \"{desc}\""),
                 1,
             );
@@ -1702,6 +1703,64 @@ fn library_gallery_corner_walk_keeps_next_and_back_under_the_pointer() {
         all.extend(missed.into_iter().map(|m| format!("scale {scale}: {m}")));
     }
     assert!(all.is_empty(), "{all:#?}");
+}
+
+/// A-CHAR-1, B-GAL-1: with only `builtin`, the daemon lists Wire in both renderings, starts
+/// with `wire`, and the gallery's Next previews `wire-retro` with Wave.
+#[test]
+fn a_char_1_b_gal_1_gallery_shows_wire() {
+    let mut e = Env::new("galwire");
+    e.seed_state("install_hint_shown = true\n");
+    let builtin = repo().join("characters/builtin");
+    e.start_raw(&["--characters", builtin.to_str().unwrap()]);
+    e.advance(3000);
+    assert_eq!(e.character(), "wire");
+    let c = e.client();
+    let list: Vec<(String, String, String)> = c
+        .conn
+        .call_method(
+            Some("org.bentwire.Agent"),
+            AGENT,
+            Some(AGENT_IF),
+            "ListCharacters",
+            &(),
+        )
+        .unwrap()
+        .body()
+        .deserialize()
+        .unwrap();
+    let names: Vec<(&str, &str)> = list
+        .iter()
+        .map(|(id, name, _)| (id.as_str(), name.as_str()))
+        .collect();
+    assert_eq!(names, [("wire", "Wire"), ("wire-retro", "Wire (retro)")]);
+    open_gallery_menu(&e);
+    let s = e.snapshot();
+    let next = s["office_balloon"]["buttons"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|b| b["caption"] == "Next>")
+        .expect("Next")
+        .clone();
+    e.click(
+        1,
+        int(&next["rect"]["x"]) as i32 + 5,
+        int(&next["rect"]["y"]) as i32 + 5,
+    );
+    e.advance(100);
+    assert_eq!(e.character(), "wire-retro");
+    // The new character's Show, then the Wave preview.
+    let mut s = e.snapshot();
+    for _ in 0..30 {
+        if s["picture"]["animation"] == "Wave" {
+            break;
+        }
+        e.advance(100);
+        s = e.snapshot();
+    }
+    assert_eq!(s["picture"]["animation"], "Wave", "{s}");
+    assert!(!s["office_balloon"].is_null(), "gallery stays open");
 }
 
 /// Opens the gallery from the character menu.

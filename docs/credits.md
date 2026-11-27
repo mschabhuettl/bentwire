@@ -36,6 +36,16 @@ still differ there. bentwire follows its own reading:
 v1.3 also gave the GUID as 18 bytes; v1.6 has the correct 16-byte layout, so that
 correction no longer applies.
 
+## Wire
+
+Wire (`characters/builtin/wire`, `wire-retro`) is bentwire's own character. Its pictures
+and sounds are made entirely by code in this repository: the vector rig, the rasteriser
+and the sound synthesis in `crates/bentwire-convert/src/wire/`, run by `cargo run -p
+bentwire-convert --bin gen-builtin`. No image generator, no traced or copied artwork and
+no third-party data went into it. It is dedicated to the public domain under
+[CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/); the legal code is
+`characters/builtin/LICENSE` and the `LICENSE` file in each character folder.
+
 ## Tahoma replacement (Wine)
 
 `assets/fonts/tahoma.ttf` and `tahomabd.ttf` are Wine's metric-compatible Tahoma

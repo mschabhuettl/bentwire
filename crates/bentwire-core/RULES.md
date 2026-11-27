@@ -28,7 +28,7 @@ B-CHAR-1 | b_char_1_rescan_on_use_and_b_char_4_default_when_not_chosen (rescans 
 B-CHAR-2 | b_fb_1_b_char_2_play_errors_and_unavailable (unavailable animation fails AnimationUnavailable), r_state_1_uniform_member_and_r_state_2 (unavailable members skipped); decoding failures detected by the loader in bentwire-character/bentwired
 B-CHAR-3 | b_char_3_display_names
 B-CHAR-4 | b_cfg_3_first_run_and_b_char_4, b_char_4_state_then_config_then_sorted, b_char_4_startup_order, b_char_4_b_cfg_2_unchosen_state_keeps_position_only, b_char_4_b_cfg_2_chosen_by_select_and_gallery_ok, b_char_1_rescan_on_use_and_b_char_4_default_when_not_chosen, b_char_4_rescan_installs_a_character_when_none_loaded || other crates: bentwired: spec_5_5_characters_install_classics
-B-CHAR-5 | b_char_5_switch, b_char_5_invalid_character, b_char_5_new_character_keeps_the_bottom_centre, b_char_5_foot_and_stand_at || other crates: bentwired: b_ask_7_b_char_5_character_switch_closes_ask, b_char_5_rest_box_of_the_placeholder, library_gallery_walk_keeps_the_bottom_centre (real data)
+B-CHAR-5 | b_char_5_switch, b_char_5_invalid_character, b_char_5_new_character_keeps_the_bottom_centre, b_char_5_foot_and_stand_at || other crates: bentwired: b_ask_7_b_char_5_character_switch_closes_ask, b_char_5_rest_box_of_wire, library_gallery_walk_keeps_the_bottom_centre (real data)
 B-CHAR-6 | b_char_6_install_hint_is_an_internal_speak; the start condition and the flag are the daemon's || other crates: bentwired: b_char_6_install_hint_once_with_only_builtin
 B-CLI-1 | not testable in core: the CLI (crates/bentwire) || other crates: bentwired: spec_5_5_characters_install_classics
 B-CLI-2 | not testable in core: the CLI (crates/bentwire) || other crates: bentwire: spec_5_5_select_hints; bentwired: b_char_1_new_characters_without_restart_and_select_hints
@@ -38,7 +38,7 @@ B-CORE-3 | structural: all timers come from Core::next_deadline/tick on the call
 B-FAM-1 | structural: family dispatch in player.rs; per-row tests: b_seq_a_*, b_o97_*, b_sw_a_*, b_sw_o_*, b_idle_t_*, b_idle_o_office97, b_fb_1_b_o97_5_*
 B-FB-1 | b_fb_1_b_char_2_play_errors_and_unavailable, b_fb_1_b_o97_5_alias_and_office97_groups, b_fb_1_error_lists_chain
 B-FB-2 | b_fb_2_rover_like, b_fb_2_courtney_earl_merlin_qmark_like, b_fb_2_office_names_resolve_to_themselves || other crates: bentwired: b_fb_2_table_on_converted_acs
-B-GAL-1 | b_gal_1_gallery, b_gal_1_hide_closes_as_cancel, b_gal_1_running_ask_is_interrupted_when_gallery_opens, b_gal_1_balloon_and_buttons_stay_while_browsing, b_gal_1_balloon_stays_next_to_the_envelope, b_gal_1_reopens_where_it_closed || other crates: bentwired: b_gal_1_gallery_next_cancel_and_ok, b_gal_1_browsing_keeps_next_and_back_under_the_pointer, library_gallery_walk_keeps_the_bottom_centre, library_gallery_corner_walk_keeps_next_and_back_under_the_pointer, library_gallery_place_walk_* (real data)
+B-GAL-1 | b_gal_1_gallery, b_gal_1_hide_closes_as_cancel, b_gal_1_running_ask_is_interrupted_when_gallery_opens, b_gal_1_balloon_and_buttons_stay_while_browsing, b_gal_1_balloon_stays_next_to_the_envelope, b_gal_1_reopens_where_it_closed || other crates: bentwired: b_gal_1_gallery_next_cancel_and_ok, a_char_1_b_gal_1_gallery_shows_wire, b_gal_1_wire_names_and_intro_phrases, b_gal_1_browsing_keeps_next_and_back_under_the_pointer, library_gallery_walk_keeps_the_bottom_centre, library_gallery_corner_walk_keeps_next_and_back_under_the_pointer, library_gallery_place_walk_* (real data)
 B-IDLE-O | b_idle_o_office97
 B-IDLE-T | b_idle_t_r_idle_1_r_idle_2_r_idle_3_vector, b_idle_t_r_idle_4_play_interrupts_idle
 B-L10N-1 | b_l10n_1_language
@@ -133,7 +133,7 @@ R-IDLE-2 | b_idle_t_r_idle_1_r_idle_2_r_idle_3_vector
 R-IDLE-3 | b_idle_t_r_idle_1_r_idle_2_r_idle_3_vector
 R-IDLE-4 | b_idle_t_r_idle_4_play_interrupts_idle, r_idle_4_idle_on_false_and_r_idle_1_conditions
 R-IDLE-5 | r_idle_5_missing_level
-R-LIP-1 | r_lip_1_table_size_and_unique, r_lip_1_vectors
+R-LIP-1 | r_lip_1_table_size_and_unique, r_lip_1_vectors || other crates: bentwire-convert: r_lip_1_wire_speaks_with_every_mouth_type
 R-LIP-2 | b_lip_1_r_lip_2_quantisation
 R-LIP-3 | replaced by B-LIP-2: b_lip_2_no_mouth_during_text_speak
 R-MOVE- | wildcard reference, see R-MOVE-1..4

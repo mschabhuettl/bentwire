@@ -232,10 +232,31 @@ pub fn model_from(id: &str, c: &Character) -> CharacterModel {
 mod tests {
     use super::*;
 
+    /// B-CHAR-3, B-GAL-1: Wire's names and the intro phrases the gallery shows, en and de.
     #[test]
-    fn b_char_5_rest_box_of_the_placeholder() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../characters/builtin/bentwire-placeholder");
+    fn b_gal_1_wire_names_and_intro_phrases() {
+        use bentwire_core::api::Lang;
+        use bentwire_core::l10n::{display_names, intro_phrases};
+        let root =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../characters/builtin");
+        for (id, name) in [("wire", "Wire"), ("wire-retro", "Wire (retro)")] {
+            let m = model_from(id, &Character::load(root.join(id)).unwrap());
+            for (lang, first) in [
+                (Lang::En, "Hi, I'm Wire"),
+                (Lang::De, "Hallo, ich bin Wire"),
+            ] {
+                assert_eq!(display_names(&m.info, lang).0, name);
+                let intro = intro_phrases(&m.info, lang);
+                assert_eq!(intro.len(), 2, "{intro:?}");
+                assert!(intro[0].starts_with(first), "{intro:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn b_char_5_rest_box_of_wire() {
+        let dir =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../characters/builtin/wire");
         let c = Character::load(&dir).unwrap();
         let m = model_from("p", &c);
         let (x0, y0, x1, y1) = m.rest_box.expect("opaque rest picture");

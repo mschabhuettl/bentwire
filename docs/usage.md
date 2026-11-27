@@ -74,6 +74,14 @@ Exit status: 0 success; 1 usage, D-Bus or method error (error name and message o
 stderr); 2 the request failed (for `ask`: nothing is printed, the reason goes to stderr);
 3 interrupted, or `ask` result `none`.
 
+## The builtin character
+
+`characters/builtin` holds Wire, bentwire's own character (CC0), in two renderings of the
+same drawing: `wire`, smooth and sharp on HiDPI outputs, which the daemon shows when no
+other character is chosen or installed, and `wire-retro`, 12 colours and hard edges as in
+1997 (`bentwire select wire-retro`). Both have the Agent animation set (`bentwire
+animations` lists it) and move their mouth with speech output.
+
 ## Speech output
 
 With speech output on, `say` texts and `ask` headings and texts are spoken with
