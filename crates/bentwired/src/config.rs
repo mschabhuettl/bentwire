@@ -111,7 +111,7 @@ pub struct State {
 }
 
 /// The characters of the builtin pack (A-CHAR-1, B-CHAR-6).
-pub const BUILTIN: [&str; 2] = ["wire", "wire-retro"];
+pub const BUILTIN: [&str; 4] = ["wire", "wire-retro", "quack", "quack-retro"];
 /// The builtin character up to 0.3, which a 0.1.1 state file names (B-CFG-2 upgrade rule).
 pub const PLACEHOLDER: &str = "bentwire-placeholder";
 
