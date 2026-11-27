@@ -51,7 +51,14 @@ track the current state.
   `bentwire addons list/install/enable/disable`. Add-ons are characters, balloon themes
   and bridges. Enabled bridges run as their own processes and stop with the daemon.
 
-## 0.4 "Polish and reach"
+## 0.4 "Wire"
+
+- **Wire**, the first own character (see below), replaces the placeholder in `builtin`.
+- Small fixes from 0.3: espeak-ng set up before other threads, speech stopped before the
+  wait for bridges at shutdown, size limits for add-on archives, `Reload` over D-Bus
+  instead of a signal by process id.
+
+## 0.5 "Polish and reach"
 
 - The Office balloon theme proven from the original: the order of the button states and
   the balloon size constants.

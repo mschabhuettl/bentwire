@@ -7,6 +7,31 @@ D-Bus API (`org.bentwire.Agent1`) and the character format (`format = 1`) are fr
 
 ## [Unreleased]
 
+### Added
+
+- Wire, bentwire's own character (CC0-1.0): a piece of bent wire with a face, drawn by
+  code from one vector rig. Two renderings: `wire` (smooth, 1x and 2x, the default) and
+  `wire-retro` (11 colours, hard edges). It has the Agent states and animation set, the
+  Office animation names, return animations and exit branches, and mouths for speech
+  output.
+- D-Bus method `org.bentwire.Agent1.Reload`, which does what SIGHUP does. After an add-on
+  change the CLI calls it instead of signalling a looked-up process id.
+
+### Changed
+
+- Wire replaces `bentwire-placeholder` in `builtin`. With only `builtin` installed, the
+  default character is `wire`.
+- `addons install`: archives and downloads are limited to 256 MiB packed, 1 GiB unpacked
+  and 10000 entries, checked while unpacking.
+- espeak-ng is loaded and initialised at daemon start, before any other thread, because
+  it sets the process locale. After installing espeak-ng, restart the daemon.
+- Docs: the SAPI 4 reading of voice gender and pitch is marked as inferred.
+
+### Fixed
+
+- Quit, SIGTERM and the end of the session bus stop speech and sounds before the daemon
+  waits for its bridges.
+
 ## [0.3.0] - 2026-11-27
 
 ### Added
