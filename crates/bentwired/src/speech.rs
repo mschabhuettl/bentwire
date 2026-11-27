@@ -122,6 +122,8 @@ const EVENT_PHONEME: c_int = 7;
 const POS_CHARACTER: c_int = 1;
 const CHARS_UTF8: c_uint = 1;
 const RATE: c_int = 1;
+/// B-TTS-6: longer texts are paced, not spoken (a few minutes of audio, held in memory).
+const MAX_SPOKEN_CHARS: usize = 4000;
 const PITCH: c_int = 3;
 const RATE_MINIMUM: u32 = 80;
 
@@ -258,6 +260,9 @@ impl Engine {
     }
 
     fn synth(&self, job: &Job, wanted: &Arc<AtomicU64>) -> Result<Spoken, String> {
+        if !speakable(&job.text) {
+            return Err(format!("text longer than {MAX_SPOKEN_CHARS} characters"));
+        }
         let v = &job.voice;
         let lang = v.language.to_ascii_lowercase();
         let gender = espeak_gender(v.gender);
@@ -319,9 +324,19 @@ impl Engine {
     }
 }
 
+fn speakable(text: &str) -> bool {
+    text.chars().count() <= MAX_SPOKEN_CHARS
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn b_tts_6_long_texts_are_not_spoken() {
+        assert!(speakable(&"a".repeat(MAX_SPOKEN_CHARS)));
+        assert!(!speakable(&"a".repeat(MAX_SPOKEN_CHARS + 1)));
+    }
 
     #[test]
     fn b_tts_6_missing_library_fails_every_utterance() {

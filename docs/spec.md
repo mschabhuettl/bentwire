@@ -973,6 +973,9 @@ A new utterance first stops the current one. `End` ends it without `SpeechStop`.
   effects and speech do not cut each other. The utterance starts when its audio is
   handed to the device; an output that does not open gives `SpeechFailed`. Headless mode
   and `--no-audio` have no engine.
+- A text longer than 4000 characters gets `SpeechFailed` without synthesis, so it is
+  paced as text. Reason: the whole PCM of an utterance is held in memory (a few minutes
+  of audio at most).
 
 **R-LIP-1 Table.**
 - Phoneme to mouth uses the 116-entry table in acs-format 5.4. An unknown phoneme keeps

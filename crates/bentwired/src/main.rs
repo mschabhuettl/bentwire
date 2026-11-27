@@ -64,8 +64,9 @@ fn main() -> ExitCode {
 
 /// Local hour for office97 daypart branches; `date` avoids a time-zone dependency.
 fn local_hour() -> u8 {
-    std::process::Command::new("date")
-        .arg("+%H")
+    let mut cmd = std::process::Command::new("date");
+    addons::unblock_signals(&mut cmd);
+    cmd.arg("+%H")
         .output()
         .ok()
         .and_then(|o| String::from_utf8(o.stdout).ok())
