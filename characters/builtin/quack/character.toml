@@ -40,7 +40,7 @@ file = "icon.png"
 id = "a"
 file = "sheets/a.png"
 cell = [128, 128]
-count = 168
+count = 167
 [sheets.hidpi]
 2 = "sheets/a@2x.png"
 
@@ -353,12 +353,12 @@ frames = [
   { ms = 100, layers = ["a:67", ["m:7", 53, 70]], exit = 11 },
   { ms = 160, layers = ["a:67", ["m:7", 53, 70]], exit = 11 },
   { ms = 140, layers = ["a:68", ["m:7", 53, 70]], exit = 11 },
-  { ms = 140, layers = ["a:67", ["m:7", 53, 70]], exit = 11 },
+  { ms = 140, layers = ["a:69", ["m:7", 53, 70]], exit = 11 },
   { ms = 140, layers = ["a:68", ["m:7", 53, 70]], exit = 11 },
   { ms = 140, layers = ["a:69", ["m:7", 53, 70]], exit = 11 },
-  { ms = 140, layers = ["a:70", ["m:7", 53, 70]], exit = 11 },
-  { ms = 440, layers = ["a:71", ["m:7", 53, 70]], exit = 11 },
-  { ms = 100, layers = ["a:72", ["m:7", 52, 70]], exit = 11 },
+  { ms = 140, layers = ["a:68", ["m:7", 53, 70]], exit = 11 },
+  { ms = 440, layers = ["a:70", ["m:7", 53, 70]], exit = 11 },
+  { ms = 100, layers = ["a:71", ["m:7", 52, 70]], exit = 11 },
   { ms = 100, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -371,23 +371,23 @@ frames = [
   { ms = 100, layers = ["a:67", ["m:7", 53, 70]], exit = 21 },
   { ms = 160, layers = ["a:67", ["m:7", 53, 70]], exit = 21 },
   { ms = 140, layers = ["a:68", ["m:7", 53, 70]], exit = 21 },
-  { ms = 140, layers = ["a:67", ["m:7", 53, 70]], exit = 21 },
+  { ms = 140, layers = ["a:69", ["m:7", 53, 70]], exit = 21 },
   { ms = 140, layers = ["a:68", ["m:7", 53, 70]], exit = 21 },
   { ms = 140, layers = ["a:69", ["m:7", 53, 70]], exit = 21 },
+  { ms = 140, layers = ["a:68", ["m:7", 53, 70]], exit = 21 },
   { ms = 140, layers = ["a:70", ["m:7", 53, 70]], exit = 21 },
-  { ms = 140, layers = ["a:71", ["m:7", 53, 70]], exit = 21 },
-  { ms = 140, layers = ["a:73", ["m:7", 53, 70]], exit = 21 },
-  { ms = 140, layers = ["a:74", ["m:7", 53, 70]], exit = 21, branch = [[21, 40]] },
+  { ms = 140, layers = ["a:72", ["m:7", 53, 70]], exit = 21 },
+  { ms = 140, layers = ["a:73", ["m:7", 53, 70]], exit = 21, branch = [[21, 40]] },
   { ms = 160, layers = ["a:67", ["m:7", 53, 70]], exit = 21 },
   { ms = 140, layers = ["a:68", ["m:7", 53, 70]], exit = 21 },
-  { ms = 140, layers = ["a:67", ["m:7", 53, 70]], exit = 21 },
+  { ms = 140, layers = ["a:69", ["m:7", 53, 70]], exit = 21 },
   { ms = 140, layers = ["a:68", ["m:7", 53, 70]], exit = 21 },
   { ms = 140, layers = ["a:69", ["m:7", 53, 70]], exit = 21 },
+  { ms = 140, layers = ["a:68", ["m:7", 53, 70]], exit = 21 },
   { ms = 140, layers = ["a:70", ["m:7", 53, 70]], exit = 21 },
-  { ms = 140, layers = ["a:71", ["m:7", 53, 70]], exit = 21 },
-  { ms = 140, layers = ["a:73", ["m:7", 53, 70]], exit = 21 },
-  { ms = 440, layers = ["a:74", ["m:7", 53, 70]], exit = 21 },
-  { ms = 100, layers = ["a:72", ["m:7", 52, 70]] },
+  { ms = 140, layers = ["a:72", ["m:7", 53, 70]], exit = 21 },
+  { ms = 440, layers = ["a:73", ["m:7", 53, 70]], exit = 21 },
+  { ms = 100, layers = ["a:71", ["m:7", 52, 70]] },
   { ms = 100, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -400,12 +400,12 @@ frames = [
   { ms = 100, layers = ["a:67", ["m:7", 53, 70]], exit = 11 },
   { ms = 160, layers = ["a:67", ["m:7", 53, 70]], exit = 11 },
   { ms = 140, layers = ["a:68", ["m:7", 53, 70]], exit = 11 },
-  { ms = 140, layers = ["a:67", ["m:7", 53, 70]], exit = 11 },
+  { ms = 140, layers = ["a:69", ["m:7", 53, 70]], exit = 11 },
   { ms = 140, layers = ["a:68", ["m:7", 53, 70]], exit = 11 },
   { ms = 140, layers = ["a:69", ["m:7", 53, 70]], exit = 11 },
-  { ms = 140, layers = ["a:70", ["m:7", 53, 70]], exit = 11 },
-  { ms = 440, layers = ["a:71", ["m:7", 53, 70]], exit = 11 },
-  { ms = 100, layers = ["a:72", ["m:7", 52, 70]], exit = 11 },
+  { ms = 140, layers = ["a:68", ["m:7", 53, 70]], exit = 11 },
+  { ms = 440, layers = ["a:70", ["m:7", 53, 70]], exit = 11 },
+  { ms = 100, layers = ["a:71", ["m:7", 52, 70]], exit = 11 },
   { ms = 100, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -418,12 +418,12 @@ frames = [
   { ms = 100, layers = ["a:67", ["m:7", 53, 70]], exit = 11 },
   { ms = 160, layers = ["a:67", ["m:7", 53, 70]], exit = 11 },
   { ms = 140, layers = ["a:68", ["m:7", 53, 70]], exit = 11 },
-  { ms = 140, layers = ["a:67", ["m:7", 53, 70]], exit = 11 },
+  { ms = 140, layers = ["a:69", ["m:7", 53, 70]], exit = 11 },
   { ms = 140, layers = ["a:68", ["m:7", 53, 70]], exit = 11 },
   { ms = 140, layers = ["a:69", ["m:7", 53, 70]], exit = 11 },
-  { ms = 140, layers = ["a:70", ["m:7", 53, 70]], exit = 11 },
-  { ms = 440, layers = ["a:71", ["m:7", 53, 70]], exit = 11 },
-  { ms = 100, layers = ["a:72", ["m:7", 52, 70]], exit = 11 },
+  { ms = 140, layers = ["a:68", ["m:7", 53, 70]], exit = 11 },
+  { ms = 440, layers = ["a:70", ["m:7", 53, 70]], exit = 11 },
+  { ms = 100, layers = ["a:71", ["m:7", 52, 70]], exit = 11 },
   { ms = 100, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -436,12 +436,12 @@ frames = [
   { ms = 100, layers = ["a:67", ["m:7", 53, 70]], exit = 11 },
   { ms = 160, layers = ["a:67", ["m:7", 53, 70]], exit = 11 },
   { ms = 140, layers = ["a:68", ["m:7", 53, 70]], exit = 11 },
-  { ms = 140, layers = ["a:67", ["m:7", 53, 70]], exit = 11 },
+  { ms = 140, layers = ["a:69", ["m:7", 53, 70]], exit = 11 },
   { ms = 140, layers = ["a:68", ["m:7", 53, 70]], exit = 11 },
   { ms = 140, layers = ["a:69", ["m:7", 53, 70]], exit = 11 },
-  { ms = 140, layers = ["a:70", ["m:7", 53, 70]], exit = 11 },
-  { ms = 440, layers = ["a:71", ["m:7", 53, 70]], exit = 11 },
-  { ms = 100, layers = ["a:72", ["m:7", 52, 70]], exit = 11 },
+  { ms = 140, layers = ["a:68", ["m:7", 53, 70]], exit = 11 },
+  { ms = 440, layers = ["a:70", ["m:7", 53, 70]], exit = 11 },
+  { ms = 100, layers = ["a:71", ["m:7", 52, 70]], exit = 11 },
   { ms = 100, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -454,12 +454,12 @@ frames = [
   { ms = 100, layers = ["a:67", ["m:7", 53, 70]], exit = 11 },
   { ms = 160, layers = ["a:67", ["m:7", 53, 70]], exit = 11 },
   { ms = 140, layers = ["a:68", ["m:7", 53, 70]], exit = 11 },
-  { ms = 140, layers = ["a:67", ["m:7", 53, 70]], exit = 11 },
+  { ms = 140, layers = ["a:69", ["m:7", 53, 70]], exit = 11 },
   { ms = 140, layers = ["a:68", ["m:7", 53, 70]], exit = 11 },
   { ms = 140, layers = ["a:69", ["m:7", 53, 70]], exit = 11 },
-  { ms = 140, layers = ["a:70", ["m:7", 53, 70]], exit = 11 },
-  { ms = 440, layers = ["a:71", ["m:7", 53, 70]], exit = 11 },
-  { ms = 100, layers = ["a:72", ["m:7", 52, 70]], exit = 11 },
+  { ms = 140, layers = ["a:68", ["m:7", 53, 70]], exit = 11 },
+  { ms = 440, layers = ["a:70", ["m:7", 53, 70]], exit = 11 },
+  { ms = 100, layers = ["a:71", ["m:7", 52, 70]], exit = 11 },
   { ms = 100, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -468,14 +468,14 @@ name = "Search"
 transition = "none"
 frames = [
   { ms = 60, layers = ["a:5", ["m:7", 51, 71]], exit = 9 },
+  { ms = 100, layers = ["a:74", ["m:7", 51, 71]], exit = 9 },
   { ms = 100, layers = ["a:75", ["m:7", 51, 71]], exit = 9 },
-  { ms = 100, layers = ["a:76", ["m:7", 51, 71]], exit = 9 },
-  { ms = 120, layers = ["a:77", ["m:7", 50, 70]], exit = 9 },
-  { ms = 420, layers = ["a:78", ["m:7", 48, 70]], exit = 9 },
-  { ms = 120, layers = ["a:79", ["m:7", 50, 71]], exit = 9 },
-  { ms = 120, layers = ["a:80", ["m:7", 52, 71]], exit = 9 },
-  { ms = 420, layers = ["a:81", ["m:7", 54, 70]], exit = 9 },
-  { ms = 100, layers = ["a:82", ["m:7", 52, 70]], exit = 9 },
+  { ms = 120, layers = ["a:76", ["m:7", 50, 70]], exit = 9 },
+  { ms = 420, layers = ["a:77", ["m:7", 48, 70]], exit = 9 },
+  { ms = 120, layers = ["a:78", ["m:7", 50, 71]], exit = 9 },
+  { ms = 120, layers = ["a:79", ["m:7", 52, 71]], exit = 9 },
+  { ms = 420, layers = ["a:80", ["m:7", 54, 70]], exit = 9 },
+  { ms = 100, layers = ["a:81", ["m:7", 52, 70]], exit = 9 },
   { ms = 100, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -484,14 +484,14 @@ name = "CheckingSomething"
 transition = "none"
 frames = [
   { ms = 60, layers = ["a:5", ["m:7", 51, 71]], exit = 9 },
+  { ms = 100, layers = ["a:74", ["m:7", 51, 71]], exit = 9 },
   { ms = 100, layers = ["a:75", ["m:7", 51, 71]], exit = 9 },
-  { ms = 100, layers = ["a:76", ["m:7", 51, 71]], exit = 9 },
-  { ms = 120, layers = ["a:77", ["m:7", 50, 70]], exit = 9 },
-  { ms = 420, layers = ["a:78", ["m:7", 48, 70]], exit = 9 },
-  { ms = 120, layers = ["a:79", ["m:7", 50, 71]], exit = 9 },
-  { ms = 120, layers = ["a:80", ["m:7", 52, 71]], exit = 9 },
-  { ms = 420, layers = ["a:81", ["m:7", 54, 70]], exit = 9 },
-  { ms = 100, layers = ["a:82", ["m:7", 52, 70]], exit = 9 },
+  { ms = 120, layers = ["a:76", ["m:7", 50, 70]], exit = 9 },
+  { ms = 420, layers = ["a:77", ["m:7", 48, 70]], exit = 9 },
+  { ms = 120, layers = ["a:78", ["m:7", 50, 71]], exit = 9 },
+  { ms = 120, layers = ["a:79", ["m:7", 52, 71]], exit = 9 },
+  { ms = 420, layers = ["a:80", ["m:7", 54, 70]], exit = 9 },
+  { ms = 100, layers = ["a:81", ["m:7", 52, 70]], exit = 9 },
   { ms = 100, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -500,30 +500,30 @@ name = "Searching"
 transition = "exit"
 frames = [
   { ms = 60, layers = ["a:5", ["m:7", 51, 71]], exit = 24 },
+  { ms = 100, layers = ["a:74", ["m:7", 51, 71]], exit = 24 },
   { ms = 100, layers = ["a:75", ["m:7", 51, 71]], exit = 24 },
-  { ms = 100, layers = ["a:76", ["m:7", 51, 71]], exit = 24 },
-  { ms = 370, layers = ["a:78", ["m:7", 48, 70]], exit = 24 },
-  { ms = 120, layers = ["a:79", ["m:7", 50, 71]], exit = 24 },
-  { ms = 120, layers = ["a:80", ["m:7", 52, 71]], exit = 24 },
-  { ms = 370, layers = ["a:81", ["m:7", 54, 70]], exit = 24 },
-  { ms = 120, layers = ["a:80", ["m:7", 52, 71]], exit = 24 },
-  { ms = 120, layers = ["a:79", ["m:7", 50, 71]], exit = 24 },
-  { ms = 120, layers = ["a:78", ["m:7", 48, 70]], exit = 24, branch = [[17, 40]] },
-  { ms = 370, layers = ["a:78", ["m:7", 48, 70]], exit = 24 },
-  { ms = 120, layers = ["a:79", ["m:7", 50, 71]], exit = 24 },
-  { ms = 120, layers = ["a:80", ["m:7", 52, 71]], exit = 24 },
-  { ms = 370, layers = ["a:81", ["m:7", 54, 70]], exit = 24 },
-  { ms = 120, layers = ["a:80", ["m:7", 52, 71]], exit = 24 },
-  { ms = 120, layers = ["a:79", ["m:7", 50, 71]], exit = 24 },
-  { ms = 120, layers = ["a:78", ["m:7", 48, 70]], exit = 24 },
-  { ms = 370, layers = ["a:78", ["m:7", 48, 70]], exit = 24 },
-  { ms = 120, layers = ["a:79", ["m:7", 50, 71]], exit = 24 },
-  { ms = 120, layers = ["a:80", ["m:7", 52, 71]], exit = 24 },
-  { ms = 370, layers = ["a:81", ["m:7", 54, 70]], exit = 24 },
-  { ms = 120, layers = ["a:80", ["m:7", 52, 71]], exit = 24 },
-  { ms = 120, layers = ["a:79", ["m:7", 50, 71]], exit = 24 },
-  { ms = 120, layers = ["a:78", ["m:7", 48, 70]], exit = 24 },
-  { ms = 100, layers = ["a:83", ["m:7", 50, 70]] },
+  { ms = 370, layers = ["a:77", ["m:7", 48, 70]], exit = 24 },
+  { ms = 120, layers = ["a:78", ["m:7", 50, 71]], exit = 24 },
+  { ms = 120, layers = ["a:79", ["m:7", 52, 71]], exit = 24 },
+  { ms = 370, layers = ["a:80", ["m:7", 54, 70]], exit = 24 },
+  { ms = 120, layers = ["a:79", ["m:7", 52, 71]], exit = 24 },
+  { ms = 120, layers = ["a:78", ["m:7", 50, 71]], exit = 24 },
+  { ms = 120, layers = ["a:77", ["m:7", 48, 70]], exit = 24, branch = [[17, 40]] },
+  { ms = 370, layers = ["a:77", ["m:7", 48, 70]], exit = 24 },
+  { ms = 120, layers = ["a:78", ["m:7", 50, 71]], exit = 24 },
+  { ms = 120, layers = ["a:79", ["m:7", 52, 71]], exit = 24 },
+  { ms = 370, layers = ["a:80", ["m:7", 54, 70]], exit = 24 },
+  { ms = 120, layers = ["a:79", ["m:7", 52, 71]], exit = 24 },
+  { ms = 120, layers = ["a:78", ["m:7", 50, 71]], exit = 24 },
+  { ms = 120, layers = ["a:77", ["m:7", 48, 70]], exit = 24 },
+  { ms = 370, layers = ["a:77", ["m:7", 48, 70]], exit = 24 },
+  { ms = 120, layers = ["a:78", ["m:7", 50, 71]], exit = 24 },
+  { ms = 120, layers = ["a:79", ["m:7", 52, 71]], exit = 24 },
+  { ms = 370, layers = ["a:80", ["m:7", 54, 70]], exit = 24 },
+  { ms = 120, layers = ["a:79", ["m:7", 52, 71]], exit = 24 },
+  { ms = 120, layers = ["a:78", ["m:7", 50, 71]], exit = 24 },
+  { ms = 120, layers = ["a:77", ["m:7", 48, 70]], exit = 24 },
+  { ms = 100, layers = ["a:82", ["m:7", 50, 70]] },
   { ms = 100, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -532,14 +532,14 @@ name = "Process"
 transition = "none"
 frames = [
   { ms = 60, layers = ["a:5", ["m:7", 51, 71]], exit = 9 },
-  { ms = 110, layers = ["a:84", ["m:7", 51, 71]], exit = 9 },
-  { ms = 110, layers = ["a:85", ["m:7", 51, 73]], exit = 9 },
-  { ms = 110, layers = ["a:86", ["m:7", 51, 71]], exit = 9 },
-  { ms = 110, layers = ["a:87", ["m:7", 51, 73]], exit = 9 },
-  { ms = 110, layers = ["a:84", ["m:7", 51, 71]], exit = 9 },
-  { ms = 110, layers = ["a:85", ["m:7", 51, 73]], exit = 9 },
-  { ms = 110, layers = ["a:86", ["m:7", 51, 71]], exit = 9 },
-  { ms = 110, layers = ["a:87", ["m:7", 51, 73]], exit = 9 },
+  { ms = 110, layers = ["a:83", ["m:7", 51, 71]], exit = 9 },
+  { ms = 110, layers = ["a:84", ["m:7", 51, 73]], exit = 9 },
+  { ms = 110, layers = ["a:85", ["m:7", 51, 71]], exit = 9 },
+  { ms = 110, layers = ["a:86", ["m:7", 51, 73]], exit = 9 },
+  { ms = 110, layers = ["a:83", ["m:7", 51, 71]], exit = 9 },
+  { ms = 110, layers = ["a:84", ["m:7", 51, 73]], exit = 9 },
+  { ms = 110, layers = ["a:85", ["m:7", 51, 71]], exit = 9 },
+  { ms = 110, layers = ["a:86", ["m:7", 51, 73]], exit = 9 },
   { ms = 100, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -548,14 +548,14 @@ name = "GetTechy"
 transition = "none"
 frames = [
   { ms = 60, layers = ["a:5", ["m:7", 51, 71]], exit = 9 },
-  { ms = 110, layers = ["a:84", ["m:7", 51, 71]], exit = 9 },
-  { ms = 110, layers = ["a:85", ["m:7", 51, 73]], exit = 9 },
-  { ms = 110, layers = ["a:86", ["m:7", 51, 71]], exit = 9 },
-  { ms = 110, layers = ["a:87", ["m:7", 51, 73]], exit = 9 },
-  { ms = 110, layers = ["a:84", ["m:7", 51, 71]], exit = 9 },
-  { ms = 110, layers = ["a:85", ["m:7", 51, 73]], exit = 9 },
-  { ms = 110, layers = ["a:86", ["m:7", 51, 71]], exit = 9 },
-  { ms = 110, layers = ["a:87", ["m:7", 51, 73]], exit = 9 },
+  { ms = 110, layers = ["a:83", ["m:7", 51, 71]], exit = 9 },
+  { ms = 110, layers = ["a:84", ["m:7", 51, 73]], exit = 9 },
+  { ms = 110, layers = ["a:85", ["m:7", 51, 71]], exit = 9 },
+  { ms = 110, layers = ["a:86", ["m:7", 51, 73]], exit = 9 },
+  { ms = 110, layers = ["a:83", ["m:7", 51, 71]], exit = 9 },
+  { ms = 110, layers = ["a:84", ["m:7", 51, 73]], exit = 9 },
+  { ms = 110, layers = ["a:85", ["m:7", 51, 71]], exit = 9 },
+  { ms = 110, layers = ["a:86", ["m:7", 51, 73]], exit = 9 },
   { ms = 100, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -564,14 +564,14 @@ name = "EmptyTrash"
 transition = "none"
 frames = [
   { ms = 60, layers = ["a:5", ["m:7", 51, 71]], exit = 9 },
-  { ms = 110, layers = ["a:84", ["m:7", 51, 71]], exit = 9 },
-  { ms = 110, layers = ["a:85", ["m:7", 51, 73]], exit = 9 },
-  { ms = 110, layers = ["a:86", ["m:7", 51, 71]], exit = 9 },
-  { ms = 110, layers = ["a:87", ["m:7", 51, 73]], exit = 9 },
-  { ms = 110, layers = ["a:84", ["m:7", 51, 71]], exit = 9 },
-  { ms = 110, layers = ["a:85", ["m:7", 51, 73]], exit = 9 },
-  { ms = 110, layers = ["a:86", ["m:7", 51, 71]], exit = 9 },
-  { ms = 110, layers = ["a:87", ["m:7", 51, 73]], exit = 9 },
+  { ms = 110, layers = ["a:83", ["m:7", 51, 71]], exit = 9 },
+  { ms = 110, layers = ["a:84", ["m:7", 51, 73]], exit = 9 },
+  { ms = 110, layers = ["a:85", ["m:7", 51, 71]], exit = 9 },
+  { ms = 110, layers = ["a:86", ["m:7", 51, 73]], exit = 9 },
+  { ms = 110, layers = ["a:83", ["m:7", 51, 71]], exit = 9 },
+  { ms = 110, layers = ["a:84", ["m:7", 51, 73]], exit = 9 },
+  { ms = 110, layers = ["a:85", ["m:7", 51, 71]], exit = 9 },
+  { ms = 110, layers = ["a:86", ["m:7", 51, 73]], exit = 9 },
   { ms = 100, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -580,30 +580,30 @@ name = "Processing"
 transition = "exit"
 frames = [
   { ms = 60, layers = ["a:5", ["m:7", 51, 71]], exit = 25 },
-  { ms = 110, layers = ["a:84", ["m:7", 51, 71]], exit = 25 },
-  { ms = 110, layers = ["a:85", ["m:7", 51, 73]], exit = 25 },
-  { ms = 110, layers = ["a:86", ["m:7", 51, 71]], exit = 25 },
-  { ms = 110, layers = ["a:87", ["m:7", 51, 73]], exit = 25 },
-  { ms = 110, layers = ["a:84", ["m:7", 51, 71]], exit = 25 },
-  { ms = 110, layers = ["a:85", ["m:7", 51, 73]], exit = 25 },
-  { ms = 110, layers = ["a:86", ["m:7", 51, 71]], exit = 25 },
-  { ms = 110, layers = ["a:87", ["m:7", 51, 73]], exit = 25, branch = [[17, 40]] },
-  { ms = 110, layers = ["a:84", ["m:7", 51, 71]], exit = 25 },
-  { ms = 110, layers = ["a:85", ["m:7", 51, 73]], exit = 25 },
-  { ms = 110, layers = ["a:86", ["m:7", 51, 71]], exit = 25 },
-  { ms = 110, layers = ["a:87", ["m:7", 51, 73]], exit = 25 },
-  { ms = 110, layers = ["a:84", ["m:7", 51, 71]], exit = 25 },
-  { ms = 110, layers = ["a:85", ["m:7", 51, 73]], exit = 25 },
-  { ms = 110, layers = ["a:86", ["m:7", 51, 71]], exit = 25 },
-  { ms = 110, layers = ["a:87", ["m:7", 51, 73]], exit = 25 },
-  { ms = 110, layers = ["a:84", ["m:7", 51, 71]], exit = 25 },
-  { ms = 110, layers = ["a:85", ["m:7", 51, 73]], exit = 25 },
-  { ms = 110, layers = ["a:86", ["m:7", 51, 71]], exit = 25 },
-  { ms = 110, layers = ["a:87", ["m:7", 51, 73]], exit = 25 },
-  { ms = 110, layers = ["a:84", ["m:7", 51, 71]], exit = 25 },
-  { ms = 110, layers = ["a:85", ["m:7", 51, 73]], exit = 25 },
-  { ms = 110, layers = ["a:86", ["m:7", 51, 71]], exit = 25 },
-  { ms = 110, layers = ["a:87", ["m:7", 51, 73]], exit = 25 },
+  { ms = 110, layers = ["a:83", ["m:7", 51, 71]], exit = 25 },
+  { ms = 110, layers = ["a:84", ["m:7", 51, 73]], exit = 25 },
+  { ms = 110, layers = ["a:85", ["m:7", 51, 71]], exit = 25 },
+  { ms = 110, layers = ["a:86", ["m:7", 51, 73]], exit = 25 },
+  { ms = 110, layers = ["a:83", ["m:7", 51, 71]], exit = 25 },
+  { ms = 110, layers = ["a:84", ["m:7", 51, 73]], exit = 25 },
+  { ms = 110, layers = ["a:85", ["m:7", 51, 71]], exit = 25 },
+  { ms = 110, layers = ["a:86", ["m:7", 51, 73]], exit = 25, branch = [[17, 40]] },
+  { ms = 110, layers = ["a:83", ["m:7", 51, 71]], exit = 25 },
+  { ms = 110, layers = ["a:84", ["m:7", 51, 73]], exit = 25 },
+  { ms = 110, layers = ["a:85", ["m:7", 51, 71]], exit = 25 },
+  { ms = 110, layers = ["a:86", ["m:7", 51, 73]], exit = 25 },
+  { ms = 110, layers = ["a:83", ["m:7", 51, 71]], exit = 25 },
+  { ms = 110, layers = ["a:84", ["m:7", 51, 73]], exit = 25 },
+  { ms = 110, layers = ["a:85", ["m:7", 51, 71]], exit = 25 },
+  { ms = 110, layers = ["a:86", ["m:7", 51, 73]], exit = 25 },
+  { ms = 110, layers = ["a:83", ["m:7", 51, 71]], exit = 25 },
+  { ms = 110, layers = ["a:84", ["m:7", 51, 73]], exit = 25 },
+  { ms = 110, layers = ["a:85", ["m:7", 51, 71]], exit = 25 },
+  { ms = 110, layers = ["a:86", ["m:7", 51, 73]], exit = 25 },
+  { ms = 110, layers = ["a:83", ["m:7", 51, 71]], exit = 25 },
+  { ms = 110, layers = ["a:84", ["m:7", 51, 73]], exit = 25 },
+  { ms = 110, layers = ["a:85", ["m:7", 51, 71]], exit = 25 },
+  { ms = 110, layers = ["a:86", ["m:7", 51, 73]], exit = 25 },
   { ms = 100, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -613,22 +613,22 @@ transition = "return"
 return = "GetAttentionReturn"
 frames = [
   { ms = 60, layers = ["a:5", ["m:7", 51, 71]], sound = "squeak", exit = "end" },
-  { ms = 80, layers = ["a:88", ["m:7", 51, 76]], exit = "end" },
+  { ms = 80, layers = ["a:87", ["m:7", 51, 76]], exit = "end" },
+  { ms = 90, layers = ["a:88"], exit = "end" },
   { ms = 90, layers = ["a:89"], exit = "end" },
   { ms = 90, layers = ["a:90"], exit = "end" },
   { ms = 90, layers = ["a:91"], exit = "end" },
+  { ms = 90, layers = ["a:90"], exit = "end" },
   { ms = 90, layers = ["a:92"], exit = "end" },
-  { ms = 90, layers = ["a:91"], exit = "end" },
-  { ms = 90, layers = ["a:93"], exit = "end" },
-  { ms = 390, layers = ["a:91"], exit = "end" },
+  { ms = 390, layers = ["a:90"], exit = "end" },
 ]
 
 [[animations]]
 name = "GetAttentionReturn"
 transition = "none"
 frames = [
-  { ms = 60, layers = ["a:91"], exit = 2 },
-  { ms = 90, layers = ["a:94", ["m:7", 51, 71]], exit = 2 },
+  { ms = 60, layers = ["a:90"], exit = 2 },
+  { ms = 90, layers = ["a:93", ["m:7", 51, 71]], exit = 2 },
   { ms = 90, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -637,15 +637,15 @@ name = "Congratulate"
 transition = "none"
 frames = [
   { ms = 60, layers = ["a:5", ["m:7", 51, 71]], exit = 10 },
-  { ms = 90, layers = ["a:95", ["m:7", 51, 78]], exit = 10 },
-  { ms = 100, layers = ["a:96"], exit = 10 },
-  { ms = 120, layers = ["a:97"], exit = 10 },
-  { ms = 100, layers = ["a:98"], exit = 10 },
-  { ms = 90, layers = ["a:99"], exit = 10 },
+  { ms = 90, layers = ["a:94", ["m:7", 51, 78]], exit = 10 },
+  { ms = 100, layers = ["a:95"], exit = 10 },
+  { ms = 120, layers = ["a:96"], exit = 10 },
+  { ms = 100, layers = ["a:97"], exit = 10 },
+  { ms = 90, layers = ["a:98"], exit = 10 },
+  { ms = 200, layers = ["a:99"], exit = 10 },
   { ms = 200, layers = ["a:100"], exit = 10 },
-  { ms = 200, layers = ["a:101"], exit = 10 },
-  { ms = 200, layers = ["a:100"], exit = 10 },
-  { ms = 100, layers = ["a:102", ["m:7", 51, 71]], exit = 10 },
+  { ms = 200, layers = ["a:99"], exit = 10 },
+  { ms = 100, layers = ["a:101", ["m:7", 51, 71]], exit = 10 },
   { ms = 100, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -654,9 +654,9 @@ name = "Alert"
 transition = "none"
 frames = [
   { ms = 60, layers = ["a:5", ["m:7", 51, 71]], sound = "squeak", exit = 4 },
-  { ms = 90, layers = ["a:103"], exit = 4 },
-  { ms = 690, layers = ["a:104"], exit = 4 },
-  { ms = 100, layers = ["a:105", ["m:7", 51, 71]], exit = 4 },
+  { ms = 90, layers = ["a:102"], exit = 4 },
+  { ms = 690, layers = ["a:103"], exit = 4 },
+  { ms = 100, layers = ["a:104", ["m:7", 51, 71]], exit = 4 },
   { ms = 100, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -665,10 +665,10 @@ name = "Acknowledge"
 transition = "none"
 frames = [
   { ms = 60, layers = ["a:5", ["m:7", 51, 71]], exit = 5 },
+  { ms = 110, layers = ["a:105"], exit = 5 },
   { ms = 110, layers = ["a:106"], exit = 5 },
-  { ms = 110, layers = ["a:107"], exit = 5 },
-  { ms = 110, layers = ["a:106"], exit = 5 },
-  { ms = 200, layers = ["a:107"], exit = 5 },
+  { ms = 110, layers = ["a:105"], exit = 5 },
+  { ms = 200, layers = ["a:106"], exit = 5 },
   { ms = 100, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -677,14 +677,14 @@ name = "Decline"
 transition = "none"
 frames = [
   { ms = 60, layers = ["a:5", ["m:7", 51, 71]], exit = 9 },
+  { ms = 90, layers = ["a:107"], exit = 9 },
   { ms = 90, layers = ["a:108"], exit = 9 },
-  { ms = 90, layers = ["a:109"], exit = 9 },
+  { ms = 110, layers = ["a:109"], exit = 9 },
   { ms = 110, layers = ["a:110"], exit = 9 },
-  { ms = 110, layers = ["a:111"], exit = 9 },
+  { ms = 110, layers = ["a:109"], exit = 9 },
   { ms = 110, layers = ["a:110"], exit = 9 },
-  { ms = 110, layers = ["a:111"], exit = 9 },
-  { ms = 300, layers = ["a:109"], exit = 9 },
-  { ms = 100, layers = ["a:112", ["m:7", 51, 71]], exit = 9 },
+  { ms = 300, layers = ["a:108"], exit = 9 },
+  { ms = 100, layers = ["a:111", ["m:7", 51, 71]], exit = 9 },
   { ms = 100, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -693,13 +693,13 @@ name = "Confused"
 transition = "none"
 frames = [
   { ms = 60, layers = ["a:5", ["m:7", 51, 71]], exit = 8 },
+  { ms = 100, layers = ["a:112"], exit = 8 },
   { ms = 100, layers = ["a:113"], exit = 8 },
-  { ms = 100, layers = ["a:114"], exit = 8 },
-  { ms = 120, layers = ["a:115"], exit = 8 },
   { ms = 120, layers = ["a:114"], exit = 8 },
-  { ms = 120, layers = ["a:115"], exit = 8 },
-  { ms = 700, layers = ["a:114"], exit = 8 },
-  { ms = 100, layers = ["a:116", ["m:7", 51, 70]], exit = 8 },
+  { ms = 120, layers = ["a:113"], exit = 8 },
+  { ms = 120, layers = ["a:114"], exit = 8 },
+  { ms = 700, layers = ["a:113"], exit = 8 },
+  { ms = 100, layers = ["a:115", ["m:7", 51, 70]], exit = 8 },
   { ms = 100, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -708,10 +708,10 @@ name = "Surprised"
 transition = "none"
 frames = [
   { ms = 60, layers = ["a:5", ["m:7", 51, 71]], exit = 5 },
-  { ms = 80, layers = ["a:117"], exit = 5 },
-  { ms = 90, layers = ["a:118"], exit = 5 },
-  { ms = 790, layers = ["a:119"], exit = 5 },
-  { ms = 100, layers = ["a:120", ["m:7", 51, 71]], exit = 5 },
+  { ms = 80, layers = ["a:116"], exit = 5 },
+  { ms = 90, layers = ["a:117"], exit = 5 },
+  { ms = 790, layers = ["a:118"], exit = 5 },
+  { ms = 100, layers = ["a:119", ["m:7", 51, 71]], exit = 5 },
   { ms = 100, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -720,10 +720,10 @@ name = "Sad"
 transition = "none"
 frames = [
   { ms = 60, layers = ["a:5", ["m:7", 51, 71]], exit = 5 },
-  { ms = 140, layers = ["a:121", ["m:7", 51, 74]], exit = 5 },
-  { ms = 140, layers = ["a:122"], exit = 5 },
-  { ms = 1340, layers = ["a:123"], exit = 5 },
-  { ms = 120, layers = ["a:124", ["m:7", 51, 75]], exit = 5 },
+  { ms = 140, layers = ["a:120", ["m:7", 51, 74]], exit = 5 },
+  { ms = 140, layers = ["a:121"], exit = 5 },
+  { ms = 1340, layers = ["a:122"], exit = 5 },
+  { ms = 120, layers = ["a:123", ["m:7", 51, 75]], exit = 5 },
   { ms = 120, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -732,11 +732,11 @@ name = "Pleased"
 transition = "none"
 frames = [
   { ms = 60, layers = ["a:5", ["m:7", 51, 71]], exit = 6 },
+  { ms = 90, layers = ["a:124"], exit = 6 },
   { ms = 90, layers = ["a:125"], exit = 6 },
-  { ms = 90, layers = ["a:126"], exit = 6 },
-  { ms = 110, layers = ["a:127"], exit = 6 },
-  { ms = 910, layers = ["a:128"], exit = 6 },
-  { ms = 100, layers = ["a:129", ["m:7", 51, 71]], exit = 6 },
+  { ms = 110, layers = ["a:126"], exit = 6 },
+  { ms = 910, layers = ["a:127"], exit = 6 },
+  { ms = 100, layers = ["a:128", ["m:7", 51, 71]], exit = 6 },
   { ms = 100, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -746,16 +746,16 @@ transition = "return"
 return = "GestureRightReturn"
 frames = [
   { ms = 60, layers = ["a:5", ["m:7", 51, 71]], exit = "end", mouths = [{ type = 0, layer = ["m:0", 51, 71], anchor = [64, 81] }, { type = 1, layer = ["m:1", 51, 71], anchor = [64, 81] }, { type = 2, layer = ["m:2", 51, 71], anchor = [64, 81] }, { type = 3, layer = ["m:3", 51, 71], anchor = [64, 81] }, { type = 4, layer = ["m:4", 51, 71], anchor = [64, 81] }, { type = 5, layer = ["m:5", 51, 71], anchor = [64, 81] }, { type = 6, layer = ["m:6", 51, 71], anchor = [64, 81] }] },
-  { ms = 90, layers = ["a:130", ["m:7", 50, 71]], exit = "end", mouths = [{ type = 0, layer = ["m:0", 50, 71], anchor = [63, 81] }, { type = 1, layer = ["m:1", 50, 71], anchor = [63, 81] }, { type = 2, layer = ["m:2", 50, 71], anchor = [63, 81] }, { type = 3, layer = ["m:3", 50, 71], anchor = [63, 81] }, { type = 4, layer = ["m:4", 50, 71], anchor = [63, 81] }, { type = 5, layer = ["m:5", 50, 71], anchor = [63, 81] }, { type = 6, layer = ["m:6", 50, 71], anchor = [63, 81] }] },
-  { ms = 990, layers = ["a:131", ["m:7", 49, 71]], exit = "end", mouths = [{ type = 0, layer = ["m:0", 49, 71], anchor = [62, 81] }, { type = 1, layer = ["m:1", 49, 71], anchor = [62, 81] }, { type = 2, layer = ["m:2", 49, 71], anchor = [62, 81] }, { type = 3, layer = ["m:3", 49, 71], anchor = [62, 81] }, { type = 4, layer = ["m:4", 49, 71], anchor = [62, 81] }, { type = 5, layer = ["m:5", 49, 71], anchor = [62, 81] }, { type = 6, layer = ["m:6", 49, 71], anchor = [62, 81] }] },
+  { ms = 90, layers = ["a:129", ["m:7", 50, 71]], exit = "end", mouths = [{ type = 0, layer = ["m:0", 50, 71], anchor = [63, 81] }, { type = 1, layer = ["m:1", 50, 71], anchor = [63, 81] }, { type = 2, layer = ["m:2", 50, 71], anchor = [63, 81] }, { type = 3, layer = ["m:3", 50, 71], anchor = [63, 81] }, { type = 4, layer = ["m:4", 50, 71], anchor = [63, 81] }, { type = 5, layer = ["m:5", 50, 71], anchor = [63, 81] }, { type = 6, layer = ["m:6", 50, 71], anchor = [63, 81] }] },
+  { ms = 990, layers = ["a:130", ["m:7", 49, 71]], exit = "end", mouths = [{ type = 0, layer = ["m:0", 49, 71], anchor = [62, 81] }, { type = 1, layer = ["m:1", 49, 71], anchor = [62, 81] }, { type = 2, layer = ["m:2", 49, 71], anchor = [62, 81] }, { type = 3, layer = ["m:3", 49, 71], anchor = [62, 81] }, { type = 4, layer = ["m:4", 49, 71], anchor = [62, 81] }, { type = 5, layer = ["m:5", 49, 71], anchor = [62, 81] }, { type = 6, layer = ["m:6", 49, 71], anchor = [62, 81] }] },
 ]
 
 [[animations]]
 name = "GestureRightReturn"
 transition = "none"
 frames = [
-  { ms = 60, layers = ["a:131", ["m:7", 49, 71]], exit = 2 },
-  { ms = 90, layers = ["a:130", ["m:7", 50, 71]], exit = 2 },
+  { ms = 60, layers = ["a:130", ["m:7", 49, 71]], exit = 2 },
+  { ms = 90, layers = ["a:129", ["m:7", 50, 71]], exit = 2 },
   { ms = 90, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -765,16 +765,16 @@ transition = "return"
 return = "GestureLeftReturn"
 frames = [
   { ms = 60, layers = ["a:5", ["m:7", 51, 71]], exit = "end", mouths = [{ type = 0, layer = ["m:0", 51, 71], anchor = [64, 81] }, { type = 1, layer = ["m:1", 51, 71], anchor = [64, 81] }, { type = 2, layer = ["m:2", 51, 71], anchor = [64, 81] }, { type = 3, layer = ["m:3", 51, 71], anchor = [64, 81] }, { type = 4, layer = ["m:4", 51, 71], anchor = [64, 81] }, { type = 5, layer = ["m:5", 51, 71], anchor = [64, 81] }, { type = 6, layer = ["m:6", 51, 71], anchor = [64, 81] }] },
-  { ms = 90, layers = ["a:132", ["m:7", 52, 71]], exit = "end", mouths = [{ type = 0, layer = ["m:0", 52, 71], anchor = [65, 81] }, { type = 1, layer = ["m:1", 52, 71], anchor = [65, 81] }, { type = 2, layer = ["m:2", 52, 71], anchor = [65, 81] }, { type = 3, layer = ["m:3", 52, 71], anchor = [65, 81] }, { type = 4, layer = ["m:4", 52, 71], anchor = [65, 81] }, { type = 5, layer = ["m:5", 52, 71], anchor = [65, 81] }, { type = 6, layer = ["m:6", 52, 71], anchor = [65, 81] }] },
-  { ms = 990, layers = ["a:133", ["m:7", 53, 71]], exit = "end", mouths = [{ type = 0, layer = ["m:0", 53, 71], anchor = [66, 81] }, { type = 1, layer = ["m:1", 53, 71], anchor = [66, 81] }, { type = 2, layer = ["m:2", 53, 71], anchor = [66, 81] }, { type = 3, layer = ["m:3", 53, 71], anchor = [66, 81] }, { type = 4, layer = ["m:4", 53, 71], anchor = [66, 81] }, { type = 5, layer = ["m:5", 53, 71], anchor = [66, 81] }, { type = 6, layer = ["m:6", 53, 71], anchor = [66, 81] }] },
+  { ms = 90, layers = ["a:131", ["m:7", 52, 71]], exit = "end", mouths = [{ type = 0, layer = ["m:0", 52, 71], anchor = [65, 81] }, { type = 1, layer = ["m:1", 52, 71], anchor = [65, 81] }, { type = 2, layer = ["m:2", 52, 71], anchor = [65, 81] }, { type = 3, layer = ["m:3", 52, 71], anchor = [65, 81] }, { type = 4, layer = ["m:4", 52, 71], anchor = [65, 81] }, { type = 5, layer = ["m:5", 52, 71], anchor = [65, 81] }, { type = 6, layer = ["m:6", 52, 71], anchor = [65, 81] }] },
+  { ms = 990, layers = ["a:132", ["m:7", 53, 71]], exit = "end", mouths = [{ type = 0, layer = ["m:0", 53, 71], anchor = [66, 81] }, { type = 1, layer = ["m:1", 53, 71], anchor = [66, 81] }, { type = 2, layer = ["m:2", 53, 71], anchor = [66, 81] }, { type = 3, layer = ["m:3", 53, 71], anchor = [66, 81] }, { type = 4, layer = ["m:4", 53, 71], anchor = [66, 81] }, { type = 5, layer = ["m:5", 53, 71], anchor = [66, 81] }, { type = 6, layer = ["m:6", 53, 71], anchor = [66, 81] }] },
 ]
 
 [[animations]]
 name = "GestureLeftReturn"
 transition = "none"
 frames = [
-  { ms = 60, layers = ["a:133", ["m:7", 53, 71]], exit = 2 },
-  { ms = 90, layers = ["a:132", ["m:7", 52, 71]], exit = 2 },
+  { ms = 60, layers = ["a:132", ["m:7", 53, 71]], exit = 2 },
+  { ms = 90, layers = ["a:131", ["m:7", 52, 71]], exit = 2 },
   { ms = 90, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -784,16 +784,16 @@ transition = "return"
 return = "GestureUpReturn"
 frames = [
   { ms = 60, layers = ["a:5", ["m:7", 51, 71]], exit = "end", mouths = [{ type = 0, layer = ["m:0", 51, 71], anchor = [64, 81] }, { type = 1, layer = ["m:1", 51, 71], anchor = [64, 81] }, { type = 2, layer = ["m:2", 51, 71], anchor = [64, 81] }, { type = 3, layer = ["m:3", 51, 71], anchor = [64, 81] }, { type = 4, layer = ["m:4", 51, 71], anchor = [64, 81] }, { type = 5, layer = ["m:5", 51, 71], anchor = [64, 81] }, { type = 6, layer = ["m:6", 51, 71], anchor = [64, 81] }] },
-  { ms = 90, layers = ["a:134", ["m:7", 51, 71]], exit = "end", mouths = [{ type = 0, layer = ["m:0", 51, 71], anchor = [64, 81] }, { type = 1, layer = ["m:1", 51, 71], anchor = [64, 81] }, { type = 2, layer = ["m:2", 51, 71], anchor = [64, 81] }, { type = 3, layer = ["m:3", 51, 71], anchor = [64, 81] }, { type = 4, layer = ["m:4", 51, 71], anchor = [64, 81] }, { type = 5, layer = ["m:5", 51, 71], anchor = [64, 81] }, { type = 6, layer = ["m:6", 51, 71], anchor = [64, 81] }] },
-  { ms = 990, layers = ["a:135", ["m:7", 52, 71]], exit = "end", mouths = [{ type = 0, layer = ["m:0", 52, 71], anchor = [65, 81] }, { type = 1, layer = ["m:1", 52, 71], anchor = [65, 81] }, { type = 2, layer = ["m:2", 52, 71], anchor = [65, 81] }, { type = 3, layer = ["m:3", 52, 71], anchor = [65, 81] }, { type = 4, layer = ["m:4", 52, 71], anchor = [65, 81] }, { type = 5, layer = ["m:5", 52, 71], anchor = [65, 81] }, { type = 6, layer = ["m:6", 52, 71], anchor = [65, 81] }] },
+  { ms = 90, layers = ["a:133", ["m:7", 51, 71]], exit = "end", mouths = [{ type = 0, layer = ["m:0", 51, 71], anchor = [64, 81] }, { type = 1, layer = ["m:1", 51, 71], anchor = [64, 81] }, { type = 2, layer = ["m:2", 51, 71], anchor = [64, 81] }, { type = 3, layer = ["m:3", 51, 71], anchor = [64, 81] }, { type = 4, layer = ["m:4", 51, 71], anchor = [64, 81] }, { type = 5, layer = ["m:5", 51, 71], anchor = [64, 81] }, { type = 6, layer = ["m:6", 51, 71], anchor = [64, 81] }] },
+  { ms = 990, layers = ["a:134", ["m:7", 52, 71]], exit = "end", mouths = [{ type = 0, layer = ["m:0", 52, 71], anchor = [65, 81] }, { type = 1, layer = ["m:1", 52, 71], anchor = [65, 81] }, { type = 2, layer = ["m:2", 52, 71], anchor = [65, 81] }, { type = 3, layer = ["m:3", 52, 71], anchor = [65, 81] }, { type = 4, layer = ["m:4", 52, 71], anchor = [65, 81] }, { type = 5, layer = ["m:5", 52, 71], anchor = [65, 81] }, { type = 6, layer = ["m:6", 52, 71], anchor = [65, 81] }] },
 ]
 
 [[animations]]
 name = "GestureUpReturn"
 transition = "none"
 frames = [
-  { ms = 60, layers = ["a:135", ["m:7", 52, 71]], exit = 2 },
-  { ms = 90, layers = ["a:134", ["m:7", 51, 71]], exit = 2 },
+  { ms = 60, layers = ["a:134", ["m:7", 52, 71]], exit = 2 },
+  { ms = 90, layers = ["a:133", ["m:7", 51, 71]], exit = 2 },
   { ms = 90, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -803,16 +803,16 @@ transition = "return"
 return = "GestureDownReturn"
 frames = [
   { ms = 60, layers = ["a:5", ["m:7", 51, 71]], exit = "end", mouths = [{ type = 0, layer = ["m:0", 51, 71], anchor = [64, 81] }, { type = 1, layer = ["m:1", 51, 71], anchor = [64, 81] }, { type = 2, layer = ["m:2", 51, 71], anchor = [64, 81] }, { type = 3, layer = ["m:3", 51, 71], anchor = [64, 81] }, { type = 4, layer = ["m:4", 51, 71], anchor = [64, 81] }, { type = 5, layer = ["m:5", 51, 71], anchor = [64, 81] }, { type = 6, layer = ["m:6", 51, 71], anchor = [64, 81] }] },
-  { ms = 90, layers = ["a:136", ["m:7", 52, 71]], exit = "end", mouths = [{ type = 0, layer = ["m:0", 52, 71], anchor = [65, 81] }, { type = 1, layer = ["m:1", 52, 71], anchor = [65, 81] }, { type = 2, layer = ["m:2", 52, 71], anchor = [65, 81] }, { type = 3, layer = ["m:3", 52, 71], anchor = [65, 81] }, { type = 4, layer = ["m:4", 52, 71], anchor = [65, 81] }, { type = 5, layer = ["m:5", 52, 71], anchor = [65, 81] }, { type = 6, layer = ["m:6", 52, 71], anchor = [65, 81] }] },
-  { ms = 990, layers = ["a:137", ["m:7", 52, 71]], exit = "end", mouths = [{ type = 0, layer = ["m:0", 52, 71], anchor = [65, 81] }, { type = 1, layer = ["m:1", 52, 71], anchor = [65, 81] }, { type = 2, layer = ["m:2", 52, 71], anchor = [65, 81] }, { type = 3, layer = ["m:3", 52, 71], anchor = [65, 81] }, { type = 4, layer = ["m:4", 52, 71], anchor = [65, 81] }, { type = 5, layer = ["m:5", 52, 71], anchor = [65, 81] }, { type = 6, layer = ["m:6", 52, 71], anchor = [65, 81] }] },
+  { ms = 90, layers = ["a:135", ["m:7", 52, 71]], exit = "end", mouths = [{ type = 0, layer = ["m:0", 52, 71], anchor = [65, 81] }, { type = 1, layer = ["m:1", 52, 71], anchor = [65, 81] }, { type = 2, layer = ["m:2", 52, 71], anchor = [65, 81] }, { type = 3, layer = ["m:3", 52, 71], anchor = [65, 81] }, { type = 4, layer = ["m:4", 52, 71], anchor = [65, 81] }, { type = 5, layer = ["m:5", 52, 71], anchor = [65, 81] }, { type = 6, layer = ["m:6", 52, 71], anchor = [65, 81] }] },
+  { ms = 990, layers = ["a:136", ["m:7", 52, 71]], exit = "end", mouths = [{ type = 0, layer = ["m:0", 52, 71], anchor = [65, 81] }, { type = 1, layer = ["m:1", 52, 71], anchor = [65, 81] }, { type = 2, layer = ["m:2", 52, 71], anchor = [65, 81] }, { type = 3, layer = ["m:3", 52, 71], anchor = [65, 81] }, { type = 4, layer = ["m:4", 52, 71], anchor = [65, 81] }, { type = 5, layer = ["m:5", 52, 71], anchor = [65, 81] }, { type = 6, layer = ["m:6", 52, 71], anchor = [65, 81] }] },
 ]
 
 [[animations]]
 name = "GestureDownReturn"
 transition = "none"
 frames = [
-  { ms = 60, layers = ["a:137", ["m:7", 52, 71]], exit = 2 },
-  { ms = 90, layers = ["a:136", ["m:7", 52, 71]], exit = 2 },
+  { ms = 60, layers = ["a:136", ["m:7", 52, 71]], exit = 2 },
+  { ms = 90, layers = ["a:135", ["m:7", 52, 71]], exit = 2 },
   { ms = 90, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -860,7 +860,7 @@ transition = "return"
 return = "LookUpReturn"
 frames = [
   { ms = 60, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
-  { ms = 80, layers = ["a:138", ["m:7", 51, 69]], exit = "end" },
+  { ms = 80, layers = ["a:137", ["m:7", 51, 69]], exit = "end" },
   { ms = 780, layers = ["a:18", ["m:7", 51, 68]], exit = "end" },
 ]
 
@@ -869,7 +869,7 @@ name = "LookUpReturn"
 transition = "none"
 frames = [
   { ms = 60, layers = ["a:18", ["m:7", 51, 68]], exit = 2 },
-  { ms = 80, layers = ["a:138", ["m:7", 51, 69]], exit = 2 },
+  { ms = 80, layers = ["a:137", ["m:7", 51, 69]], exit = 2 },
   { ms = 80, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -879,16 +879,16 @@ transition = "return"
 return = "LookDownReturn"
 frames = [
   { ms = 60, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
-  { ms = 80, layers = ["a:139", ["m:7", 51, 72]], exit = "end" },
-  { ms = 780, layers = ["a:140", ["m:7", 51, 73]], exit = "end" },
+  { ms = 80, layers = ["a:138", ["m:7", 51, 72]], exit = "end" },
+  { ms = 780, layers = ["a:139", ["m:7", 51, 73]], exit = "end" },
 ]
 
 [[animations]]
 name = "LookDownReturn"
 transition = "none"
 frames = [
-  { ms = 60, layers = ["a:140", ["m:7", 51, 73]], exit = 2 },
-  { ms = 80, layers = ["a:139", ["m:7", 51, 72]], exit = 2 },
+  { ms = 60, layers = ["a:139", ["m:7", 51, 73]], exit = 2 },
+  { ms = 80, layers = ["a:138", ["m:7", 51, 72]], exit = 2 },
   { ms = 80, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -898,16 +898,16 @@ transition = "return"
 return = "LookUpRightReturn"
 frames = [
   { ms = 60, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
-  { ms = 80, layers = ["a:141", ["m:7", 50, 70]], exit = "end" },
-  { ms = 780, layers = ["a:142", ["m:7", 50, 69]], exit = "end" },
+  { ms = 80, layers = ["a:140", ["m:7", 50, 70]], exit = "end" },
+  { ms = 780, layers = ["a:141", ["m:7", 50, 69]], exit = "end" },
 ]
 
 [[animations]]
 name = "LookUpRightReturn"
 transition = "none"
 frames = [
-  { ms = 60, layers = ["a:142", ["m:7", 50, 69]], exit = 2 },
-  { ms = 80, layers = ["a:141", ["m:7", 50, 70]], exit = 2 },
+  { ms = 60, layers = ["a:141", ["m:7", 50, 69]], exit = 2 },
+  { ms = 80, layers = ["a:140", ["m:7", 50, 70]], exit = 2 },
   { ms = 80, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -917,16 +917,16 @@ transition = "return"
 return = "LookUpLeftReturn"
 frames = [
   { ms = 60, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
-  { ms = 80, layers = ["a:143", ["m:7", 52, 70]], exit = "end" },
-  { ms = 780, layers = ["a:144", ["m:7", 52, 69]], exit = "end" },
+  { ms = 80, layers = ["a:142", ["m:7", 52, 70]], exit = "end" },
+  { ms = 780, layers = ["a:143", ["m:7", 52, 69]], exit = "end" },
 ]
 
 [[animations]]
 name = "LookUpLeftReturn"
 transition = "none"
 frames = [
-  { ms = 60, layers = ["a:144", ["m:7", 52, 69]], exit = 2 },
-  { ms = 80, layers = ["a:143", ["m:7", 52, 70]], exit = 2 },
+  { ms = 60, layers = ["a:143", ["m:7", 52, 69]], exit = 2 },
+  { ms = 80, layers = ["a:142", ["m:7", 52, 70]], exit = 2 },
   { ms = 80, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -936,16 +936,16 @@ transition = "return"
 return = "LookDownRightReturn"
 frames = [
   { ms = 60, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
-  { ms = 80, layers = ["a:145", ["m:7", 50, 71]], exit = "end" },
-  { ms = 780, layers = ["a:146", ["m:7", 50, 72]], exit = "end" },
+  { ms = 80, layers = ["a:144", ["m:7", 50, 71]], exit = "end" },
+  { ms = 780, layers = ["a:145", ["m:7", 50, 72]], exit = "end" },
 ]
 
 [[animations]]
 name = "LookDownRightReturn"
 transition = "none"
 frames = [
-  { ms = 60, layers = ["a:146", ["m:7", 50, 72]], exit = 2 },
-  { ms = 80, layers = ["a:145", ["m:7", 50, 71]], exit = 2 },
+  { ms = 60, layers = ["a:145", ["m:7", 50, 72]], exit = 2 },
+  { ms = 80, layers = ["a:144", ["m:7", 50, 71]], exit = 2 },
   { ms = 80, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -955,16 +955,16 @@ transition = "return"
 return = "LookDownLeftReturn"
 frames = [
   { ms = 60, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
-  { ms = 80, layers = ["a:147", ["m:7", 52, 71]], exit = "end" },
-  { ms = 780, layers = ["a:148", ["m:7", 52, 72]], exit = "end" },
+  { ms = 80, layers = ["a:146", ["m:7", 52, 71]], exit = "end" },
+  { ms = 780, layers = ["a:147", ["m:7", 52, 72]], exit = "end" },
 ]
 
 [[animations]]
 name = "LookDownLeftReturn"
 transition = "none"
 frames = [
-  { ms = 60, layers = ["a:148", ["m:7", 52, 72]], exit = 2 },
-  { ms = 80, layers = ["a:147", ["m:7", 52, 71]], exit = 2 },
+  { ms = 60, layers = ["a:147", ["m:7", 52, 72]], exit = 2 },
+  { ms = 80, layers = ["a:146", ["m:7", 52, 71]], exit = 2 },
   { ms = 80, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -974,17 +974,17 @@ transition = "return"
 return = "MoveRightReturn"
 frames = [
   { ms = 60, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
+  { ms = 90, layers = ["a:148"], exit = "end" },
   { ms = 90, layers = ["a:149"], exit = "end" },
   { ms = 90, layers = ["a:150"], exit = "end" },
-  { ms = 90, layers = ["a:151"], exit = "end" },
 ]
 
 [[animations]]
 name = "MoveRightReturn"
 transition = "none"
 frames = [
-  { ms = 60, layers = ["a:151"], exit = 2 },
-  { ms = 80, layers = ["a:152"], exit = 2 },
+  { ms = 60, layers = ["a:150"], exit = 2 },
+  { ms = 80, layers = ["a:151"], exit = 2 },
   { ms = 90, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -994,17 +994,17 @@ transition = "return"
 return = "MoveLeftReturn"
 frames = [
   { ms = 60, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
+  { ms = 90, layers = ["a:152"], exit = "end" },
   { ms = 90, layers = ["a:153"], exit = "end" },
   { ms = 90, layers = ["a:154"], exit = "end" },
-  { ms = 90, layers = ["a:155"], exit = "end" },
 ]
 
 [[animations]]
 name = "MoveLeftReturn"
 transition = "none"
 frames = [
-  { ms = 60, layers = ["a:155"], exit = 2 },
-  { ms = 80, layers = ["a:156"], exit = 2 },
+  { ms = 60, layers = ["a:154"], exit = 2 },
+  { ms = 80, layers = ["a:155"], exit = 2 },
   { ms = 90, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -1014,17 +1014,17 @@ transition = "return"
 return = "MoveUpReturn"
 frames = [
   { ms = 60, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
-  { ms = 90, layers = ["a:157", ["m:7", 51, 70]], exit = "end" },
-  { ms = 90, layers = ["a:158", ["m:7", 51, 54]], exit = "end" },
-  { ms = 90, layers = ["a:159", ["m:7", 51, 61]], exit = "end" },
+  { ms = 90, layers = ["a:156", ["m:7", 51, 70]], exit = "end" },
+  { ms = 90, layers = ["a:157", ["m:7", 51, 54]], exit = "end" },
+  { ms = 90, layers = ["a:158", ["m:7", 51, 61]], exit = "end" },
 ]
 
 [[animations]]
 name = "MoveUpReturn"
 transition = "none"
 frames = [
-  { ms = 60, layers = ["a:159", ["m:7", 51, 61]], exit = 2 },
-  { ms = 80, layers = ["a:160", ["m:7", 51, 68]], exit = 2 },
+  { ms = 60, layers = ["a:158", ["m:7", 51, 61]], exit = 2 },
+  { ms = 80, layers = ["a:159", ["m:7", 51, 68]], exit = 2 },
   { ms = 90, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -1034,17 +1034,17 @@ transition = "return"
 return = "MoveDownReturn"
 frames = [
   { ms = 60, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
-  { ms = 90, layers = ["a:161", ["m:7", 51, 83]], exit = "end" },
-  { ms = 90, layers = ["a:162", ["m:7", 51, 67]], exit = "end" },
-  { ms = 90, layers = ["a:163", ["m:7", 51, 74]], exit = "end" },
+  { ms = 90, layers = ["a:160", ["m:7", 51, 83]], exit = "end" },
+  { ms = 90, layers = ["a:161", ["m:7", 51, 67]], exit = "end" },
+  { ms = 90, layers = ["a:162", ["m:7", 51, 74]], exit = "end" },
 ]
 
 [[animations]]
 name = "MoveDownReturn"
 transition = "none"
 frames = [
-  { ms = 60, layers = ["a:163", ["m:7", 51, 74]], exit = 2 },
-  { ms = 80, layers = ["a:164", ["m:7", 51, 81]], exit = 2 },
+  { ms = 60, layers = ["a:162", ["m:7", 51, 74]], exit = 2 },
+  { ms = 80, layers = ["a:163", ["m:7", 51, 81]], exit = 2 },
   { ms = 90, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -1053,12 +1053,12 @@ name = "Hearing_1"
 transition = "none"
 frames = [
   { ms = 60, layers = ["a:5", ["m:7", 51, 71]], exit = 7 },
+  { ms = 100, layers = ["a:164", ["m:7", 51, 70]], exit = 7 },
   { ms = 100, layers = ["a:165", ["m:7", 51, 70]], exit = 7 },
-  { ms = 100, layers = ["a:166", ["m:7", 51, 70]], exit = 7 },
-  { ms = 300, layers = ["a:167", ["m:7", 51, 70]], exit = 7 },
-  { ms = 200, layers = ["a:166", ["m:7", 51, 70]], exit = 7 },
-  { ms = 300, layers = ["a:167", ["m:7", 51, 70]], exit = 7 },
-  { ms = 100, layers = ["a:165", ["m:7", 51, 70]], exit = 7 },
+  { ms = 300, layers = ["a:166", ["m:7", 51, 70]], exit = 7 },
+  { ms = 200, layers = ["a:165", ["m:7", 51, 70]], exit = 7 },
+  { ms = 300, layers = ["a:166", ["m:7", 51, 70]], exit = 7 },
+  { ms = 100, layers = ["a:164", ["m:7", 51, 70]], exit = 7 },
   { ms = 100, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 
@@ -1068,16 +1068,16 @@ transition = "return"
 return = "StopListening"
 frames = [
   { ms = 60, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
+  { ms = 100, layers = ["a:164", ["m:7", 51, 70]], exit = "end" },
   { ms = 100, layers = ["a:165", ["m:7", 51, 70]], exit = "end" },
-  { ms = 100, layers = ["a:166", ["m:7", 51, 70]], exit = "end" },
 ]
 
 [[animations]]
 name = "StopListening"
 transition = "none"
 frames = [
-  { ms = 60, layers = ["a:166", ["m:7", 51, 70]], exit = 2 },
-  { ms = 100, layers = ["a:165", ["m:7", 51, 70]], exit = 2 },
+  { ms = 60, layers = ["a:165", ["m:7", 51, 70]], exit = 2 },
+  { ms = 100, layers = ["a:164", ["m:7", 51, 70]], exit = 2 },
   { ms = 100, layers = ["a:5", ["m:7", 51, 71]], exit = "end" },
 ]
 

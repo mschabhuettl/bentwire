@@ -122,7 +122,7 @@ impl Rig {
     fn wing(&self, side: usize) -> (P, P, P, f64) {
         let s = if side == 0 { -1.0 } else { 1.0 };
         let (a, b) = self.p.arms[side];
-        let sh = (CX + s * (BODY_RX - 12.0), self.body.1 - self.ry * 0.45);
+        let sh = (CX + s * (BODY_RX - 13.0), self.body.1 - self.ry * 0.25);
         let (ca, sa) = dir(a);
         let e = (sh.0 + s * UPPER * sa, sh.1 + UPPER * ca);
         let (cb, sb) = dir(a + b);
@@ -167,7 +167,7 @@ pub fn shapes(p: &Pose, retro: bool) -> Vec<Shape> {
         (bx + 26.0, by - r.ry - 2.0),
         (bx + 30.0, by - r.ry - 3.0),
         (bx + 29.0, by - r.ry * 0.6),
-        (bx + 25.0, by),
+        (bx + 20.0, by - 2.0),
     ]
     .into_iter()
     .map(|q| r.t(q))
