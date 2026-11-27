@@ -1173,6 +1173,12 @@ drawn by bentwire with the stated sizes and states:
 - bullets are 15 x 15;
 - icons are 32 x 32 own artwork.
 
+Button states [OBS] (R-OB-11, R-OB-36): normal, hot (pointer over the button, no mouse
+button held), pressed, and disabled. There is no default or focused frame. Focus adds a
+dotted rectangle around the caption (R-OB-10), and a disabled button differs from a
+normal one only by its #B2B2B2 caption. Bullets have normal, hot and pressed states, and
+no disabled state (R-OB-8).
+
 **B-OB-2 Frame** (= office-assistant R-OB-20..27) [OBS].
 - 8 px corner radius;
 - 1 px black outline around the body and tail;
@@ -1188,12 +1194,18 @@ output rectangle, B-WL-1.)
   beside on the preferred side, beside on the other side. The preferred side is "balloon
   left of the character" when the character's centre is in the right half of the output.
 - Score = the balloon pixels outside the output.
+- Each candidate tries both size shapes (A-CORE-1) [OBS]:
+  - the shape with the lower score counts for the candidate;
+  - on a tie, with more than one label and check-box row together, the shape with the
+    smaller integer long / short side ratio wins, then the one with the smaller area;
+  - otherwise the landscape shape stays.
 - The first candidate with score 0 wins, otherwise the lowest score, with ties going to
-  the earlier candidate.
-- Of the two size shapes, the landscape shape is tried first. The portrait shape is used
-  only if the landscape shape has no score-0 candidate.
-- **bentwire decision** for the scoring. Reason: the report infers "overflow in pixels";
-  the exact formula (0x324A809E) is unknown.
+  the earlier candidate [OBS].
+- **bentwire decision** for the score. Reason: Office scores the overlap with a
+  host-given avoid rectangle and skips shapes that leave the free space next to the
+  character (R-OB-34). bentwire has no avoid rectangle, and it needs an order among
+  candidates that do not fit, for B-OB-4. Overflow pixels are 0 exactly where the
+  balloon stays inside the output.
 
 **B-OB-4 Fit fallback.** **bentwire decision** for the amount.
 - If no candidate scores 0, the lowest-score candidate is used. The character is moved
@@ -1795,8 +1807,19 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   focus rectangle inset 3 px), #C0C0C0 with #808080 caption (disabled). Check boxes in
   the XP look (#1C5180 border, green tick, orange inner ring when hot). Hot clickable
   labels are drawn underlined (R-OB-4). `alert` uses the same exclamation-triangle icon
-  as `warning` (R-OB-5 lists only four stock icons for five alert kinds). Reason:
-  R-OB-11 gives colours but only a guessed state order; no bitmaps may be shipped.
+  as `warning` (R-OB-5 lists only four stock icons for five alert kinds). Reason: no
+  bitmaps may be shipped, so the look-alike is own art. It keeps the proven state
+  meaning (B-OB-1: hot raised, pressed sunken with the caption 1 px down and right), but
+  its colours deliberately differ from R-OB-11:
+  - a #868686 outline instead of #C0C0C0 for normal;
+  - a black outline for hot;
+  - a black outline for a focused normal button;
+  - an inset focus rectangle;
+  - a #808080 disabled caption.
+
+  Reason for keeping them: they are the established look of the bentwire balloon and
+  its golden images. The theme path draws the proven states, focus rectangle and caption
+  colour.
 - **B-REN-3 Menu metrics** (XP flat menu look): Tahoma em 11 px, item height 17,
   separator 9 (1 px #ACA899 line), 1 px #ACA899 border plus 2 px padding, white
   background, text at x = 21 with a 21 px right margin, minimum width 100, highlight
@@ -1816,10 +1839,13 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   balloon's input region (B-WL-8).
 - **B-REN-7 Theme format** (A-THEME-1): `balloon-themes/<id>/theme.toml` with
   `format = 1`, `[buttons.small]` / `[buttons.large]` (`left`, `middle`, `right` PNG
-  strips, `frames` naming normal, default, hot, pressed, disabled), `[bullets]` (`label`,
-  `label_frames`) and `[icons]` (alert, tip, info, warning, query, critical; 32 x 32).
+  strips, `frames` naming each frame: `normal`, `hot`, `pressed`, `disabled` are drawn,
+  other names such as `pressing` are ignored), `[bullets]` (`label`, `label_frames`, same
+  names) and `[icons]` (alert, tip, info, warning, query, critical; 32 x 32).
   Masks are folded into alpha. A button strip is used when its height equals the button
-  height; anything missing falls back to B-REN-2.
+  height. A missing state frame falls back to `normal`, a missing strip or icon to
+  B-REN-2. A focused themed button keeps its state frame and gets the dotted rectangle
+  around the caption (R-OB-10); a disabled one has a #B2B2B2 caption (R-OB-11).
 - **A-FMT-1 Reader limits** (agent-formats). Decompressed ACF and ACA/AAF bodies above
   256 MiB, images and regions above 10,000,000 bytes (the runtime's image cap), and
   strings above 0x1000000 units (the 2.0 limit, also applied to 1.5 data) are errors.
@@ -1850,16 +1876,31 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
 - **B-REN-8 Office font size** (clarifies B-OB-1, ruled by the lead): the Office balloon's
   13 / 16 px are the Tahoma cell height (positive lfHeight, R-OB-4), so TM.height is 13 / 16
   and G is 6 / 8. B-BAL-2's em rule applies to the Agent balloon's negative ACS heights.
-- **A-CORE-1 Office balloon sizing details** (R-OB-31 leaves them [inf]). Area terms:
-  heading block (37 + heading width with an icon) x max(32, heading height); each text line
-  unwrapped width x TM.height; each label and check-box row (text width + prefix column +
-  17) x max(TM.height, 15); button row (width + 12) x button height. Minimum body: width
-  12 + max(button row, 47 with an icon, prefix column + 15); height 12 + 32 (icon) +
-  button height, at least 12 + TM.height. A shape grows until its content area (w - 12) x
-  (h - 12) reaches the area. The shape fixes only the width: the body height is the
-  laid-out content height + 12. When neither shape has a score-0 candidate, the lowest
-  score over both shapes wins, ties to the landscape shape and the earlier candidate.
-  Reason: the report gives the method, not these constants.
+- **A-CORE-1 Office balloon sizing details.** The sizes are [OBS], from the generic
+  balloon's size method (office-assistant R-OB-31, with its constant table). Text is
+  measured unwrapped, one line per `\n`, with each line TM.height high (the heading:
+  the heading font's height).
+  - **Icon:** area 1024, minimum width 32, minimum height 32.
+  - **Heading:** its text area. The minimum height becomes max(itself, heading
+    height). Then area += 12 x minimum height, and the minimum height += 6.
+  - **Body text:** text area + 12 x its height. The minimum height += its height.
+  - **Label and check-box rows:** each row is G + max(floor, text height), with floor 15
+    for `buttons` labels, TM.height for `bullets` and `numbers`, and 13 for check boxes.
+    Each adds its text area + (prefix column + 17) x row to the area, and the row to the
+    minimum height. When there are rows, the minimum width is at least prefix column + 5.
+  - **Button row:** the minimum width is at least the row. Area += (row + 12) x button
+    height. The minimum height += button height.
+  - **Body minimum:** width + 12, height + 6. Then area += 12 x minimum width.
+  - **Shapes:** each shape grows from the minimum by R-OB-31's integer 618 / 1000 rule in
+    10 px steps, until width x height >= area.
+  - **Shape choice:** B-OB-3.
+
+  bentwire decisions:
+  - The shape fixes only the width: the body height is the laid-out content height + 12.
+    Reason: Office's per-candidate fit (R-OB-34, 0x324A81EA) relays out and narrows the
+    width by a search that is only partly decoded.
+  - Inline pictures and the footer block do not exist in v1 (B-ASK-3), so they add
+    nothing.
 - **A-CORE-2 Office balloon controls.** Check-box rows use the label prefix column (13 x 13
   glyph centred) and start their text at the column + 5 px, like labels. `&` mnemonics
   apply to button and check-box captions; label text is plain. Markup (B-ASK-3) applies
@@ -1949,11 +1990,17 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   `source.animation_set` is then omitted rather than filled with the runtime's 1.50.
   Reason: `[source]` records the file, not runtime defaults.
 - **A-THEME-2 Theme extraction.** OBALLOON.DLL bitmaps are vertical strips; masks are
-  folded into alpha (black mask pixel opaque). Buttons 105 to 110 become 5-frame strips
-  named normal, default, hot, pressed, disabled; bullet 101 becomes the label bullet with
-  normal, hot, pressed, disabled; icon group 100 (32 x 32, deepest depth) becomes `tip`.
-  Bullet 102 and arrows 103/104 are extracted but not referenced by `theme.toml`. Reason:
-  office-assistant R-OB-8/11 give ids and frame counts; the state order is [inf] there.
+  folded into alpha (black mask pixel opaque).
+  - Buttons 105 to 110 become 5-frame strips named normal, hot, pressing, pressed,
+    disabled. Bullet 101 becomes the label bullet with normal, hot, pressing, pressed.
+    Both orders are [OBS] (office-assistant R-OB-8, R-OB-11, R-OB-36): strip index s is
+    counted from the bottom of the bitmap.
+  - Icon group 100 (32 x 32, deepest depth) becomes `tip`.
+  - Bullet 102 and the arrows 103/104 (5 frames of 17 x 9, R-OB-9) are extracted in the
+    bullet order but not referenced by `theme.toml`.
+
+  Reason: it reproduces the original frames per state without shipping them in this
+  repository.
 - **A-CONV-5 Ids of qualified file names.** A-ID-1 uses the file stem; a parenthesised
   qualifier (`WILL(Bob).ACT`, `ROCKY(Greetings).ACT`) is dropped unless another source would
   then get the same id, in which case it is kept as `-qualifier` (`rocky-greetings-act`).

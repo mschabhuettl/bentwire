@@ -25,7 +25,7 @@ writing the spec itself are marked **bentwire decision** in its sections 3.1 to 
 | A-FMT-2 | Strict record consumption and size checks in ACS, ACF, ACA/AAF |
 | A-FMT-3 | Format edge cases without samples (image kind 0, raw images, mouth types, UTF-16) |
 | A-FMT-4 | Agent 1.5 and web characters fail per animation, not per file |
-| A-CORE-1 | Office balloon sizing constants (area terms, minimum size, shape choice) |
+| A-CORE-1 | Office balloon sizing: the proven R-OB-31 constants; the shape fixes only the width |
 | A-CORE-2 | Office balloon controls: check-box rows, mnemonics, where markup applies, argument errors |
 | A-CORE-3 | Small engine choices (interrupts, double-click, gallery, drags during slides, Animate! shuffle) |
 | A-CORE-4 | office97 transition checks and per-callback frame caps |

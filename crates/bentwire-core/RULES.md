@@ -143,7 +143,8 @@ R-MOVE-3 | r_move_1_r_move_2_r_move_3_phases
 R-MOVE-4 | b_q_3_hidden_moveto_r_move_4
 R-OB- | wildcard reference, see each R-OB-n
 R-OB-1 | background colour is drawn by bentwire-render (B-OB-1); not a core decision
-R-OB-11 | r_ob_32_r_ob_11_b_ob_1_r_ob_4_button_row_and_fonts || other crates: bentwire-render: r_ob_11_office_button_states_golden
+R-OB-10 | not core: focus drawing; owner: bentwire-render: r_ob_11_r_ob_10_themed_focus_and_disabled_caption
+R-OB-11 | r_ob_32_r_ob_11_b_ob_1_r_ob_4_button_row_and_fonts || other crates: bentwire-render: r_ob_11_office_button_states_golden, r_ob_11_r_ob_10_themed_focus_and_disabled_caption; bentwire-convert: r_ob_11_button_strip_state_order
 R-OB-16 | b_ask_3_r_ob_16_markup
 R-OB-17 | b_ob_3_b_ob_4_r_ob_17_r_ob_20_r_ob_34_placement_and_fit
 R-OB-2 | r_ob_2_text_colours
@@ -151,11 +152,13 @@ R-OB-20 | b_ob_3_b_ob_4_r_ob_17_r_ob_20_r_ob_34_placement_and_fit
 R-OB-27 | b_ob_2_r_ob_27_tail
 R-OB-31 | r_ob_31_sizes_landscape_portrait
 R-OB-32 | r_ob_32_r_ob_11_b_ob_1_r_ob_4_button_row_and_fonts || other crates: bentwire-render: r_ob_32_office_button_sets_golden
-R-OB-34 | b_ob_3_b_ob_4_r_ob_17_r_ob_20_r_ob_34_placement_and_fit
+R-OB-34 | b_ob_3_b_ob_4_r_ob_17_r_ob_20_r_ob_34_placement_and_fit, r_ob_34_shape_tie_rule
+R-OB-36 | not core: strip state order; owner: bentwire-convert: r_ob_11_button_strip_state_order, r_ob_8_r_ob_9_bullet_strip_state_order
 R-OB-4 | r_ob_32_r_ob_11_b_ob_1_r_ob_4_button_row_and_fonts
 R-OB-5 | r_ob_35_r_ob_5_vertical_spacing || other crates: bentwire-render: r_ob_5_icons_golden
 R-OB-7 | r_ob_35_r_ob_5_vertical_spacing (prefix column floor 17, label text at column + 5, bullet prefix)
-R-OB-8 | not core: label bullet art (cited by B-REN-7); owner: bentwire-render
+R-OB-8 | not core: label bullet art (cited by B-REN-7); owner: bentwire-render; strip order: bentwire-convert: r_ob_8_r_ob_9_bullet_strip_state_order
+R-OB-9 | not core: arrow strips; owner: bentwire-convert: r_ob_8_r_ob_9_bullet_strip_state_order
 R-Q- | wildcard reference, see each R-Q-n
 R-Q-1 | r_q_1_b_q_1_ids_and_reply_before_signals
 R-Q-3 | r_q_3_immediate_calls

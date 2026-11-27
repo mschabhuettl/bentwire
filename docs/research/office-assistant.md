@@ -44,6 +44,12 @@ reproduced. No Microsoft tip texts are quoted (none are stored in MSO.DLL anyway
 - Third pass: `BLNMGR.DLL` 10.0.2607 (SHA-256
   `aa43a71da074aa1a0fe249a699d23e35c724f84ae2925a9e4291812591e0701f`, image base
   0x324E0000), listed in `bm.lst`. Same method, never executed.
+- Fifth pass: `OBALLOON.DLL` 10.0.2607 again (SHA-256
+  `686dfb1a491d73454691cbb5a1e272bb24348aa07c5647aa23ee26e985608f96`), same method, never
+  executed. It covers the owner-draw and strip code (R-OB-8..11, R-OB-36), the size method
+  and the placement choice (R-OB-31, R-OB-34). Every address cited in that pass was
+  checked afterwards by decoding the single instruction at that address from the file
+  bytes and comparing it with the claim.
 
 ## Architecture in one paragraph
 
@@ -385,28 +391,52 @@ are stacked vertically. Between blocks the layout adds half the body font's tmHe
   right-aligned text (0x324A2E26, 0x324A6827) **[obs]**.
 
 **Rule R-OB-8 (label bullets and the tip bulb bullet).** Both are 15 x 15 strips of 5
-frames: frame 0 is a mask, frames 1 to 4 are states. Bitmaps (German build, language
-1031) **[obs, frame meaning inf]**:
+frames, loaded as vertical strips of 5 (0x324A2B84..0x324A2BB6). Listed top to bottom,
+frame 0 is the mask and frames 1 to 4 are images. The state order is proven by the
+drawing code (R-OB-36) **[obs]**:
 
-- **101:** cyan-to-navy glass ball, the normal label bullet. Frames 1 to 4 go from
-  bright to dark, which looks like normal, hot, pressed, disabled.
-- **102:** small light bulb, presumably the bullet for tip rows [inf use]. Frames go from pale to saturated
-  yellow-green.
+| State | Strip index | Frame, top to bottom |
+|---|---|---|
+| mask | 4 | 0 |
+| normal | 0 | 4 |
+| hot (pointer over the row) | 1 | 3 |
+| pressing (first frame of the press) | 2 | 2 |
+| pressed (last frame of the press) | 3 | 1 |
+
+- There is no disabled frame.
+- **101:** cyan-to-navy glass ball, the label bullet. Normal is the darkest frame; hot
+  and pressed get brighter.
+- **102:** small light bulb, from pale to saturated yellow-green. It replaces 101 when a
+  flag byte of the host's balloon description (offset 0x51) is set. Only the search
+  balloon copies that flag (0x324A99D4); the generic balloon clears it (0x324AB02E)
+  **[obs]**. Which host requests set it is **[unk]**.
 
 **Rule R-OB-9 ("See previous..." / "See also..." rows).**
 
 - Long label lists (search results) are paged with two special rows captioned by
   strings 128 "Siehe vorherige..." and 129 "Siehe auch..." (German) **[obs]**.
-- Their prefixes are the 17 x 15 arrow bitmaps 103 (up) and 104 (down), each a mask plus
-  2 states **[obs bitmaps, inf pairing]**.
+- Their prefixes are the arrow bitmaps 103 (up) and 104 (down). These are 17 x 45 strips
+  of 5 frames of 17 x 9 (count 5, frame size 17 x 9 at 0x324A974E..0x324A977F). The item
+  measure reports 17 x 9 for them (0x324A4FAE) **[obs]**.
+- They are drawn by the bullet routine, so they have the same layout and state order as
+  the bullets **[obs]**.
 
-**Rule R-OB-10 (keyboard focus on labels).** The focused label gets a closed one-pixel
-dotted outline (CreatePen PS_DOT, grey #808080). Removing focus redraws the same
-polyline in the background colour (0x324A6BA2) **[obs]**. DrawFocusRect is used for
-the buttons (0x324A50BB, 0x324A5BA9) **[obs]**.
+**Rule R-OB-10 (keyboard focus).**
 
-**Rule R-OB-11 (push buttons).** Buttons are owner-drawn **[obs bitmaps, inf state
-order]**:
+- **Labels:** the focused label gets a closed one-pixel dotted outline (CreatePen PS_DOT,
+  grey #808080). Removing focus redraws the same polyline in the background colour
+  (0x324A6BA2) **[obs]**.
+- **Push buttons:** DrawFocusRect is drawn around the caption, not inset from the frame
+  (0x324A59FE..0x324A5A23, drawn at 0x324A5BA9) **[obs]**.
+  - The rectangle is the caption's text extent, centred in the button before any pressed
+    shift, widened by 2 px on the left and right and by 1 px at the bottom.
+  - It is drawn when the draw request carries ODS_FOCUS, and when a hover redraw finds
+    that the button has the keyboard focus.
+- **Other owner-drawn items** with ids from 1000 up also use DrawFocusRect (0x324A50BB),
+  inset by 1 px from their item rectangle **[obs]**. What these items are is **[unk]**.
+
+**Rule R-OB-11 (push buttons).** Buttons are owner-drawn. The bitmaps and the state order
+are **[obs]**; the state order is proven by the drawing code (R-OB-36):
 
 - Each button is assembled from three bitmap strips: left cap (11 px), stretchable
   middle (5 px), right cap (11 px).
@@ -418,13 +448,33 @@ order]**:
   | 1024 px or more | 108 / 109 / 110 | 24 px |
 
   Selection is by the same small-screen flag, at 0x324A2BC3..0x324A2C37.
-- Each strip holds 10 frames: 5 masks, then 5 images. The shape is a rounded rectangle
-  outline 1 px thick with roughly 2 px corner cuts, otherwise transparent. The balloon
-  background shows through, so buttons are outlines on yellow, not grey bevels.
-- Outline colours across the 5 states include black, #868686, #C0C0C0, a cream
-  highlight #E7E7D6 and white. My guess at the five states: normal, default, hot,
-  pressed, disabled.
-- Captions use the body font.
+- Each strip holds 10 frames. Listed top to bottom, frames 0 to 4 are masks and 5 to 9
+  are images. Each image has its own mask. Black in an image frame is the transparent
+  background of the OR blit, not an outline colour. The balloon background shows through,
+  so buttons are outlines on yellow, not grey bevels.
+- State order and look:
+
+  | State | Strip index (image, mask) | Image frame, top to bottom | Look |
+  |---|---|---|---|
+  | normal | 0, 5 | 9 | 1 px light grey #C0C0C0 outline with 2 px corner cuts |
+  | hot | 1, 6 | 8 | raised, 2 px: cream #E7E7D6 outside; inside it white along the top and left, #868686 along the bottom and right |
+  | pressing | 2, 7 | 7 | sunken: the same with white and #868686 swapped |
+  | pressed | 3, 8 | 6 | identical to pressing |
+  | disabled | 4, 9 | 5 | identical to normal |
+
+  - The pixels of image frames 5 and 9 are byte-identical, and so are those of 6 and 7.
+    The difference between normal and disabled is only the caption colour.
+  - There is no "default" state. ODS_DEFAULT and ODS_DISABLED are never tested (R-OB-36).
+- **Captions:**
+  - They use the body font, black, or #B2B2B2 when the button is disabled (0x324A58E8..
+    0x324A58FC) **[obs]**.
+  - They are drawn single-line and centred (DrawText flags 0x125).
+  - In the pressing and pressed states the caption moves 1 px right and down
+    (0x324A5A3C..0x324A5A4D, 0x324A5B57..0x324A5B65) **[obs]**.
+  - When keyboard cues are off (flag 0x324B3694), the "&" markers are removed before
+    drawing **[obs code, inf flag meaning]**.
+- **Assembly:** the left cap is drawn at x 0, then (button width - 22) / 5 middle tiles
+  at x 11, 16, ..., then the right cap after them (0x324A57EE..0x324A5B52) **[obs]**.
 - German captions (RT_STRING 112 to 127): OK, Abbrechen, &Ja, &Nein, &Zurück,
   &Weiter, &Wiederholen, &Abbrechen, &Ignorieren, &Suchen, &Erneut erinnern (Snooze),
   Schließen, &Tipps, &Optionen, Ja, &alle, &Hilfe **[obs]**.
@@ -657,25 +707,32 @@ floor(TM.tmHeight / 2) (global 0x324B37F0).
 
 **Rule R-OB-31 (balloon size: area based, golden ratio, no fixed maximum).**
 
-1. **Required area A.** The balloon class's size method (generic balloon 0x324AB4BA,
-   search balloon 0x324A9D66) adds up:
-   - each text block measured unwrapped (0x324A7E2E): run width × run height summed
-     over runs, with inline pictures counted at their own size and each line break
-     adding a line;
-   - label and check-box rows, each with its prefix column plus 17 px (0x324AB641,
-     0x324AB6DA);
-   - the edit field, for search balloons;
-   - the button row: its width (R-OB-32) + 12, times the button height (0x324AB748..
-     0x324AB785).
-2. **Minimum size.** The widest inline picture, the button row (+12) and the edit field
-   width (+12) set a minimum width. The block heights set a minimum height.
-3. **Two candidate shapes (0x324A7FAC, 0x324A8028).** Starting from the minimum, the
-   rectangle grows in 10 px steps until width × height ≥ A.
-   - The first shape keeps landscape proportions: height ≈ 0.618 × width. Width grows
-     while the shape is taller than that, height otherwise.
-   - The second shape is computed the same way with the comparison reversed.
-   - Once the proportion is reached, both sides grow together, with the other side
-     recomputed as 0.618 times the grown side (0x324A8064).
+1. **Text blocks.** Every text block is measured unwrapped (0x324A7E2E):
+   - The text is split into runs at control characters. Each run adds its width x height
+     (the host's text-measure service) to the block's area.
+   - An inline picture adds its own width x height. The widest picture is the block's
+     minimum width, so plain text has none.
+   - A line break ends a line. Its height is max(tallest item, TM.tmHeight) (0x324A7EC8).
+     The last line counts max(tallest item, last run height).
+   - The block height is the sum of its line heights.
+2. **Required area A and minimum size.** The generic balloon's size method (0x324AB4BA,
+   virtual slot 0x54, called at 0x324A600D) adds up the terms in the table below. The
+   search balloon has its own method (0x324A9D66), not re-read in this pass.
+3. **Two candidate shapes (0x324A6046..0x324A6062).** Shape 0 (landscape) and shape 1
+   (portrait) both start at the minimum. Each grows until width x height >= A, tested
+   before every step (0x324A7FCD..0x324A7FDA). The proportion test (0x324A8028) works in
+   integers:
+   - landscape: in proportion once 618 x w >= 1000 x h;
+   - portrait: once 1000 x w >= 618 x h.
+
+   The growth (0x324A7FAC) runs in three phases:
+   - Phase 0, if the start is not in proportion: the width grows by 10 px until the test
+     passes.
+   - Phase 1, if the start is already in proportion: the height grows by 10 px until the
+     test fails.
+   - Phase 2, after either: the longer side grows by 10 px and the other is set to
+     longer x 618 / 1000, truncated (0x324A8064). Phase 2 assigns that side, so it can
+     come out a few px smaller than before.
 4. **Fit.** If the minimum is wider or taller than the work area, the balloon is
    rejected (0x324A6021..0x324A603A). Which shape is used follows from the placement
    choice (R-OB-34).
@@ -684,8 +741,32 @@ floor(TM.tmHeight / 2) (global 0x324B37F0).
    - label and check-box text wraps at content width minus prefix column minus 5 px
      (R-OB-7).
 
-Evidence is **[obs]**. The exact scoring between the two shapes inside each candidate
-(0x324A81EA) is **[inf]**.
+Terms of the generic balloon's size method. PC is the prefix column (global 0x324B37F4,
+R-OB-7) and BH the button height (global 0x324B3808, 22 or 24):
+
+| Constant | What it is | Address | Tag |
+|---|---|---|---|
+| A = 1024, min w = 32, min h = 32 | an icon starts the sums with a 32 x 32 block | 0x324AB4EA..0x324AB4F7 | [obs] |
+| heading | heading text area added to A; min h = max(min h, heading height); min w = max(min w, its widest picture) | 0x324AB502..0x324AB534 | [obs] |
+| 12 x heading block | A += 12 x (min h so far: max(32, heading height) with an icon), then min h += 6 | 0x324AB537..0x324AB555 | [obs] |
+| 12 x block height | body text, and the block measured after the check boxes (presumably the R-OB-35 footer [inf]): A += area + 12 x height, min h += height | 0x324AB589..0x324AB5A5, 0x324AB719..0x324AB735 | [obs] |
+| PC + 5 | minimum width when there are labels, and again when there are check boxes | 0x324AB5D6, 0x324AB662 | [obs] |
+| 15 | label row height floor for BalloonType Buttons (bullet frame height, global 0x324B380C) | 0x324AB5CD | [obs] |
+| TM.tmHeight | label row height floor for Bullets and Numbers (global 0x324B36BC) | 0x324AB5C5 | [obs] |
+| 13 | check-box row height floor (glyph height, global 0x324B37F8) | 0x324AB66D | [obs] |
+| G + row | each label or check-box row adds G + max(floor, text height) to min h | 0x324AB62A..0x324AB63E, 0x324AB6C5..0x324AB6DD | [obs] |
+| PC + 17 | each such row adds its text area + (PC + 17) x (G + row) to A | 0x324AB641..0x324AB647, 0x324AB6D4..0x324AB6E6 | [obs] |
+| (bw + 10) x n - 10, + 30 | button row width (sets 15 and 17 add 30); min w = max(min w, row) | 0x324AB742..0x324AB767 | [obs] |
+| row + 12 | A += (row + 12) x BH, min h += BH | 0x324AB76A..0x324AB779 | [obs] |
+| + 12, + 6 | min w = widest + 12, min h = sum + 6 (12 with the 6 added after the heading) | 0x324AB785..0x324AB793 | [obs] |
+| 12 x min w | A += 12 x (min w), the top and bottom insets | 0x324AB790..0x324AB79A | [obs] |
+| 10 | growth step of both shapes | 0x324A7FE3, 0x324A7FFA, 0x324A806F, 0x324A8086 | [obs] |
+| 618 / 1000 | the golden-ratio test and the dependent side | 0x324A8034..0x324A8054, 0x324A8074..0x324A808B | [obs] |
+
+Read as geometry, A is the area of the whole body: each block's area plus 6 px insets on
+its left and right, plus the top and bottom insets across the minimum width **[inf]**.
+The 37 px heading indent and the 5 px icon gap (R-OB-5) are not part of A or of the
+minimum width **[obs]**.
 
 **Rule R-OB-32 (button row).** **[obs]** throughout.
 
@@ -776,16 +857,52 @@ Evidence is **[obs]**. The exact scoring between the two shapes inside each cand
   For "above", the side flag means right-aligned versus left-aligned (R-OB-17). There
   is never a candidate below the character.
 - **Choice (0x324A6640):**
-  1. Each candidate gets its free space against the work area and the avoid rectangle
-     (0x324A85D6) and is scored (0x324A809E).
-  2. The first candidate with score 0 wins at once. Otherwise the lowest score wins, ties
-     going to the earlier candidate.
-  3. A candidate is skipped when the free space is smaller than the balloon's minimum
-     size.
+  1. Each candidate is scored by 0x324A809E. If that finds no usable shape, the
+     candidate is skipped.
+  2. The first candidate with score 0 wins at once (0x324A6673). Otherwise the lowest
+     score wins. The comparison is strict, so ties go to the earlier candidate
+     (0x324A6677).
+- **Free space of a candidate (0x324A85D6).** This is a rectangle between the work-area
+  edges and the anchor rectangle (the character), 4 px away from the anchor:
+  - "above": from the work-area top down to 4 px above the anchor. Horizontally it runs
+    from the anchor's left edge to the work-area right, or from the work-area left to the
+    anchor's right edge.
+  - "beside": from the anchor top down to the work-area bottom. Horizontally it runs to
+    the right of the anchor plus 4 px, or to the left of it minus 4 px.
+  - If the host gave an avoid rectangle (balloon field 0x1EC), its intersection with the
+    free space is recorded. So is the distance from the free space's edge to that
+    intersection. Without one, both are 0.
+- **Shapes inside a candidate (0x324A809E):** the loop runs over the candidate first and
+  the two R-OB-31 shapes second.
+  - A shape wider or taller than the free space is skipped (0x324A8101..0x324A8113).
+  - The others are fitted by 0x324A81EA and scored.
+  - The candidate is evaluated once, or twice when the avoid rectangle intersects its
+    free space (0x324A80C1..0x324A80D2).
+- **Score:** the score of a fitted shape (0x324A8481..0x324A84B6) is the area by which
+  the balloon, anchored at the character, overlaps the avoid rectangle. It is 0 when
+  there is no avoid rectangle, or when the balloon does not reach it. Overflow off the
+  screen is never scored: such a shape is skipped.
+- **Tie between the shapes (0x324A8147..0x324A8199).** A lower score always wins. On
+  equal scores:
+  - The squarer body wins when the balloon's preference is 2. The ratio is the integer
+    (long side / short side) (0x324A851A), and a further tie goes to the smaller area.
+    The preference is 2 for the search balloon (0x324A9BEA), and for a generic balloon
+    with more than one label and check-box row together (0x324AB240..0x324AB267). It is
+    0 otherwise.
+  - The same comparison runs when the same shape index comes round again in the second
+    pass.
+  - Otherwise the new shape wins only if its index equals the preference. With
+    preference 0 the landscape shape, tried first, stays.
+- **Fitting a shape (0x324A81EA):** this is not fully decoded **[inf]**.
+  - It lays the balloon out at the shape's width through the layout method (virtual
+    slot 0x5C).
+  - It grows the width or height in 10 px steps within the free space, with ratio limits
+    6 and 2 (constants at 0x324A15F8 and 0x324A15FC).
+  - It then narrows the width by binary search while the layout still fits (0x324A84CC).
+  - It returns the laid-out size.
 - **Fallback:** if no candidate fits, a fallback (0x324A6354) measures the free space on
   all four sides of the character. The character is then moved so the balloon fits
   (R-OB-17), and the chosen flags are stored (0x324A60F2..0x324A60FD).
-- That the score is the remaining overflow in pixels is **[inf]**.
 
 **Rule R-OB-35 (vertical spacing, generic balloon, y from the content top).**
 Function 0x324ABC0A **[obs]**:
@@ -809,6 +926,50 @@ Notes:
 - When a label list follows nothing, 1 px is added instead (0x324ABE14).
 - The search balloon (0x324AA816) uses the same G spacing, inserting its "see previous"
   row, result labels, "see also" row and the edit field (R-OB-33) before the buttons.
+
+**Rule R-OB-36 (strip drawing and control states, fifth pass).** **[obs]** unless
+tagged otherwise.
+
+- **Strip objects.** The loader (0x324AC64E, 0x324AC6D2) is given:
+  - a resource id and a frame count;
+  - flags 0x300, where 0x200 means "frames stacked vertically";
+  - optionally a fixed frame size.
+
+  It takes RT_BITMAP data unchanged (0x324AC358..0x324AC3FC); the bitmaps are bottom-up
+  DIBs. Without a fixed size the frame height is the bitmap height / count (0x324AC627..
+  0x324AC643).
+- **Frame index to rows.** The draw helper (0x324AC89A) sets the source y to frame
+  height x index for vertical strips (0x324AC8C2..0x324AC8CE). It passes that y to
+  StretchDIBits (0x324AC9A1) or SetDIBitsToDevice. For a bottom-up DIB that y counts from
+  the bottom row, so strip index i is frame n - 1 - i counted from the top.
+  - This direction is confirmed by the raster operations. The AND blit (0x8800C6) uses
+    button indices 5..9 and bullet index 4. Those are exactly the black-and-white mask
+    frames at the top of the bitmaps. The other direction would AND with colour images.
+- **Push button routine (0x324A57CC).** It is called with a start state, an end state and
+  a focus flag.
+  - Per state s, it ANDs mask s + 5 and ORs image s for the left cap, the middle tiles
+    and the right cap (0x324A5A7D..0x324A5B52).
+  - If the start state differs from the end state, it steps to the end state, redrawing
+    every 25 ms (0x324A5BD2..0x324A5BE8).
+  - A disabled window (IsWindowEnabled, 0x324A59E4) forces state 4 for both.
+- **Bullet routine (0x324A558E).** It is used for label bullets and the arrows. It ANDs
+  mask index 4 and ORs image s, stepping every 50 ms (0x324A5635..0x324A574C).
+- **Who asks for which state:**
+
+  | Event | State | Where |
+  |---|---|---|
+  | WM_DRAWITEM with ODA_SELECT and ODS_SELECTED | 2, then 3 | 0x324A4FE8..0x324A5007 |
+  | any other WM_DRAWITEM | 0 | 0x324A5009 |
+  | WM_MOUSEMOVE inside the control, no mouse button held | 1 (pointer captured) | 0x324A770B, 0x324A77AB..0x324A77E0 |
+  | WM_MOUSEMOVE outside | 0 (capture released) | 0x324A77E2..0x324A7801 |
+  | disabled button | 4 | 0x324A59EE |
+
+  - Mouse-button state is tested with MK_LBUTTON, MK_RBUTTON and MK_MBUTTON (mask 0x13).
+  - Labels (control ids 1..999) take the bullet routine with strip 101 or 102 (R-OB-8).
+    Ids -17 and -16 take the arrows. Ids of 0 and below are push buttons.
+  - The focus flag comes from ODS_FOCUS (0x324A515C), or from GetFocus during hover.
+  - itemState is tested only for ODS_SELECTED and ODS_FOCUS. ODS_DEFAULT and
+    ODS_DISABLED are never tested.
 
 The earlier first-pass notes still apply. The Choose Assistant preview in MSO
 (0x3108A9D9) is the only observed frame-like geometry **[obs]**:
@@ -1082,7 +1243,7 @@ The gallery is implemented in MSO (code around 0x3108A000..0x3108C200).
 | Animation vocabulary (enum to name) | the table in section 1, fallback map, case-insensitive lookup | easy, pure data | S |
 | Show (animated, or fast plus Greeting/RestPose), Hide (Goodbye plus fast hide, or animated hide), Look* toward a point, Animate! shuffle, Wave on tip | small state machine | easy | S |
 | Office-style balloon for `ask` (heading, text, icon, up to 5 labels as buttons/bullets/numbers, up to 5 checkboxes, button sets, modal/autodown/modeless, return codes) | own renderer on Wayland (layer-shell surface next to the character), markup subset `{cf}`, `{ul}`, `{bmp}` | feasible. The return-code contract is fully known from the typelib | M |
-| Balloon content close to Office (R-OB-1..19: Tahoma 13/16 px, #FFFFCC, 6 px inset, 16 px tail strip, 37 px heading indent, outline buttons 22/24 px, glass-ball bullets, native-style check boxes, placement candidates) | own artwork with the same sizes and states (do not ship Microsoft bitmaps); text layout with Pango | feasible now; sizing, button row, search field, placement order and spacing are in R-OB-31..35. Only the candidate scoring details are inferred | M |
+| Balloon content close to Office (R-OB-1..19: Tahoma 13/16 px, #FFFFCC, 6 px inset, 16 px tail strip, 37 px heading indent, outline buttons 22/24 px, glass-ball bullets, native-style check boxes, placement candidates) | own artwork with the same sizes and states (do not ship Microsoft bitmaps); text layout with Pango | feasible now; sizing, button row, search field, placement order and spacing are in R-OB-31..35, control states in R-OB-36. Only the shape fit inside a candidate is inferred | M |
 | Balloon frame (R-OB-20..30: 8 px corner radius, 1 px black outline following body and tail, #FFFFCC, 10 x 16 px right-triangle tail at 70 % / 30 %, no shadow, topmost tool window) | a shaped layer-shell surface (or a client-side shape mask) with the same geometry | feasible now | S |
 | Search box ("What would you like to do?") | own search backend (desktop help, man pages, web), not Answer Wizard | feasible, but different content | M |
 | Tip bulb + tip of the day | tip source (own text), timeout, per-app "already shown" state | feasible. Microsoft tip texts are not ours to ship | S to M |
@@ -1098,7 +1259,7 @@ options, gallery, bulb) is reproducible as a bentwire client without Microsoft c
 What cannot be reproduced generically is the trigger intelligence, which lived inside
 each Office app. That has to be rebuilt per integration. The balloon frame is now fully
 specified (R-OB-20..30), and most content metrics are known (R-OB-1..19).  The layout rules
-R-OB-31..35 close the remaining layout items, apart from the exact placement scoring.
+R-OB-31..36 close the remaining layout items, apart from the shape fit inside a candidate.
 
 ## Unknowns
 
@@ -1111,15 +1272,25 @@ R-OB-31..35 close the remaining layout items, apart from the exact placement sco
   - search field (R-OB-33);
   - placement order (R-OB-34);
   - vertical spacing (R-OB-35).
+- Closed by the fifth OBALLOON pass:
+  - the state order of the button, bullet and arrow strips (R-OB-8, R-OB-9, R-OB-11,
+    R-OB-36);
+  - the area terms, minimum size and growth constants (R-OB-31);
+  - the candidate score and the tie rule between the two shapes (R-OB-34).
 - Still open in OBALLOON.DLL:
-  - the exact scoring formula of placement candidates and of the two size shapes
-    (0x324A809E, 0x324A81EA);
+  - how 0x324A81EA fits a shape into a candidate's free space: the growth order, the
+    ratio limits 6 and 2, and the binary search that narrows the width (R-OB-34);
+  - the search balloon's own size method (0x324A9D66), not re-read in the fifth pass;
+  - where the avoid rectangle (balloon field 0x1EC) comes from;
   - the exact amount the character is moved when nothing fits;
-  - the footer-text and separator flags: which balloons set them.
+  - the footer-text and separator flags: which balloons set them, and whether the
+    block measured after the check boxes in the size method is that footer;
+  - which host requests set the flag that selects the bulb bullet 102 (R-OB-8);
+  - what the owner-drawn items with ids from 1000 up are (R-OB-10);
+  - the meaning of the flag 0x324B3694 that keeps "&" markers in button captions
+    (R-OB-11).
 - Whether any client changes BLNMGR's default margins, gap or colour (R-OB-20).
 - The exact purpose of BLNMGR's 250 ms and 20 s timers.
-- The state order inside the bullet and button bitmap strips (normal, hot, pressed,
-  default, disabled) is inferred from appearance.
 - The meaning of the undocumented markup keywords `pict` and `dlx`.
 - Which host-app events request which animation index (print, save, mail, trash,
   spelling, wizards). These are in the app executables, still missing.
