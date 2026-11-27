@@ -915,18 +915,20 @@ where they go beyond R-BAL-11 and R-LIP-1.
 used only when present and in range, otherwise its default:
 - `language`: `[voice].language` (a BCP 47 tag: 1 to 16 ASCII letters, digits and `-`),
   else the UI language (B-L10N-1).
-- `gender`: `[voice].gender` (earl 1, merlin 2, acs-format 3.2.2), read in SAPI 4
-  numbering, 1 female, 2 male [INF], else none.
-- `pitch`: `[voice].pitch`, read as the base pitch in Hz, the unit of Agent's `\Pit\`
-  tag [INF], if 1 to 1000 (Agent 1.5 files store 65535, probably "default",
-  agent15-format).
+- `gender` [INF]: `[voice].gender` (earl 1, merlin 2, acs-format 3.2.2), read in SAPI 4
+  numbering, 1 female, 2 male (inferred, not verified), else none.
+- `pitch` [INF]: `[voice].pitch`, read as the base pitch in Hz, the unit of Agent's
+  `\Pit\` tag (inferred, not verified), if 1 to 1000 (Agent 1.5 files store 65535,
+  probably "default", agent15-format).
 - Words per minute: R-BAL-8's effectiveSpeed with defaultSpeed = `[voice].speed` if 1 to
   1000 (4294967295 means "default"), else 170: `clamp(defaultSpeed x f, 50, 250)`, f =
   config `speaking_speed`.
 - espeak-ng: the language tag lowercased is the voice language (`en-us`), espeak-ng's
   gender numbers are the other way round (1 male, 2 female), the pitch is espeak-ng's
   0 to 100 scale with 50 at 100 Hz (200 Hz for a female voice), `clamp(50 x Hz / base,
-  0, 100)`, and the rate is clamped to espeak-ng's minimum of 80.
+  0, 100)`, and the rate is clamped to espeak-ng's minimum of 80. The gender and pitch
+  this gives rest on the two [INF] readings above; the 100 Hz and 200 Hz bases are a
+  bentwire choice.
 - Reason: the manifest keeps Agent's raw voice data; espeak-ng has no Agent voices, so
   language, gender, pitch and speed are what carries over. The research does not trace
   the meaning of gender and pitch; the numbering and unit above are the SAPI 4

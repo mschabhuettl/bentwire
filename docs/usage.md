@@ -92,7 +92,9 @@ file. `bentwire say --speak` or `--no-speak` decides for one text.
   `sound_effects = false`.
 - The voice comes from the character's voice data (language, gender, pitch, speed; Earl,
   Genie, Merlin and Peedy have one), otherwise espeak-ng's voice for the UI language
-  (`language`). `speaking_speed` scales the speed.
+  (`language`). `speaking_speed` scales the speed. How gender and pitch are read is
+  inferred, not verified (spec B-TTS-3 [INF]): the numbers are taken in the SAPI 4 sense
+  (gender 1 female, 2 male; pitch in Hz), so a voice may not match the original.
 
 ## Bridges
 
