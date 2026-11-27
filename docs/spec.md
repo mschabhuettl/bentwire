@@ -186,7 +186,7 @@ tags:
 1. the state file's character, if the user chose it (`chosen`, B-CFG-2);
 2. the config file's `character`;
 3. `clippit`;
-4. `bentwire-placeholder`;
+4. `wire` (the builtin character, A-CHAR-1);
 5. the first id in sorted order.
 
 If none loads, the daemon still runs and the tray shows no character. Character methods
@@ -201,14 +201,14 @@ character yet selects one this way as at start (B-CFG-3). **bentwire decision.**
 Reason: installing the classics pack (5.5 `characters install`) should make `clippit` the
 character without a restart, but never override a choice.
 
-**B-CHAR-6 Install hint.** **bentwire decision.** When `bentwire-placeholder` is the only
-installed character and it starts visible, the daemon logs and the character says once
+**B-CHAR-6 Install hint.** **bentwire decision.** When only the builtin characters (`wire`,
+`wire-retro`, A-CHAR-1) are installed and one of them starts visible, the daemon logs and the character says once
 (an internal Speak, no request signals) "Install more characters: bentwire characters
 install classics" (German: "Weitere Assistenten installieren: bentwire characters install
 classics", B-L10N-1). The state file records that it was shown (B-CFG-2). Its balloon
 does not hide by itself: it follows R-BAL-10 without AutoHide (it stays until a click or
 drag on the character, the next Speak, Hide, or a MoveTo that moves), whatever the
-character's AutoHide. Reason: a package installs only the placeholder; the classics need
+character's AutoHide. Reason: a package installs only the builtin pack; the classics need
 the user's own download. With AutoHide the hint was gone about 4 s after it appeared
 (7 words at 352 ms plus 1500 ms), too short to read and type the command.
 
@@ -1424,7 +1424,7 @@ Nothing else in v1 needs the global pointer.
 - Pictures. A character without `hidpi` sheets (the bitmap characters: ACS, ACF, Agent
   1.5, Office 97 and Bob bitmap actors) is composed at the buffer scale as without a
   factor, and each of its pixels is repeated factor times on both axes (nearest
-  neighbour, exact). A character with `hidpi` sheets (the vector actors, the placeholder)
+  neighbour, exact). A character with `hidpi` sheets (the vector actors, `wire`)
   is composed at the buffer scale times the factor, so A-CHAR-3 takes its 2x sheet; above
   2x the densest sheet is scaled by nearest neighbour (at 3x, 1.5 pixels per 2x pixel).
   No fractional factors and no smoothing.
@@ -1649,7 +1649,8 @@ the add-ons again, B-ADDON-3).
 **B-CFG-2 State file.** `$XDG_STATE_HOME/bentwire/state.toml`:
 - `character`, `left`, `top`, `visible`;
 - `chosen`: the user chose `character` (B-CHAR-4). A file without it (written by 0.1.1)
-  counts as chosen unless `character` is absent or `bentwire-placeholder`;
+  counts as chosen unless `character` is absent or `bentwire-placeholder` (the builtin
+  character up to 0.3.0);
 - `install_hint_shown`: B-CHAR-6 was shown (default false);
 - `scale`, the size factor `left` and `top` were saved at, and `scale_chosen`, the user
   chose it (B-SCALE-1); a file without them counts as 1, not chosen;
@@ -1689,8 +1690,16 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   `-15`, `-97`, `-bob`, `-act`). Reason: several sources carry the same character name.
 - **A-PACK-2** `classics` holds a source iff it converts and `source.missing_animations`
   is empty. Reason: D8 "only complete characters", decided in code, not by list.
-- **A-CHAR-1** With only `builtin` installed, B-CHAR-4 selects `bentwire-placeholder`
-  (step 4, also before characters of other packs that sort first).
+- **A-CHAR-1** With only `builtin` installed, B-CHAR-4 selects `wire` (step 4, also
+  before characters of other packs that sort first). `builtin` holds Wire, bentwire's own
+  CC0 character, drawn by code from one vector rig (`crates/bentwire-convert/src/wire/`)
+  in two renderings: `wire` (anti-aliased, real alpha, 1x and 2x sheets) and `wire-retro`
+  (12 colours, indexed, hard edges, 1x). Both have the Agent states and standard
+  animations, the Office names of the B-FB-1 table and B-MENU-4, return animations and
+  exit branches, and mouths 0 to 6 on the frames speech holds. Reason for `wire` as the
+  default: on today's desktops (output scale 2, size factors) its 2x sheets stay sharp
+  (B-SCALE-1), while `wire-retro` is pixel-doubled there; the retro look stays one
+  `select` away. Wire replaced `bentwire-placeholder` (up to 0.3.0).
 - **B-CHAR-7** Decoded sheets are cached in `$XDG_CACHE_HOME/bentwire/sheets/` and
   mapped on load; the startup character is loaded in a thread during the daemon start.
   Reason: a faster first frame (issue #15).

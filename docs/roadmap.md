@@ -64,7 +64,8 @@ track the current state.
 - Free (CC0) characters made by code, with no image generators. Each character is
   described once as a vector rig and rendered in two styles: retro pixel art (palette, hard
   edges) and a modern smooth look (anti-aliased, alpha, 1x and 2x).
-- The first is **Wire**, a piece of bent wire. It replaces the placeholder in `builtin`.
+- The first is **Wire**, a piece of bent wire. Done: it replaces the placeholder in
+  `builtin`, as `wire` (modern, the default) and `wire-retro` (issue #23).
 - Ideas after that: Quack (a debugging duck), Hermit (a hermit crab, "shell"), Greybeard
   (an old sysadmin), Blink (a cursor), Cron (an alarm clock), Floppy.
 - Later, a separate `mascots` pack with free mascots of free-software projects (for example

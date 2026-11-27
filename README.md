@@ -55,7 +55,7 @@ ships no Microsoft characters: they live in the separate
 
 On a real KDE Plasma 6 desktop. More screenshots and GIFs are in
 [bentwire-classics](https://github.com/mschabhuettl/bentwire-classics#screenshots-and-gifs);
-[docs/screenshots/](docs/screenshots/) has the same with the placeholder character only.
+[docs/screenshots/](docs/screenshots/) has the same with the builtin character only.
 
 ## Quick start
 
@@ -102,7 +102,7 @@ yay -S bentwire
 
 The PKGBUILDs are kept in [`packaging/aur/`](packaging/aur/).
 
-The package installs the daemon, the CLI, the placeholder character and the D-Bus activation
+The package installs the daemon, the CLI, the builtin character Wire and the D-Bus activation
 file, so `bentwire say hello` starts the daemon on demand. The optional systemd user unit is
 installed but not enabled. The classics pack is not packaged, because its repository grants
 no licence for Microsoft's files; install it as described [below](#the-classics-pack).
@@ -124,7 +124,7 @@ cd bentwire
 cargo build --release -p bentwired -p bentwire
 install -Dm755 target/release/bentwired target/release/bentwire -t ~/.local/bin/
 
-# The placeholder character.
+# The builtin character, Wire.
 mkdir -p ~/.local/share/bentwire/characters
 cp -r characters/builtin ~/.local/share/bentwire/characters/
 
@@ -143,6 +143,16 @@ systemctl --user daemon-reload && systemctl --user enable --now bentwired
 
 Release binaries for x86_64 Linux are attached to each
 [GitHub release](https://github.com/mschabhuettl/bentwire/releases).
+
+### Wire, the builtin character
+
+<img src="docs/images/wire.png" width="840" alt="Wire, a copper wire coiled into a spring with a round face, says hello in the Agent word balloon: on the left smooth, on the right the retro rendering with hard pixels">
+
+Wire is bentwire's own character: a piece of bent wire with a face, drawn entirely by code
+from one vector rig (`crates/bentwire-convert/src/wire/`) and free to use (CC0). It comes in
+two renderings, `wire` (smooth, sharp on HiDPI screens) and `wire-retro` (12 colours, hard
+edges, as in 1997; `bentwire select wire-retro`), with the Agent animation set and a mouth
+that moves with speech output.
 
 ### The classics pack
 
@@ -163,11 +173,11 @@ place (`git clone https://github.com/mschabhuettl/bentwire-classics
 
 See the [gallery](https://github.com/mschabhuettl/bentwire-classics#gallery) of all of them.
 bentwire grants no licence for these files; see the pack's README. With only `builtin`
-installed, the daemon shows `bentwire-placeholder`
-(<img src="docs/gallery/bentwire-placeholder.png" height="24" alt="the placeholder character">,
+installed, the daemon shows `wire`
+(<img src="docs/gallery/wire.png" height="24" alt="Wire">,
 [docs/gallery/](docs/gallery/)) and, once on its first start, tells you the install command.
 Until you choose a character yourself (`bentwire select` or Choose Assistant), the default
-follows what is installed: `clippit` when the classics are there, else the placeholder.
+follows what is installed: `clippit` when the classics are there, else Wire.
 
 <details>
 <summary>Where the daemon looks for characters</summary>
