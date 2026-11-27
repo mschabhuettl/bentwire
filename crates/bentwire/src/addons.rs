@@ -63,7 +63,7 @@ impl<R: Read> Read for Capped<R> {
 
 /// B-ADDON-2: what the tar crate may read before it returns an entry: the entry's header
 /// blocks and its GNU long name and pax extension data, which it holds in memory.
-const TAR_HEADERS: u64 = 64 << 10;
+const TAR_HEADERS: u64 = 1 << 20;
 
 /// A reader that fails when more than `left` bytes come through it; the caller sets `left`.
 struct Budget<R> {
@@ -710,7 +710,8 @@ mod tests {
     }
 
     /// B-ADDON-2: GNU long names and pax extensions, which the tar crate holds in memory,
-    /// are refused above 64 KiB per entry; a usual long name still unpacks.
+    /// are refused above 1 MiB per entry; a usual long name and a pax header of a few
+    /// hundred KiB with a long path still unpack.
     #[test]
     fn b_addon_2_tar_extension_headers_are_capped() {
         use tar::EntryType::{GNULongName, Regular, XHeader};
@@ -728,7 +729,27 @@ mod tests {
         b.into_inner().unwrap().finish().unwrap();
         extract(&f, &d.join("long"), &LIMITS).unwrap();
         assert_eq!(std::fs::read(d.join("long").join(&long)).unwrap(), b"x");
-        let big = vec![b'a'; 200 << 10];
+        let path = format!(
+            "top/{}addon.toml",
+            format!("{}/", "p".repeat(200)).repeat(10)
+        );
+        let record = |k: &str, v: &str| {
+            let body = format!(" {k}={v}\n");
+            let n = (body.len()..).find(|n| n.to_string().len() + body.len() == *n);
+            format!("{}{body}", n.unwrap())
+        };
+        let pax = record("comment", &"c".repeat(300 << 10)) + &record("path", &path);
+        let f = d.join("pax.tar.gz");
+        tar_gz(
+            &f,
+            &[
+                ("././@PaxHeader", XHeader, 0o644, pax.as_bytes()),
+                ("x", Regular, 0o644, b"x"),
+            ],
+        );
+        extract(&f, &d.join("pax"), &LIMITS).unwrap();
+        assert_eq!(std::fs::read(d.join("pax").join(&path)).unwrap(), b"x");
+        let big = vec![b'a'; 2 << 20];
         for (i, t) in [GNULongName, XHeader].into_iter().enumerate() {
             let f = d.join(format!("big{i}.tar.gz"));
             tar_gz(
@@ -740,7 +761,9 @@ mod tests {
             );
             let e = extract(&f, &d.join(format!("big{i}")), &LIMITS).unwrap_err();
             assert!(
-                e.contains("an entry's tar headers are more than 65536 bytes"),
+                e.contains(
+                    "an entry's tar headers are more than 1 MiB (the limit for add-on archives)"
+                ),
                 "{t:?}: {e}"
             );
         }

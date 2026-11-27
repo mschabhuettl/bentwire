@@ -2440,7 +2440,7 @@ bridges `command`; other keys are errors.
   archive the whole tar stream, headers included; for a ZIP the bytes written) and has at
   most 10000 entries, where every component of an entry's path counts (each may create a
   folder); the headers of one tar entry (its header blocks with GNU long name and pax
-  extension data, which are held in memory) have at most 64 KiB. The limits are checked
+  extension data, which are held in memory) have at most 1 MiB. The limits are checked
   while downloading (curl's output is cut off) and unpacking, so no more is ever written
   or held; the install fails with `<what> more than <limit> (the limit for add-on
   archives)`. A folder is not limited.
