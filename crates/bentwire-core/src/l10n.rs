@@ -182,15 +182,15 @@ pub fn intro_phrases(info: &[InfoEntry], lang: Lang) -> Vec<String> {
         .collect()
 }
 
-/// B-CHAR-4: candidate ids in order (state file, config, `clippit`, the builtin
-/// placeholder, sorted first). The caller tries to load each in turn.
+/// B-CHAR-4: candidate ids in order (state file, config, `clippit`, the builtin character
+/// `wire`, sorted first). The caller tries to load each in turn.
 pub fn startup_candidates(
     state: Option<&str>,
     config: Option<&str>,
     sorted_ids: &[String],
 ) -> Vec<String> {
     let mut v: Vec<String> = Vec::new();
-    for c in [state, config, Some("clippit"), Some("bentwire-placeholder")]
+    for c in [state, config, Some("clippit"), Some("wire")]
         .into_iter()
         .flatten()
     {
@@ -362,26 +362,16 @@ mod tests {
             startup_candidates(Some("gone"), None, &ids),
             vec!["clippit", "a"]
         );
-        let ids2: Vec<String> = ["bentwire-placeholder"].map(String::from).to_vec();
-        // A-CHAR-1: with only builtin installed, step 4 picks the placeholder.
-        assert_eq!(
-            startup_candidates(None, None, &ids2),
-            vec!["bentwire-placeholder"]
-        );
+        let ids2: Vec<String> = ["wire", "wire-retro"].map(String::from).to_vec();
+        // A-CHAR-1: with only builtin installed, step 4 picks Wire.
+        assert_eq!(startup_candidates(None, None, &ids2), vec!["wire"]);
         // Step 4 comes before the sorted first: another pack does not replace it.
-        let ids3: Vec<String> = ["al", "bentwire-placeholder", "zed"]
-            .map(String::from)
-            .to_vec();
-        assert_eq!(
-            startup_candidates(None, None, &ids3),
-            vec!["bentwire-placeholder", "al"]
-        );
-        let ids4: Vec<String> = ["al", "bentwire-placeholder", "clippit"]
-            .map(String::from)
-            .to_vec();
+        let ids3: Vec<String> = ["al", "wire", "zed"].map(String::from).to_vec();
+        assert_eq!(startup_candidates(None, None, &ids3), vec!["wire", "al"]);
+        let ids4: Vec<String> = ["al", "clippit", "wire"].map(String::from).to_vec();
         assert_eq!(
             startup_candidates(None, None, &ids4),
-            vec!["clippit", "bentwire-placeholder", "al"]
+            vec!["clippit", "wire", "al"]
         );
         assert!(startup_candidates(None, None, &[]).is_empty());
     }

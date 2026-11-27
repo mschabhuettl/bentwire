@@ -1,7 +1,7 @@
 //! Reader and writer for the bentwire character format (`docs/character-format.md`).
 //!
 //! ```no_run
-//! let c = bentwire_character::Character::load("characters/builtin/bentwire-placeholder").unwrap();
+//! let c = bentwire_character::Character::load("characters/builtin/wire").unwrap();
 //! let a = c.manifest.animation("Showing").unwrap();
 //! let picture = c.compose_frame(&a.frames[0], None, 1); // RGBA at display size
 //! ```

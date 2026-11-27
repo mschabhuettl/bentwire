@@ -411,7 +411,7 @@ mod tests {
     #[test]
     fn r_lip_1_b_pix_2_mouth_drawn_clipped_to_the_frame() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../characters/builtin");
-        let c = load_character(&root.join("bentwire-placeholder"), None).unwrap();
+        let c = load_character(&root.join("wire"), None).unwrap();
         let pic = |mouth| {
             picture(
                 &c,
@@ -440,8 +440,8 @@ mod tests {
         let last = picture(
             &c,
             &Picture::Frame {
-                animation: "Speak".into(),
-                frame: 4,
+                animation: "Wave".into(),
+                frame: 0,
                 mouth: Some(3),
             },
             1,
@@ -449,8 +449,8 @@ mod tests {
         let plain = picture(
             &c,
             &Picture::Frame {
-                animation: "Speak".into(),
-                frame: 4,
+                animation: "Wave".into(),
+                frame: 0,
                 mouth: None,
             },
             1,
@@ -562,9 +562,8 @@ mod tests {
     #[test]
     fn missing_animations_behave_like_animations_never_had() {
         use bentwire_core::fallback::resolve;
-        const MISSING: [&str; 3] = ["IdleSpin", "Wave", "GestureLeft"];
-        let src = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../characters/builtin/bentwire-placeholder");
+        const MISSING: [&str; 3] = ["Idle2_2", "Wave", "GestureLeft"];
+        let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../characters/builtin/wire");
         let tmp = std::env::temp_dir().join(format!("bentwire-missing-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&tmp);
         std::fs::create_dir_all(&tmp).unwrap();

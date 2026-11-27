@@ -85,7 +85,7 @@ if [ -n "$CLASSICS" ]; then
 else
     OUT=$REPO/docs/screenshots
     ROOTS=(--characters "$REPO/characters/builtin")
-    MAIN=bentwire-placeholder
+    MAIN=wire
 fi
 mkdir -p "$OUT"
 

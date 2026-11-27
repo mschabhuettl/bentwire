@@ -219,10 +219,12 @@ fn run(args: args::Args) -> Result<(), String> {
         scale_chosen: state.scale_chosen.unwrap_or(false),
         speech: state.speech,
     });
-    // B-CHAR-6: once, when only the builtin placeholder is installed and it starts visible.
+    // B-CHAR-6: once, when only builtin characters are installed and one starts visible.
     let install_hint = !state.install_hint_shown
         && !catalog.is_empty()
-        && catalog.iter().all(|c| c.id == config::PLACEHOLDER)
+        && catalog
+            .iter()
+            .all(|c| config::BUILTIN.contains(&c.id.as_str()))
         && state_file.as_ref().is_none_or(|s| s.visible);
     let headless = args.headless;
     // A-FONT-1: headless output must not depend on the machine's fonts.

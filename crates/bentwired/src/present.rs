@@ -497,17 +497,24 @@ mod tests {
 
     #[test]
     fn b_scale_1_vector_character_drawn_at_the_target_density() {
-        // The placeholder has 2x sheets: a 2x character on a 1x output is the picture of a
-        // 1x character on a 2x output (its 2x sheet), not the 1x picture doubled.
-        let l = lib("../../characters/builtin", "bentwire-placeholder");
-        let two = rendered(&l, "bentwire-placeholder", 96, 2, 1.0);
-        let hidpi = rendered(&l, "bentwire-placeholder", 96, 1, 2.0);
-        assert_eq!((two.w, two.scale, hidpi.w, hidpi.scale), (192, 1, 96, 2));
+        // Wire has 2x sheets: a 2x character on a 1x output is the picture of a 1x
+        // character on a 2x output (its 2x sheet), not the 1x picture doubled.
+        let l = lib("../../characters/builtin", "wire");
+        let two = rendered(&l, "wire", 128, 2, 1.0);
+        let hidpi = rendered(&l, "wire", 128, 1, 2.0);
+        assert_eq!((two.w, two.scale, hidpi.w, hidpi.scale), (256, 1, 128, 2));
         assert_eq!(two.argb, hidpi.argb);
-        let one = rendered(&l, "bentwire-placeholder", 96, 1, 1.0);
-        let doubled = (0..192)
-            .flat_map(|y| (0..192).map(move |x| (x, y)))
-            .all(|(x, y)| px(&two, x, y) == px(&one, x / 2, y / 2));
-        assert!(!doubled);
+        let one = rendered(&l, "wire", 128, 1, 1.0);
+        let doubled = |two: &Buf, one: &Buf| {
+            (0..256)
+                .flat_map(|y| (0..256).map(move |x| (x, y)))
+                .all(|(x, y)| px(two, x, y) == px(one, x / 2, y / 2))
+        };
+        assert!(!doubled(&two, &one));
+        // wire-retro has no 2x sheets: its pixels are doubled.
+        let l = lib("../../characters/builtin", "wire-retro");
+        let two = rendered(&l, "wire-retro", 128, 2, 1.0);
+        let one = rendered(&l, "wire-retro", 128, 1, 1.0);
+        assert!(doubled(&two, &one));
     }
 }

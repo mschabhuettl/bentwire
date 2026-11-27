@@ -233,9 +233,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn b_char_5_rest_box_of_the_placeholder() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../characters/builtin/bentwire-placeholder");
+    fn b_char_5_rest_box_of_wire() {
+        let dir =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../characters/builtin/wire");
         let c = Character::load(&dir).unwrap();
         let m = model_from("p", &c);
         let (x0, y0, x1, y1) = m.rest_box.expect("opaque rest picture");
