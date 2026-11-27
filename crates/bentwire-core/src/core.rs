@@ -46,29 +46,16 @@ const ANIMATE_NAMES: [&str; 23] = [
     "EmptyTrash",
 ];
 
+/// A request. `Speak` has the alternatives and the `SpeakWith` speech override (B-TTS-1).
 #[derive(Clone, Debug)]
 enum Kind {
-    Show {
-        fast: bool,
-        cause: u32,
-    },
-    Hide {
-        fast: bool,
-        cause: u32,
-    },
+    Show { fast: bool, cause: u32 },
+    Hide { fast: bool, cause: u32 },
     Play(Resolved),
-    /// The alternatives and the `SpeakWith` speech override (B-TTS-1).
     Speak(Vec<SpeakText>, Option<bool>),
     Ask(Box<AskModel>),
-    MoveTo {
-        x: i32,
-        y: i32,
-        speed: u32,
-    },
-    GestureAt {
-        x: i32,
-        y: i32,
-    },
+    MoveTo { x: i32, y: i32, speed: u32 },
+    GestureAt { x: i32, y: i32 },
 }
 
 impl Kind {

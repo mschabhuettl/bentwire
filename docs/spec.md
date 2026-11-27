@@ -1962,7 +1962,8 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   (configure acked, margins, buffer attached, keyboard interactivity, balloons, menu).
   The character surface has `opaque`, the bounding box of the drawn picture's alpha
   shape, and the snapshot has `rest_opaque`, that box for the rest picture (B-SHOW-3) at
-  the current position and size factor (B-CHAR-5), both in global coordinates or null.
+  the current position and size factor (B-CHAR-5), both in global coordinates or null,
+  and `picture`, the drawn frame as `animation`, `frame` and `mouth` (R-LIP-1), or null.
   It also has `scale` (B-SCALE-1), and `menu` and `submenu` list their items with
   `checked` (null for a plain item) or `submenu: true`; `Pointer` hits the submenu first.
   Reason: the spec names the members but not their arguments.

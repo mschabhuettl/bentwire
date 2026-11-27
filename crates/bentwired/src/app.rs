@@ -407,6 +407,12 @@ impl App {
             "top": p.top,
             "scale": p.scale,
             "rest_opaque": rest_opaque,
+            // R-LIP-1: the frame and the mouth drawn on it.
+            "picture": s.character.as_ref().and_then(|c| match &c.picture {
+                api::Picture::Frame { animation, frame, mouth } =>
+                    Some(json!({"animation": animation, "frame": frame, "mouth": mouth})),
+                _ => None,
+            }),
             "keyboard_interactivity": if r.keyboard { "on_demand" } else { "none" },
             "surfaces": surfaces,
             "office_balloon": office,
@@ -579,6 +585,12 @@ impl App {
         match a {
             Ok(u) if self.speech_pending == Some(u.serial) => {
                 self.speech_pending = None;
+                log::debug!(
+                    "speech {}: {} ms of audio, {} marks",
+                    u.serial,
+                    u.pcm.duration_ms(),
+                    u.marks.len()
+                );
                 let played = self.speech.as_mut().is_some_and(|(_, a)| a.play(&u.pcm));
                 let e = if played {
                     Event::Speech {
