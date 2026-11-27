@@ -7,6 +7,32 @@ D-Bus API (`org.bentwire.Agent1`) and the character format (`format = 1`) are fr
 
 ## [Unreleased]
 
+### Added
+
+- Quack, a rubber debugging duck, bentwire's second own character (CC0-1.0), drawn by
+  code like Wire: `quack` (smooth, 1x and 2x) and `quack-retro` (12 colours, hard edges).
+  Same animation set as Wire; it wobbles on the water when idle and squeaks on Alert and
+  GetAttention. Wire stays the default.
+- Smooth edges (off by default): vector characters such as the Office 97 and Bob actors
+  are drawn anti-aliased from their 2x pictures, at size 1 on a 1x screen. Tray item
+  "Smooth Edges", `bentwire smooth on|off`, config key `smooth`, D-Bus property `Smooth`;
+  the choice is remembered.
+
+### Changed
+
+- A position saved for a smaller character (the 96 px placeholder of 0.3) or on an
+  output that is gone is pulled inside an output at start.
+- `addons`: the CLI waits at most 5 s for the daemon's `Reload` and says so when it does
+  not answer.
+- A missing espeak-ng-data no longer prints espeak-ng's error on every daemon start; the
+  reason is part of the once-per-run "espeak-ng not available" line.
+- A hand-copied `bentwire-placeholder` is reported once in the log as removable.
+
+### Fixed
+
+- `addons install`: the headers of a tar entry (GNU long names, pax extensions) are
+  limited to 64 KiB, so a crafted archive cannot make the CLI hold up to 1 GiB in memory.
+
 ## [0.4.0] - 2026-11-27
 
 ### Added
