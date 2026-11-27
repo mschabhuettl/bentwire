@@ -407,9 +407,13 @@ drawing code (R-OB-36) **[obs]**:
 - **101:** cyan-to-navy glass ball, the label bullet. Normal is the darkest frame; hot
   and pressed get brighter.
 - **102:** small light bulb, from pale to saturated yellow-green. It replaces 101 when a
-  flag byte of the host's balloon description (offset 0x51) is set. Only the search
-  balloon copies that flag (0x324A99D4); the generic balloon clears it (0x324AB02E)
-  **[obs]**. Which host requests set it is **[unk]**.
+  flag byte of the host's balloon description (offset 0x51) is set **[obs]**.
+  - Only the search balloon copies that flag (0x324A99D4); the generic balloon clears it
+    (0x324AB02E, where ebx is still the 0 set at 0x324AAF7A) **[obs]**.
+  - The two setters are the setup methods in slot 11 of the two balloon vtables:
+    - generic balloon, vtable 0x324A17BC: 0x324AAF70, size method 0x324AB4BA in slot 21;
+    - search balloon, vtable 0x324A1728: 0x324A9918, size method 0x324A9D66 in slot 21.
+  - Which host requests set the flag is **[unk]**.
 
 **Rule R-OB-9 ("See previous..." / "See also..." rows).**
 
@@ -718,7 +722,7 @@ floor(TM.tmHeight / 2) (global 0x324B37F0).
 2. **Required area A and minimum size.** The generic balloon's size method (0x324AB4BA,
    virtual slot 0x54, called at 0x324A600D) adds up the terms in the table below. The
    search balloon has its own method (0x324A9D66), not re-read in this pass.
-3. **Two candidate shapes (0x324A6046..0x324A6062).** Shape 0 (landscape) and shape 1
+3. **Two candidate shapes (0x324A6046..0x324A605E).** Shape 0 (landscape) and shape 1
    (portrait) both start at the minimum. Each grows until width x height >= A, tested
    before every step (0x324A7FCD..0x324A7FDA). The proportion test (0x324A8028) works in
    integers:
@@ -766,7 +770,17 @@ R-OB-7) and BH the button height (global 0x324B3808, 22 or 24):
 Read as geometry, A is the area of the whole body: each block's area plus 6 px insets on
 its left and right, plus the top and bottom insets across the minimum width **[inf]**.
 The 37 px heading indent and the 5 px icon gap (R-OB-5) are not part of A or of the
-minimum width **[obs]**.
+minimum width **[obs]**. The indent only enters through the fit's "too narrow" answer
+(R-OB-34).
+
+Values an earlier bentwire reading assumed, which do not occur in the size method
+(0x324AB4BA..0x324AB79F) **[obs]**:
+- a heading term of (37 + heading width) x max(32, heading height);
+- a minimum width of 47 with an icon;
+- a minimum width of prefix column + 15;
+- a minimum height of 12 + 32 + button height;
+- a label term of (text width + PC + 17) x max(TM.tmHeight, 15);
+- a growth test on (w - 12) x (h - 12).
 
 **Rule R-OB-32 (button row).** **[obs]** throughout.
 
@@ -886,20 +900,38 @@ minimum width **[obs]**.
   equal scores:
   - The squarer body wins when the balloon's preference is 2. The ratio is the integer
     (long side / short side) (0x324A851A), and a further tie goes to the smaller area.
-    The preference is 2 for the search balloon (0x324A9BEA), and for a generic balloon
-    with more than one label and check-box row together (0x324AB240..0x324AB267). It is
-    0 otherwise.
+    The preference (balloon field 0x7F8) is set by the setup methods (R-OB-8). It is 2
+    for the search balloon (0x324A9BEA), and for a generic balloon with more than one
+    label and check-box row together (0x324AB23A..0x324AB267). It is 0 otherwise.
   - The same comparison runs when the same shape index comes round again in the second
     pass.
   - Otherwise the new shape wins only if its index equals the preference. With
     preference 0 the landscape shape, tried first, stays.
-- **Fitting a shape (0x324A81EA):** this is not fully decoded **[inf]**.
-  - It lays the balloon out at the shape's width through the layout method (virtual
-    slot 0x5C).
-  - It grows the width or height in 10 px steps within the free space, with ratio limits
-    6 and 2 (constants at 0x324A15F8 and 0x324A15FC).
-  - It then narrows the width by binary search while the layout still fits (0x324A84CC).
-  - It returns the laid-out size.
+- **Fitting a shape (0x324A81EA).** This is only partly decoded.
+  - It lays the balloon out at the shape's size through the layout method (vtable slot
+    23, offset 0x5C; generic 0x324AB7A2) **[obs]**.
+  - The layout method returns one of four statuses **[obs]**:
+
+    | Status | Meaning | Where |
+    |---|---|---|
+    | 0 | fits; reports the height + 6 | 0x324ABB57..0x324ABB63 |
+    | 1 | too narrow | see the list below |
+    | 2 or 3 | too short | 0x324ABB48..0x324ABB53 |
+
+    The layout method answers "too narrow" when:
+    - the icon and the 37 px heading indent leave no room (0x324AB7ED..0x324AB7FD);
+    - an unbreakable piece (word or picture) of a text block is wider than its line box
+      (0x324A8BB7, failing through 0x324A8CE1 and 0x324AB84A);
+    - a label or check-box row fails the same way (0x324AB99C, 0x324ABA25);
+    - the button row + 12 is wider than the balloon (0x324ABB13..0x324ABB36).
+  - On "too narrow" the fit widens by 10 px, clamped to the free space, and fails once
+    the free space is used up (0x324A8414..0x324A843E) **[obs]**.
+  - On "too short" it grows the width or the height in 10 px steps within the free space
+    **[inf]**: the branch order and the ratio limits 6 and 2 (constants at 0x324A15F8
+    and 0x324A15FC) are not decoded.
+  - Once the layout fits, it narrows the width by binary search, keeping the layout
+    fitting (0x324A846A..0x324A847C, 0x324A84CC). It returns that width and the laid-out
+    height **[obs]**.
 - **Fallback:** if no candidate fits, a fallback (0x324A6354) measures the free space on
   all four sides of the character. The character is then moved so the balloon fits
   (R-OB-17), and the chosen flags are stored (0x324A60F2..0x324A60FD).

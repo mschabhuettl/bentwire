@@ -1815,7 +1815,9 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   - a black outline for hot;
   - a black outline for a focused normal button;
   - an inset focus rectangle;
-  - a #808080 disabled caption.
+  - a #808080 disabled caption;
+  - a label bullet that darkens when pressed, where the original brightens from normal
+    through hot to pressed (R-OB-8).
 
   Reason for keeping them: they are the established look of the bentwire balloon and
   its golden images. The theme path draws the proven states, focus rectangle and caption
@@ -1895,10 +1897,17 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
     10 px steps, until width x height >= area.
   - **Shape choice:** B-OB-3.
 
+  - **Too narrow** [OBS] (R-OB-34): a width is too narrow when the icon's 37 px indent
+    leaves no room for the heading's widest word, or when any word of the heading, text,
+    labels or check boxes is wider than its line. Such a width grows by 10 px until it
+    is wide enough. Office does this inside its per-candidate fit; bentwire does it
+    before the layout, for every shape.
+
   bentwire decisions:
   - The shape fixes only the width: the body height is the laid-out content height + 12.
-    Reason: Office's per-candidate fit (R-OB-34, 0x324A81EA) relays out and narrows the
-    width by a search that is only partly decoded.
+    Reason: the rest of Office's per-candidate fit (R-OB-34, 0x324A81EA) is only partly
+    decoded: its growth when the layout is too short, and its binary search that
+    narrows the width.
   - Inline pictures and the footer block do not exist in v1 (B-ASK-3), so they add
     nothing.
 - **A-CORE-2 Office balloon controls.** Check-box rows use the label prefix column (13 x 13

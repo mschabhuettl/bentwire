@@ -152,7 +152,7 @@ R-OB-20 | b_ob_3_b_ob_4_r_ob_17_r_ob_20_r_ob_34_placement_and_fit
 R-OB-27 | b_ob_2_r_ob_27_tail
 R-OB-31 | r_ob_31_sizes_landscape_portrait
 R-OB-32 | r_ob_32_r_ob_11_b_ob_1_r_ob_4_button_row_and_fonts || other crates: bentwire-render: r_ob_32_office_button_sets_golden
-R-OB-34 | b_ob_3_b_ob_4_r_ob_17_r_ob_20_r_ob_34_placement_and_fit, r_ob_34_shape_tie_rule
+R-OB-34 | b_ob_3_b_ob_4_r_ob_17_r_ob_20_r_ob_34_placement_and_fit, r_ob_34_shape_tie_rule, r_ob_34_fit_widens_refused_width
 R-OB-36 | not core: strip state order; owner: bentwire-convert: r_ob_11_button_strip_state_order, r_ob_8_r_ob_9_bullet_strip_state_order
 R-OB-4 | r_ob_32_r_ob_11_b_ob_1_r_ob_4_button_row_and_fonts
 R-OB-5 | r_ob_35_r_ob_5_vertical_spacing || other crates: bentwire-render: r_ob_5_icons_golden
