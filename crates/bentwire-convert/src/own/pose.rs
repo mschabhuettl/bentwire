@@ -87,6 +87,9 @@ pub struct Pose {
     /// Whole figure turned about the ground point, degrees clockwise (Quack's wobble; Wire
     /// does not use it).
     pub rock: f64,
+    /// How far the figure has pulled into its shell, 0 (out) to 1 (gone inside); Hermit's
+    /// retreat, Wire and Quack do not use it.
+    pub tuck: f64,
 }
 
 pub const REST: Pose = Pose {
@@ -106,15 +109,17 @@ pub const REST: Pose = Pose {
     curl: 0.0,
     prop: Prop::None,
     rock: 0.0,
+    tuck: 0.0,
 };
 
 impl Pose {
-    /// Upright and unscaled: the mouth is the separate smile layer and can take overlays.
+    /// Upright, unscaled and out of any shell: the mouth is the separate smile layer and can take overlays.
     pub fn upright(&self) -> bool {
         self.sx == 1.0
             && self.sy == 1.0
             && (self.tilt + self.rock).abs() <= 6.0
             && self.mouth == Mouth::Smile
+            && self.tuck == 0.0
     }
 
     /// Linear blend towards `b` at `t` (0..1); discrete parts switch at the half.
@@ -143,6 +148,7 @@ impl Pose {
             curl: l(self.curl, b.curl),
             prop: if h { b.prop } else { self.prop },
             rock: l(self.rock, b.rock),
+            tuck: l(self.tuck, b.tuck),
         }
     }
 }
