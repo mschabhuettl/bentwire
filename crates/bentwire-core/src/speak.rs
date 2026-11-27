@@ -1,4 +1,4 @@
-//! Speak text processing (R-SPEAK-3, B-SPEAK-1, R-BAL-6, R-BAL-8).
+//! Speak text processing (R-SPEAK-3, B-SPEAK-1, R-BAL-6, R-BAL-8, B-TTS-2, B-TTS-4).
 
 use crate::api::{FontSpec, TextMetrics};
 
@@ -10,6 +10,10 @@ pub struct SpeakText {
     /// `(word index, n)`: fire when word `index` appears; index == words.len() means at
     /// the end of speech.
     pub bookmarks: Vec<(usize, i32)>,
+    /// The text for the engine: the spoken part of each `\Map\`, tags removed (B-TTS-2).
+    pub spoken: String,
+    /// Per word, the character offset in `spoken` where its spoken text starts (B-TTS-4).
+    pub spoken_starts: Vec<usize>,
 }
 
 const KNOWN: [&str; 11] = [
@@ -40,6 +44,10 @@ pub fn parse(text: &str) -> Result<SpeakText, String> {
     let chars: Vec<char> = text.chars().collect();
     let mut plain = String::new();
     let mut marks: Vec<(usize, i32)> = Vec::new(); // (byte position in plain, n)
+    let mut spoken = String::new();
+    // (byte position in plain, char offset in spoken) where a piece of text starts.
+    let mut anchors: Vec<(usize, usize)> = Vec::new();
+    let mut spoken_len = 0;
     let mut i = 0;
     while i < chars.len() {
         if chars[i] == '\\' {
@@ -65,7 +73,13 @@ pub fn parse(text: &str) -> Result<SpeakText, String> {
                 if closed {
                     match *k {
                         "Map" => {
-                            if let Some(b) = quoted(&body).get(1) {
+                            let q = quoted(&body);
+                            anchors.push((plain.len(), spoken_len));
+                            if let Some(t) = q.first() {
+                                spoken.push_str(t);
+                                spoken_len += t.chars().count();
+                            }
+                            if let Some(b) = q.get(1) {
                                 plain.push_str(b);
                             }
                         }
@@ -84,11 +98,11 @@ pub fn parse(text: &str) -> Result<SpeakText, String> {
                     continue;
                 }
             }
-            plain.push('\\');
-            i += 1;
-            continue;
         }
+        anchors.push((plain.len(), spoken_len));
         plain.push(chars[i]);
+        spoken.push(chars[i]);
+        spoken_len += 1;
         i += 1;
     }
     // Words and the index of the word each mark precedes.
@@ -122,13 +136,31 @@ pub fn parse(text: &str) -> Result<SpeakText, String> {
             )
         })
         .collect();
-    Ok(SpeakText { words, bookmarks })
+    // B-TTS-4: a word starts where the piece holding its first character starts.
+    let spoken_starts = starts
+        .iter()
+        .map(|&p| match anchors.partition_point(|a| a.0 <= p) {
+            0 => 0,
+            n => anchors[n - 1].1,
+        })
+        .collect();
+    Ok(SpeakText {
+        words,
+        bookmarks,
+        spoken,
+        spoken_starts,
+    })
 }
 
 /// R-BAL-8: word interval in ms for config `speaking_speed` f.
 pub fn word_interval(f: f64) -> u64 {
     let eff = (170.0 * f).clamp(50.0, 250.0);
     (352.0 * 170.0 / eff).floor() as u64
+}
+
+/// R-BAL-8 effectiveSpeed in words per minute for a voice speed `default` (B-TTS-3).
+pub fn effective_speed(default: u32, f: f64) -> u32 {
+    (default as f64 * f).clamp(50.0, 250.0) as u32
 }
 
 /// R-BAL-9: scroll duration, `60000 / effectiveSpeed` ms.
@@ -255,6 +287,25 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn b_tts_2_b_tts_4_spoken_text_and_word_starts() {
+        let t = parse("Hello \\Mrk=5\\big \\emp\\wörld").unwrap();
+        assert_eq!(t.spoken, "Hello big wörld");
+        assert_eq!(t.spoken_starts, vec![0, 6, 10]);
+        // Map: the spoken part is spoken, its balloon words start where it starts.
+        let t = parse("Stop \\Map=\"spoken\"=\"shown text\"\\ now").unwrap();
+        assert_eq!(t.words, w(&["Stop", "shown", "text", "now"]));
+        assert_eq!(t.spoken, "Stop spoken now");
+        assert_eq!(t.spoken_starts, vec![0, 5, 5, 12]);
+        // A Map with an empty balloon part: its spoken text belongs to the word before.
+        let t = parse("a\\Map=\"x y\"=\"\"\\ b").unwrap();
+        assert_eq!(t.words, w(&["a", "b"]));
+        assert_eq!(t.spoken, "ax y b");
+        assert_eq!(t.spoken_starts, vec![0, 5]);
+        // Unknown tag: spoken as written.
+        assert_eq!(parse("a\\xyz\\ b").unwrap().spoken, "a\\xyz\\ b");
+    }
+
+    #[test]
     fn b_speak_1_r_q_7_bookmark_range() {
         assert!(parse("\\Mrk=0\\").is_err());
         assert!(parse("\\Mrk=2147483646\\").is_err());
@@ -276,6 +327,15 @@ pub(crate) mod tests {
         assert_eq!(word_interval(1.5), 239);
         assert_eq!(word_interval(0.1), 1196);
         assert_eq!(scroll_duration(1.0), 352);
+    }
+
+    #[test]
+    fn b_tts_3_words_per_minute() {
+        assert_eq!(effective_speed(170, 1.0), 170);
+        assert_eq!(effective_speed(156, 1.5), 234);
+        assert_eq!(effective_speed(157, 0.5), 78);
+        assert_eq!(effective_speed(200, 1.5), 250);
+        assert_eq!(effective_speed(60, 0.5), 50);
     }
 
     #[test]

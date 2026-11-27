@@ -1,4 +1,4 @@
-//! Lip sync pure functions (R-LIP-1, B-LIP-1). Not driven in v1 (B-LIP-2).
+//! Lip sync pure functions (R-LIP-1, B-LIP-1). Driven by speech output only (B-LIP-2).
 
 /// The 116-entry phoneme table (acs-format 5.4), by mouth type.
 const TABLE: [&str; 7] = [
@@ -22,6 +22,12 @@ pub fn mouth_for_phoneme(c: char) -> Option<u8> {
 /// R-LIP-1 stateful step: an unknown phoneme keeps the previous mouth (initially none).
 pub fn next_mouth(previous: Option<u8>, c: char) -> Option<u8> {
     mouth_for_phoneme(c).or(previous)
+}
+
+/// R-LIP-1 for an engine phoneme of one or more IPA code points: the type of its first
+/// code point in the table, or `None` (keep the previous mouth).
+pub fn mouth_for_ipa(p: &str) -> Option<u8> {
+    p.chars().find_map(mouth_for_phoneme)
 }
 
 /// B-LIP-1: amplitude quantisation to a representative phoneme; `None` = silence.
@@ -70,6 +76,18 @@ mod tests {
         assert_eq!(next_mouth(None, 'Q'), None);
         assert_eq!(next_mouth(Some(4), 'Q'), Some(4));
         assert_eq!(next_mouth(Some(4), 'o'), Some(6));
+    }
+
+    #[test]
+    fn r_lip_1_ipa_phonemes_of_several_code_points() {
+        // Stress and length marks are not in the table: the vowel decides.
+        assert_eq!(mouth_for_ipa("ˈaɪ"), Some(4));
+        assert_eq!(mouth_for_ipa("ˌaʊ"), Some(4));
+        assert_eq!(mouth_for_ipa("ˈyː"), Some(6));
+        assert_eq!(mouth_for_ipa("ts"), Some(2));
+        assert_eq!(mouth_for_ipa("_"), Some(0));
+        assert_eq!(mouth_for_ipa("ˈ"), None);
+        assert_eq!(mouth_for_ipa(""), None);
     }
 
     #[test]

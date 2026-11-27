@@ -3300,6 +3300,7 @@ fn scale_state(left: i32, top: i32, scale: u32, scale_chosen: bool) -> StateFile
         chosen: true,
         scale,
         scale_chosen,
+        speech: None,
     }
 }
 
@@ -3532,7 +3533,11 @@ fn b_scale_1_switch_and_output_change_use_the_factor() {
 }
 
 fn size_items(entries: &[MenuEntry]) -> Vec<(String, Option<bool>)> {
-    match entries.last() {
+    // The tray has the speech item after it (B-TRAY-1).
+    match entries
+        .iter()
+        .find(|e| matches!(e, MenuEntry::Submenu { .. }))
+    {
         Some(MenuEntry::Submenu { entries, .. }) => entries
             .iter()
             .map(|e| match e {
@@ -3697,4 +3702,536 @@ fn b_scale_1_open_menu_shows_the_new_check_mark() {
         checked,
         vec![Some(false), Some(false), Some(true), Some(false)]
     );
+}
+
+// ---------- speech output (B-TTS) ----------
+
+/// A character whose Speaking frame has all seven mouths.
+fn talker(id: &str) -> CharacterModel {
+    let mut m = character(id, 100);
+    m.animations
+        .iter_mut()
+        .find(|a| a.name == "SpeakingA")
+        .unwrap()
+        .frames[0]
+        .mouths = (0..7)
+        .map(|kind| Mouth {
+            kind,
+            anchor: (50, 40),
+        })
+        .collect();
+    m
+}
+
+fn speech_on() -> Config {
+    Config {
+        speech: true,
+        ..Config::default()
+    }
+}
+
+/// Started, visible characters (the first one shown) with `config`, log cleared.
+fn speaking(chars: Vec<CharacterModel>, config: Config) -> T {
+    let st = StateFile {
+        character: chars[0].id.clone(),
+        left: 500,
+        top: 500,
+        visible: true,
+        chosen: true,
+        ..Default::default()
+    };
+    let mut t = T::with_config(chars, Some(st), vec![0; 8], config);
+    t.run_until_idle_armed();
+    t.log.clear();
+    t
+}
+
+/// The SpeechStart outputs so far: (serial, text, voice).
+fn speech_starts(t: &T) -> Vec<(u64, String, VoiceSpec)> {
+    t.log
+        .iter()
+        .filter_map(|(_, o)| match o {
+            Output::SpeechStart {
+                serial,
+                text,
+                voice,
+            } => Some((*serial, text.clone(), voice.clone())),
+            _ => None,
+        })
+        .collect()
+}
+
+fn speech_stops(t: &T) -> usize {
+    t.log
+        .iter()
+        .filter(|(_, o)| *o == Output::SpeechStop)
+        .count()
+}
+
+fn mouth(t: &T) -> Option<u8> {
+    match t.core.scene().character.unwrap().picture {
+        Picture::Frame { mouth, .. } => mouth,
+        _ => None,
+    }
+}
+
+fn balloon_lines(t: &T) -> Vec<String> {
+    t.core
+        .scene()
+        .agent_balloon
+        .map(|b| b.lines)
+        .unwrap_or_default()
+}
+
+fn ph(p: &str) -> SpeechMark {
+    SpeechMark::Phoneme(p.into())
+}
+
+/// The fake engine answers the last SpeechStart with `marks`; returns its time.
+fn answer(t: &mut T, marks: Vec<(Ms, SpeechMark)>) -> Ms {
+    let (serial, ..) = speech_starts(t).pop().expect("SpeechStart");
+    t.ev(Event::Speech { serial, marks });
+    t.now
+}
+
+#[test]
+fn b_tts_2_r_lip_1_b_tts_4_fake_engine_drives_balloon_and_mouth() {
+    use SpeechMark::*;
+    let mut t = speaking(vec![talker("c")], speech_on());
+    let id = t.req(Call::Speak("Hello big world".into()));
+    t.advance(t.now + 100);
+    assert_eq!(current_anim(&t), "SpeakingA");
+    let s = speech_starts(&t);
+    assert_eq!(s.len(), 1);
+    assert_eq!(s[0].1, "Hello big world");
+    assert_eq!(
+        s[0].2,
+        VoiceSpec {
+            language: "en".into(),
+            gender: None,
+            pitch: None,
+            words_per_minute: 170,
+        }
+    );
+    // R-BAL-7: shown, and empty until the engine reports the first word.
+    assert!(t.core.scene().agent_balloon.is_some());
+    assert!(balloon_lines(&t).is_empty());
+    t.advance(t.now + 5000);
+    assert!(balloon_lines(&t).is_empty());
+    assert!(t.complete_of(id).is_none());
+    let t0 = answer(
+        &mut t,
+        vec![
+            (0, Word(0)),
+            (10, ph("h")),
+            (60, ph("ˈɛ")),
+            (120, ph("ˈ")),
+            (300, Word(6)),
+            (310, ph("b")),
+            (600, Word(10)),
+            (650, ph("w")),
+            (900, ph("_")),
+            (1000, End),
+        ],
+    );
+    t.advance(t0);
+    assert_eq!(balloon_lines(&t), ["Hello"]);
+    assert_eq!(mouth(&t), None);
+    let at = |t: &mut T, dt: Ms| {
+        t.advance(t0 + dt);
+        (balloon_lines(t).join("|"), mouth(t))
+    };
+    assert_eq!(at(&mut t, 10), ("Hello".into(), Some(4)));
+    assert_eq!(at(&mut t, 60), ("Hello".into(), Some(3)));
+    // Unknown: keeps the previous mouth.
+    assert_eq!(at(&mut t, 120), ("Hello".into(), Some(3)));
+    assert_eq!(at(&mut t, 299), ("Hello".into(), Some(3)));
+    assert_eq!(at(&mut t, 300), ("Hello big".into(), Some(3)));
+    assert_eq!(at(&mut t, 310), ("Hello big".into(), Some(0)));
+    assert_eq!(at(&mut t, 650), ("Hello big world".into(), Some(6)));
+    assert_eq!(at(&mut t, 900), ("Hello big world".into(), Some(0)));
+    assert!(t.complete_of(id).is_none());
+    assert_eq!(at(&mut t, 1000), ("Hello big world".into(), None));
+    assert_eq!(t.complete_of(id).unwrap(), (t0 + 1000, 0, String::new()));
+    // R-BAL-10 AutoHide from the end of speech; a normal end sends no SpeechStop.
+    t.advance(t0 + 2499);
+    assert!(t.core.scene().agent_balloon.is_some());
+    t.advance(t0 + 2500);
+    assert!(t.core.scene().agent_balloon.is_none());
+    assert_eq!(speech_stops(&t), 0);
+}
+
+/// R-LIP-1: a mouth type the current frame does not have is not drawn.
+#[test]
+fn r_lip_1_mouth_only_where_the_frame_has_it() {
+    let mut m = talker("c");
+    m.animations
+        .iter_mut()
+        .find(|a| a.name == "SpeakingA")
+        .unwrap()
+        .frames[0]
+        .mouths
+        .retain(|m| m.kind != 4);
+    let mut t = speaking(vec![m], speech_on());
+    t.req(Call::Speak("ah".into()));
+    t.advance(t.now + 100);
+    let t0 = answer(
+        &mut t,
+        vec![(0, ph("a")), (10, ph("o")), (20, SpeechMark::End)],
+    );
+    t.advance(t0);
+    assert_eq!(mouth(&t), None);
+    t.advance(t0 + 10);
+    assert_eq!(mouth(&t), Some(6));
+}
+
+/// B-TTS-4: an engine that fails at once gives exactly the text-only Speak.
+#[test]
+fn b_tts_4_failed_engine_is_the_text_only_speak() {
+    let run = |config: Config| {
+        let mut t = speaking(vec![talker("c")], config);
+        let id = t.req(Call::Speak("one \\Mrk=3\\two three".into()));
+        t.advance(t.now + 100);
+        if let Some((serial, ..)) = speech_starts(&t).pop() {
+            t.ev(Event::SpeechFailed { serial });
+        }
+        t.advance(t.now + 5000);
+        assert_eq!(t.complete_of(id).unwrap().1, 0);
+        t.log
+            .into_iter()
+            .filter(|(_, o)| !matches!(o, Output::SpeechStart { .. }))
+            .collect::<Vec<_>>()
+    };
+    let text = run(Config::default());
+    assert!(
+        text.iter()
+            .any(|(_, o)| is_sig(o, |s| *s == Signal::Bookmark { n: 3 }))
+    );
+    assert_eq!(run(speech_on()), text);
+    // Sound off with speech on: the text-only pacer, no speech at all.
+    let mut t = speaking(
+        vec![talker("c")],
+        Config {
+            sound_effects: false,
+            ..speech_on()
+        },
+    );
+    t.req(Call::Speak("one two".into()));
+    t.advance(t.now + 5000);
+    assert!(speech_starts(&t).is_empty());
+}
+
+#[test]
+fn b_tts_4_map_bookmarks_and_auto_pace_off() {
+    use SpeechMark::*;
+    let mut t = speaking(vec![talker("c")], speech_on());
+    t.call_as(
+        ":1.9",
+        Call::Speak("Stop \\Mrk=4\\me \\Map=\"spoken\"=\"shown text\"\\ now \\Mrk=5\\".into()),
+    )
+    .unwrap();
+    t.advance(t.now + 100);
+    assert_eq!(speech_starts(&t)[0].1, "Stop me spoken now ");
+    let t0 = answer(
+        &mut t,
+        vec![
+            (0, Word(0)),
+            (200, Word(5)),
+            (400, Word(8)),
+            (600, Word(11)),
+            (800, Word(15)),
+            (1000, End),
+        ],
+    );
+    t.advance(t0);
+    assert_eq!(balloon_lines(&t).join(" "), "Stop");
+    t.advance(t0 + 200);
+    assert_eq!(balloon_lines(&t).join(" "), "Stop me");
+    assert!(t.signals().contains(&(t0 + 200, Signal::Bookmark { n: 4 })));
+    // The Map's balloon words appear with its spoken part.
+    t.advance(t0 + 400);
+    assert_eq!(balloon_lines(&t).join(" "), "Stop me shown text");
+    t.advance(t0 + 800);
+    assert_eq!(balloon_lines(&t).join(" "), "Stop me shown text now");
+    assert_eq!(t.count(|s| *s == Signal::Bookmark { n: 5 }), 0);
+    t.advance(t0 + 1000);
+    assert!(
+        t.signals()
+            .contains(&(t0 + 1000, Signal::Bookmark { n: 5 }))
+    );
+
+    // AutoPace off: the whole text at once, the end is the engine's.
+    let mut m = talker("c");
+    m.balloon.auto_pace = false;
+    let mut t = speaking(vec![m], speech_on());
+    let id = t.req(Call::Speak("a b c".into()));
+    t.advance(t.now + 100);
+    assert_eq!(balloon_lines(&t).join(" "), "a b c");
+    let t0 = answer(&mut t, vec![(0, Word(0)), (5000, End)]);
+    t.advance(t0 + 4999);
+    assert!(t.complete_of(id).is_none());
+    t.advance(t0 + 5000);
+    assert_eq!(t.complete_of(id).unwrap().0, t0 + 5000);
+}
+
+/// B-TTS-1: turning speech off stops the audio, the rest is paced as text; the choice
+/// is persisted and wins over the config key.
+#[test]
+fn b_tts_1_speech_off_mid_utterance_and_persisted() {
+    use SpeechMark::*;
+    let mut t = speaking(vec![talker("c")], Config::default());
+    assert!(!t.core.properties().speech);
+    t.call(Call::SetSpeech(true)).unwrap();
+    assert!(t.core.properties().speech);
+    t.advance(t.now + 1000);
+    assert_eq!(persisted(&t).unwrap().speech, Some(true));
+    // A SIGHUP config without `speech` does not undo the user's choice.
+    t.ev(Event::Config(Config::default()));
+    assert!(t.core.properties().speech);
+    let id = t.req(Call::Speak("a b c d".into()));
+    t.advance(t.now + 100);
+    let t0 = answer(
+        &mut t,
+        vec![(0, Word(0)), (300, Word(2)), (600, Word(4)), (2000, End)],
+    );
+    t.advance(t0 + 300);
+    assert_eq!(balloon_lines(&t).join(" "), "a b");
+    t.advance(t0 + 350);
+    t.call(Call::SetSpeech(false)).unwrap();
+    assert_eq!(speech_stops(&t), 1);
+    // The next word at once, then R-BAL-8's interval.
+    assert_eq!(balloon_lines(&t).join(" "), "a b c");
+    t.advance(t0 + 350 + 352);
+    assert_eq!(balloon_lines(&t).join(" "), "a b c d");
+    t.advance(t0 + 350 + 2 * 352);
+    assert_eq!(t.complete_of(id).unwrap().0, t0 + 350 + 2 * 352);
+    t.advance(t.now + 1000);
+    assert_eq!(persisted(&t).unwrap().speech, Some(false));
+    assert!(!t.core.properties().speech);
+
+    // A state file with the choice wins over the config at start; without one the
+    // config key applies, also on SIGHUP.
+    let st = |speech| StateFile {
+        character: "c".into(),
+        speech,
+        ..Default::default()
+    };
+    let t = T::with_config(
+        vec![talker("c")],
+        Some(st(Some(true))),
+        vec![],
+        Config::default(),
+    );
+    assert!(t.core.properties().speech);
+    let mut t = T::with_config(vec![talker("c")], Some(st(None)), vec![], Config::default());
+    assert!(!t.core.properties().speech);
+    t.ev(Event::Config(speech_on()));
+    assert!(t.core.properties().speech);
+    t.advance(t.now + 1000);
+    assert_eq!(persisted(&t).map(|s| s.speech), Some(None));
+}
+
+#[test]
+fn b_tts_1_b_tray_1_speak_with_and_tray_item() {
+    // SpeakWith overrides the setting both ways.
+    let mut t = speaking(vec![talker("c")], Config::default());
+    t.req(Call::SpeakWith {
+        text: "hi".into(),
+        speech: Some(true),
+    });
+    t.advance(t.now + 100);
+    assert_eq!(speech_starts(&t).len(), 1);
+    let mut t = speaking(vec![talker("c")], speech_on());
+    t.req(Call::SpeakWith {
+        text: "hi".into(),
+        speech: Some(false),
+    });
+    t.req(Call::SpeakWith {
+        text: "ho".into(),
+        speech: None,
+    });
+    t.advance(t.now + 3000);
+    assert_eq!(speech_starts(&t).len(), 1);
+    assert_eq!(speech_starts(&t)[0].1, "ho");
+
+    // The tray's check item, last; not in the character's own menu.
+    let mut t = speaking(vec![talker("c")], Config::default());
+    let item = |t: &T| t.core.scene().tray.menu.last().cloned();
+    assert_eq!(
+        item(&t),
+        Some(MenuEntry::Item {
+            label: "S&peech".into(),
+            action: MenuAction::Speech,
+            checked: Some(false),
+        })
+    );
+    t.ev(Event::Tray(TrayInput::Menu(MenuAction::Speech)));
+    assert!(t.core.properties().speech);
+    assert!(matches!(
+        item(&t),
+        Some(MenuEntry::Item {
+            checked: Some(true),
+            ..
+        })
+    ));
+    t.press(PointerKind::Press, Surface::Character, 2, 510, 510);
+    t.press(PointerKind::Release, Surface::Character, 2, 510, 510);
+    let menu = t.core.scene().menu.unwrap().entries;
+    assert!(!menu.iter().any(|e| matches!(
+        e,
+        MenuEntry::Item {
+            action: MenuAction::Speech,
+            ..
+        }
+    )));
+}
+
+#[test]
+fn b_tts_3_voice_from_the_manifest() {
+    let mut m = talker("c");
+    m.voice = Voice {
+        language: Some("en-US".into()),
+        gender: Some(2),
+        pitch: Some(50),
+        speed: Some(156),
+    };
+    let mut t = speaking(
+        vec![m],
+        Config {
+            speaking_speed: 1.5,
+            ..speech_on()
+        },
+    );
+    t.req(Call::Speak("hi".into()));
+    t.advance(t.now + 100);
+    assert_eq!(
+        speech_starts(&t)[0].2,
+        VoiceSpec {
+            language: "en-US".into(),
+            gender: Some(2),
+            pitch: Some(50),
+            words_per_minute: 234,
+        }
+    );
+    // Agent 1.5's "default" values and unknown genders count as absent.
+    let mut m = talker("c");
+    m.voice = Voice {
+        language: None,
+        gender: Some(0),
+        pitch: Some(65535),
+        speed: Some(4294967295),
+    };
+    let mut t = speaking(vec![m], speech_on());
+    t.req(Call::Speak("hi".into()));
+    t.advance(t.now + 100);
+    assert_eq!(
+        speech_starts(&t)[0].2,
+        VoiceSpec {
+            language: "en".into(),
+            gender: None,
+            pitch: None,
+            words_per_minute: 170,
+        }
+    );
+}
+
+/// B-TTS-5: every way a spoken Speak or Ask ends early stops its audio.
+#[test]
+fn b_tts_5_stop_hide_switch_gallery_and_ask_close_stop_speech() {
+    let started = |t: &mut T, text: &str| -> u32 {
+        let n = speech_starts(t).len();
+        let id = t.req(Call::Speak(text.into()));
+        t.advance(t.now + 100);
+        assert_eq!(speech_starts(t).len(), n + 1);
+        id
+    };
+    let chars = || vec![talker("c"), talker("d")];
+    // Stop, StopAll.
+    let mut t = speaking(chars(), speech_on());
+    let id = started(&mut t, "a b");
+    t.call(Call::Stop(id)).unwrap();
+    assert_eq!(speech_stops(&t), 1);
+    started(&mut t, "a b");
+    t.call(Call::StopAll(vec!["speak".into()])).unwrap();
+    assert_eq!(speech_stops(&t), 2);
+    // A late answer for a stopped utterance does nothing.
+    let (serial, ..) = speech_starts(&t).pop().unwrap();
+    t.ev(Event::Speech {
+        serial,
+        marks: vec![(0, ph("a")), (10, SpeechMark::End)],
+    });
+    t.advance(t.now + 10);
+    assert_eq!(mouth(&t), None);
+    // User Hide (tray).
+    started(&mut t, "a b");
+    t.ev(Event::Tray(TrayInput::Menu(MenuAction::Hide)));
+    assert_eq!(speech_stops(&t), 3);
+    t.advance(t.now + 1000);
+    t.ev(Event::Tray(TrayInput::Menu(MenuAction::Show)));
+    t.advance(t.now + 1000);
+    // A character switch.
+    started(&mut t, "a b");
+    t.call(Call::Select("d".into())).unwrap();
+    assert_eq!(speech_stops(&t), 4);
+    t.advance(t.now + 1000);
+
+    // A spoken ask: heading and text without markup; closing it stops the speech.
+    let ask = |t: &mut T| {
+        t.req(Call::Ask(AskSpec {
+            heading: Some("Hi".into()),
+            text: Some("Ready {ul 1}now{ul 0}?".into()),
+            animation: Some(String::new()),
+            ..Default::default()
+        }))
+    };
+    let mut t = speaking(chars(), speech_on());
+    let id = ask(&mut t);
+    t.advance(t.now + 10);
+    assert_eq!(speech_starts(&t)[0].1, "Hi\nReady now?");
+    t.call(Call::Stop(id)).unwrap();
+    assert_eq!(speech_stops(&t), 1);
+    // Opening the gallery closes a spoken ask; the gallery itself is not spoken.
+    ask(&mut t);
+    t.advance(t.now + 10);
+    assert_eq!(speech_starts(&t).len(), 2);
+    open_gallery(&mut t);
+    assert_eq!(speech_stops(&t), 2);
+    t.advance(t.now + 1000);
+    assert_eq!(speech_starts(&t).len(), 2);
+    // An answered ask stops its speech too.
+    t.ev(Event::Key {
+        key: Key::Escape,
+        modifiers: 0,
+    });
+    t.advance(t.now + 1000);
+    ask(&mut t);
+    t.advance(t.now + 10);
+    assert_eq!(speech_starts(&t).len(), 3);
+    t.ev(Event::Key {
+        key: Key::Enter,
+        modifiers: 0,
+    });
+    assert!(t.core.scene().office_balloon.is_none());
+    assert_eq!(speech_stops(&t), 3);
+}
+
+/// B-MENU-4, B-TTS-5: a client Speak that ends an Animate! play is spoken itself, and
+/// nothing of the ended play reaches the engine.
+#[test]
+fn b_menu_4_b_tts_5_client_speak_ending_animate_is_spoken() {
+    let mut t = speaking(vec![talker("c")], speech_on());
+    t.press(PointerKind::Press, Surface::Character, 2, 510, 510);
+    t.press(PointerKind::Release, Surface::Character, 2, 510, 510);
+    t.ev(Event::Menu(MenuInput::Activate(4)));
+    let id = t.req(Call::Speak("now".into()));
+    t.advance(t.now + 300);
+    assert_eq!(speech_starts(&t).len(), 1);
+    assert_eq!(speech_starts(&t)[0].1, "now");
+    let t0 = answer(
+        &mut t,
+        vec![(0, SpeechMark::Word(0)), (100, SpeechMark::End)],
+    );
+    t.advance(t0 + 100);
+    assert_eq!(t.complete_of(id).unwrap(), (t0 + 100, 0, String::new()));
+    assert_eq!(speech_stops(&t), 0);
 }
