@@ -20,16 +20,18 @@ D-Bus API (`org.bentwire.Agent1`) and the character format (`format = 1`) are fr
   when they exit and stop with the daemon; an install never enables a bridge. Format in
   `docs/addon-format.md`.
 
+### Fixed
+
+- Programs the daemon starts (`xdg-open` for Options...) no longer inherit blocked
+  signals.
+
+## [0.2.2] - 2026-11-27
+
 ### Changed
 
 - Faster start: the daemon keeps the characters it found in
   `~/.cache/bentwire/discovery.json` and reads only manifests that changed since the last
   start (about 120 ms less with the classics pack).
-
-### Fixed
-
-- Programs the daemon starts (`xdg-open` for Options...) no longer inherit blocked
-  signals.
 
 ## [0.2.1] - 2026-11-21
 
@@ -236,7 +238,8 @@ First release.
 - Configuration file `~/.config/bentwire/config.toml`, reloaded on `SIGHUP`.
 - Documentation: behaviour spec, format research, sources, credits, decisions, roadmap.
 
-[Unreleased]: https://github.com/mschabhuettl/bentwire/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/mschabhuettl/bentwire/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/mschabhuettl/bentwire/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/mschabhuettl/bentwire/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/mschabhuettl/bentwire/compare/v0.1.3...v0.2.0
 [0.1.3]: https://github.com/mschabhuettl/bentwire/compare/v0.1.2...v0.1.3
