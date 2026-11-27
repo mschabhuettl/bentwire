@@ -43,7 +43,7 @@ Daemon options: `--characters DIR` (extra search root, repeatable), `--no-tray`,
 `--no-audio`, `--test-interface` (exports `org.bentwire.Test1` with `Pointer`, `Key`,
 `Snapshot`, A-TEST-3). `RUST_LOG=debug` gives more log output. Configuration:
 `~/.config/bentwire/config.toml` (B-CFG-1; the menu's "Options..." creates it), reloaded
-on `SIGHUP`. State: `~/.local/state/bentwire/state.toml`.
+on `SIGHUP` and the D-Bus call `Reload`. State: `~/.local/state/bentwire/state.toml`.
 
 Headless mode for tests: `bentwired --headless [--outputs WxH+X+Y[@S],...] [--seed N |
 --draws FILE] [--trace FILE] [--dump-frames DIR]` (T-4, format in spec 3.14 A-DESK-4).
