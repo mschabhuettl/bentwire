@@ -277,6 +277,9 @@ bridge-template`) with the structure of the real bridges:
 - Exit cleanly when the source ends or on SIGTERM / SIGINT. A bridge with external state
   blocks both signals and cleans up after `sigwait`, as `bentwire-mqtt` does.
 
+To have bentwired start and supervise your bridge, package it as a bridge add-on
+([addon-format.md](addon-format.md)).
+
 Full bridges:
 [crates/bentwire-notify](../crates/bentwire-notify/README.md) (B-NOTIFY-1: a bus monitor
 for notifications, `Speak` on a second connection) and

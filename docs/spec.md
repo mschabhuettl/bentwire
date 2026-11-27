@@ -1518,7 +1518,8 @@ the acs-format parser:
 | `double_click_ms` | `500` | B-UI-1 |
 | `scale` | `1` | B-SCALE-1 (1 to 4) |
 
-The daemon reads the config file at start and when it receives SIGHUP.
+The daemon reads the config file at start and when it receives SIGHUP (which also reads
+the add-ons again, B-ADDON-3).
 
 **B-CFG-2 State file.** `$XDG_STATE_HOME/bentwire/state.toml`:
 - `character`, `left`, `top`, `visible`;
@@ -1546,7 +1547,8 @@ The daemon reads the config file at start and when it receives SIGHUP.
 - `bentwired` requests the bus name `org.bentwire.Agent` with DO_NOT_QUEUE. If the name
   is taken, it exits with status 1 and the message "already running".
 - A D-Bus activation file (`org.bentwire.Agent.service`) lets the CLI start it.
-- SIGTERM and `Quit` save the state and exit 0 without animation.
+- SIGTERM and `Quit` save the state and exit 0 without animation, after stopping the
+  bridge add-ons (B-ADDON-5).
 
 ### 3.14 Decisions added during the build
 
@@ -1554,8 +1556,8 @@ Each item is a **bentwire decision** made while building v1, where the docs abov
 gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
 
 - **A-PACK-1** Packs and search roots extend B-CHAR-1 (`pack.toml`, config
-  `character_paths`, `--characters`). Reason: the project requires packs; B-CHAR-1 only
-  knows flat character entries.
+  `character_paths`, `--characters`, enabled add-ons by B-ADDON-4). Reason: the project
+  requires packs; B-CHAR-1 only knows flat character entries.
 - **A-ID-1** Unique ids in `classics` (`clippit` = Office XP Clippit; suffixes `-web`,
   `-15`, `-97`, `-bob`, `-act`). Reason: several sources carry the same character name.
 - **A-PACK-2** `classics` holds a source iff it converts and `source.missing_animations`
@@ -2089,6 +2091,9 @@ activation. If that also fails, it prints `bentwired is not running` and exits 1
 | `stop [<id>] [--all]` | `Stop(id or 0)`, `--all` = `StopAll([])` | nothing |
 | `characters` | `ListCharacters` | `id<TAB>name` per line, current marked with `*` |
 | `characters install classics` | local, then `ListCharacters` if the daemon runs | `installed bentwire-classics <version> in <dir>`, then `bentwired now has <n> characters` |
+| `addons [list]` | local (B-ADDON-3) | `name<TAB>kind<TAB>version<TAB>enabled` or `disabled` per line, sorted by name |
+| `addons install <folder\|archive\|url> [--sha256 HEX]` | local (B-ADDON-2), then SIGHUP | `installed <name> <version> (<kind>) in <dir>`; for a bridge a second line `a bridge runs only once enabled: bentwire addons enable <name>` |
+| `addons enable\|disable\|remove <name>` | local (B-ADDON-3), then SIGHUP | nothing |
 | `select <id>` | `Select` | nothing; for `NoSuchCharacter`, hint lines on stderr |
 | `animations` | `AnimationNames` | one per line |
 | `scale [<n>]` | `Scale` (read; write with `n`, 1 to 4) | without `n`: the factor; with `n`: nothing |
@@ -2187,6 +2192,84 @@ three installed ids within edit distance 2 or that extend the id with `-`
   YAML. Answers are not retained so that a reconnect does not replay an old answer into
   automations; the answer names follow the CLI so that scripts and automations read the
   same words.
+
+**B-ADDON-1 Add-on manifest.** **bentwire decision.** An add-on is a folder with
+`addon.toml` at its top (`docs/addon-format.md`): `name`, `kind`, `version`, and for
+bridges `command`; other keys are errors.
+- `name` is one path component `[a-z0-9][a-z0-9._-]*` without `..`; an installed add-on
+  lives in a folder of that name, and a folder whose manifest names another add-on, or
+  that does not parse, is skipped with a message (the daemon logs it, `addons list` prints
+  it on stderr).
+- `kind` is `character`, `balloon-theme` or `bridge`; `version` is a non-empty string;
+  `command` is a list of strings with a non-empty first element, required for a bridge and
+  not allowed for the other kinds.
+- Reason: issue #18; one small manifest for the three things users add, checked before
+  anything is copied into place.
+
+**B-ADDON-2 `addons install`.** **bentwire decision.**
+- The source is a folder, a ZIP or a gzip-compressed tar archive (by its first bytes), or
+  an `https://` URL of an archive, downloaded with curl as in B-CLI-1 (redirects only to
+  HTTPS; `file://` is also accepted, as a local file). `--sha256 HEX` checks an archive or
+  download; it is not allowed with a folder. Other URL schemes, `http://` included, fail.
+- The add-on is unpacked or copied into a temporary folder in
+  `$XDG_DATA_HOME/bentwire/addons/`, then renamed to `addons/<name>`, replacing an older
+  copy as a whole. `addon.toml` is at the top of the source, or in an archive's only
+  top-level folder. Only folders and regular files are taken: a link (in a folder or an
+  archive), a device or fifo, an absolute path or one with a `..` component fails the
+  install. pax headers of tar archives are skipped. Files get mode 0755 when any execute
+  bit is set, else 0644, and the time of the install as modification time (the discovery
+  cache, B-CHAR-1, keys on it). Any failure leaves the installed copy in place and
+  exits 1.
+- A character or balloon-theme add-on is enabled by its install. A bridge is never enabled
+  by an install: a bridge that replaces an enabled add-on of the same name is disabled
+  first, before its files are in place.
+- Reason: installing must not run code the user did not enable; links are refused
+  outright, which is simpler than checking where each one points.
+
+**B-ADDON-3 Enabled add-ons.** **bentwire decision.**
+- The enabled list is `$XDG_CONFIG_HOME/bentwire/addons.toml`, `enabled = ["name", ...]`,
+  written (temp file, then rename) by `addons install`, `enable`, `disable` and `remove`.
+  A missing file enables nothing; the daemon treats a broken one as empty and logs it.
+- `enable` and `disable` take the name of an installed add-on (`enable` also needs a
+  manifest that loads); `remove` takes it off the list and deletes its folder. Any other
+  name fails with exit 1.
+- A disabled add-on is not used at all: its characters and theme are not found
+  (B-ADDON-4) and a bridge is not run (B-ADDON-5).
+- After a change the CLI sends SIGHUP to the owner of `org.bentwire.Agent`
+  (`GetConnectionUnixProcessID`; a daemon is not started for this). On SIGHUP the daemon
+  reads the add-ons and the enabled list again, rescans the characters (B-CHAR-1, which
+  then also applies B-CHAR-4 and finds the theme, A-THEME-1) and starts or stops bridges.
+  A character whose add-on was disabled or removed while it is the current one stays
+  until another is selected, as when a pack folder is deleted; it is no longer listed.
+- Reason: the enabled state is the user's choice, so it lives in the config directory, in
+  a file of its own that the CLI may rewrite; SIGHUP already means "read your files again"
+  and needs no new D-Bus method.
+
+**B-ADDON-4 Characters and themes from add-ons.** **bentwire decision.** (Extends
+A-PACK-1.) The folders of the enabled `character` and `balloon-theme` add-ons are search
+roots, in name order, after the `--characters` and `character_paths` roots and before
+`$XDG_DATA_HOME/bentwire`. Such a root is read like a pack folder (its children are
+characters, and `balloon-themes/<id>/theme.toml` is a theme), or as one character when
+`character.toml` is next to `addon.toml`. Add-on folders are not searched below
+`characters/`. Reason: an add-on the user enabled should take effect, also over a pack's
+character of the same id or the pack's theme; disabling it brings those back.
+
+**B-ADDON-5 Bridge add-ons.** **bentwire decision.**
+- Each enabled bridge runs as its own process, never inside the daemon. The daemon starts
+  the bridges once it owns its bus name and has started, and on SIGHUP (B-ADDON-3). The
+  program is `command[0]`, taken from the add-on folder when it is a relative path with a
+  `/`, else from `PATH`; it runs in the add-on folder with the daemon's environment, stdin
+  `/dev/null`, stdout and stderr inherited, no blocked signals, in its own process group,
+  and with `PR_SET_PDEATHSIG` = SIGTERM (spawned from the daemon's main thread).
+- A bridge that exits, or cannot be started, is started again after a wait: 1 s after the
+  first exit, doubling after each further one up to 60 s, and back to 1 s after a run of
+  60 s or more. SIGCHLD wakes the daemon to notice an exit; the wait is real time, also in
+  headless mode.
+- A bridge that is disabled or removed gets SIGTERM to its process group. When the daemon
+  quits (Quit, SIGTERM, SIGINT, the end of the session bus, B-RUN-1) every bridge gets
+  SIGTERM to its process group, and SIGKILL if it still runs 2 s later.
+- Reason: issue #18 and the roadmap ("no plugin code in the daemon process"); a crashing
+  bridge must not spin, and a bridge must not outlive the daemon that started it.
 
 ## 6. Test strategy
 

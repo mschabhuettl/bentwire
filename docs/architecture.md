@@ -30,8 +30,9 @@ and keep `bentwired` a thin shell around backends).
 
 **A-PACK-1 Packs and search paths.** (Extends B-CHAR-1.)
 - A search root is a directory `R`. The roots, in order: each entry of config key
-  `character_paths` (list of directories, B-CFG-1 extension), `$XDG_DATA_HOME/bentwire`,
-  then each `$XDG_DATA_DIRS` entry plus `/bentwire`. `bentwired --characters DIR`
+  `character_paths` (list of directories, B-CFG-1 extension), the folders of the enabled
+  character and balloon-theme add-ons (spec B-ADDON-4), `$XDG_DATA_HOME/bentwire`, then
+  each `$XDG_DATA_DIRS` entry plus `/bentwire`. `bentwired --characters DIR`
   (repeatable) prepends roots for development and tests.
 - In `R/characters/` every entry is a character (folder with `character.toml`, or
   `*.bwc`) as in B-CHAR-1, or a **pack**: a folder with `pack.toml`, whose direct

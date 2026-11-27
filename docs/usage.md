@@ -39,6 +39,9 @@ prints the usage.
 | `hide [--fast] [--wait]` | Hide | request id |
 | `stop [<id>] [--all]` | Stop one request, the current one, or all (`--all`) | nothing |
 | `characters` | List installed characters | `id<TAB>name` per line, the current one with a third column `*` |
+| `addons [list]` | List installed add-ons | `name<TAB>kind<TAB>version<TAB>enabled` or `disabled` per line |
+| `addons install <folder\|archive\|url> [--sha256 HEX]` | Install an add-on (see below) | the installed name, version and kind |
+| `addons enable <name>` / `disable <name>` / `remove <name>` | Switch an add-on on or off, or delete it | nothing |
 | `select <id>` | Switch character | nothing |
 | `animations` | Animation names of the current character | one per line |
 | `scale [<n>]` | Character size factor 1 to 4; without `n`, print it | the factor, or nothing |
@@ -80,3 +83,29 @@ stderr); 2 the request failed (for `ask`: nothing is printed, the reason goes to
   [`crates/bentwire-mqtt/README.md`](../crates/bentwire-mqtt/README.md).
 
 Your own bridge: [dbus.md, "Writing a bridge"](dbus.md#writing-a-bridge).
+
+## Add-ons
+
+Add-ons are characters, balloon themes and bridges in a folder with an `addon.toml`
+manifest. The format, and how to wrap `bentwire-notify` or `bentwire-mqtt` as one, is in
+[addon-format.md](addon-format.md).
+
+```sh
+bentwire addons install ./my-characters            # a folder
+bentwire addons install wire-1.0.tar.gz            # a .tar.gz or .zip archive
+bentwire addons install https://example.org/door-bell-0.1.zip --sha256 3f2a...
+bentwire addons list
+bentwire addons enable door-bell                   # bridges only run once enabled
+bentwire addons disable my-characters
+bentwire addons remove door-bell
+```
+
+- Add-ons go to `~/.local/share/bentwire/addons/<name>/`; which ones are enabled is kept
+  in `~/.config/bentwire/addons.toml`.
+- Character and theme add-ons are enabled when installed; a disabled one is not used (its
+  characters are not listed). Bridges are never enabled by an install, also not when they
+  replace an enabled one.
+- An enabled bridge is started by `bentwired` and runs as long as the daemon does; if it
+  exits, it is restarted after 1 s, 2 s, 4 s and so on up to a minute.
+- The CLI tells a running daemon about each change (SIGHUP). After changing the files by
+  hand, run `pkill -HUP -x bentwired` or restart the daemon.
