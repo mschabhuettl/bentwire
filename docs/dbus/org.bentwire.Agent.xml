@@ -16,6 +16,7 @@
     <property name="Character" type="s" access="read"/>
     <property name="Version" type="s" access="read"/>
     <property name="Scale" type="u" access="readwrite"/>
+    <property name="Speech" type="b" access="readwrite"/>
   </interface>
   <!-- /org/bentwire/Character -->
   <interface name="org.bentwire.Character1">
@@ -33,6 +34,11 @@
     </method>
     <method name="Speak">
       <arg name="text" type="s" direction="in"/>
+      <arg name="id" type="u" direction="out"/>
+    </method>
+    <method name="SpeakWith">
+      <arg name="text" type="s" direction="in"/>
+      <arg name="options" type="a{sv}" direction="in"/>
       <arg name="id" type="u" direction="out"/>
     </method>
     <method name="Ask">

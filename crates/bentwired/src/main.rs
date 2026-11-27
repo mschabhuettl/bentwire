@@ -10,6 +10,7 @@ mod model;
 mod oracle;
 mod present;
 mod sheets;
+mod speech;
 mod tray;
 mod wayland;
 
@@ -203,6 +204,7 @@ fn run(args: args::Args) -> Result<(), String> {
         chosen: state.chosen(),
         scale: state.scale.unwrap_or(1),
         scale_chosen: state.scale_chosen.unwrap_or(false),
+        speech: state.speech,
     });
     // B-CHAR-6: once, when only the builtin placeholder is installed and it starts visible.
     let install_hint = !state.install_hint_shown
@@ -264,6 +266,25 @@ fn run(args: args::Args) -> Result<(), String> {
         } else {
             audio::Audio::open()
         },
+        speech: if headless || args.no_audio {
+            None
+        } else {
+            let (tx, rx) = calloop::channel::channel();
+            event_loop
+                .handle()
+                .insert_source(rx, |ev, _, app: &mut App| {
+                    if let calloop::channel::Event::Msg(a) = ev {
+                        app.speech_answer(a);
+                    }
+                })
+                .map_err(|e| e.to_string())?;
+            let audio = audio::Audio::open();
+            let s = speech::Speech::spawn(move |a| {
+                let _ = tx.send(a);
+            });
+            audio.map(|a| (s, a))
+        },
+        speech_pending: None,
         silent: headless || args.no_audio,
         tray: if headless || args.no_tray {
             None

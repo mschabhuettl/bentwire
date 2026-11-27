@@ -27,7 +27,7 @@ const CHAR_IFACE: &str = "org.bentwire.Character1";
 const USAGE: &str = "\
 usage: bentwire <command> [args]
   play <name> [--wait]
-  say <text> [--wait]
+  say <text> [--speak | --no-speak] [--wait]
   ask [<text>] [--heading H] [--icon I] [--buttons SET | --button CAPTION ...]
       [--label L ...] [--label-type T] [--checkbox C ...] [--mode M] [--animation NAME]
   moveto <x> <y> [--speed MS] [--wait]
@@ -40,6 +40,7 @@ usage: bentwire <command> [args]
   select <id>
   animations
   scale [<1-4>]
+  speech [on | off]
   status
   quit
   convert <source> <dest> [--palette OFFICE.ACS|MSO97.DLL] [--lang TAG] [--codepage LABEL]
@@ -381,18 +382,24 @@ fn run(args: &[String]) -> Result<(), Fail> {
         return Err(Fail::Usage(String::new()));
     };
     match cmd.as_str() {
-        "play" | "say" => {
+        "say" => {
+            let o = Opts::parse(rest, &["--wait", "--speak", "--no-speak"], &[])?;
+            o.npos(1, "a text")?;
+            let text = o.positional[0].as_str();
+            // B-TTS-1: plain Speak without a flag, so older daemons keep working.
+            match (o.flag("--speak"), o.flag("--no-speak")) {
+                (true, true) => Err(Fail::Usage("use either --speak or --no-speak".into())),
+                (false, false) => request("Speak", &(text,), o.flag("--wait")),
+                (speak, _) => {
+                    let opts = HashMap::from([("speech", Value::from(speak))]);
+                    request("SpeakWith", &(text, opts), o.flag("--wait"))
+                }
+            }
+        }
+        "play" => {
             let o = Opts::parse(rest, &["--wait"], &[])?;
-            o.npos(
-                1,
-                if cmd == "play" {
-                    "an animation name"
-                } else {
-                    "a text"
-                },
-            )?;
-            let m = if cmd == "play" { "Play" } else { "Speak" };
-            request(m, &(o.positional[0].as_str(),), o.flag("--wait"))
+            o.npos(1, "an animation name")?;
+            request("Play", &(o.positional[0].as_str(),), o.flag("--wait"))
         }
         "ask" => ask(rest),
         "moveto" => {
@@ -515,6 +522,27 @@ fn run(args: &[String]) -> Result<(), Fail> {
                 }
                 _ => Err(Fail::Usage("expected [<1-4>]".into())),
             }
+        }
+        "speech" => {
+            let o = Opts::parse(rest, &[], &[])?;
+            let c = Client::new(false)?;
+            let on = match o.positional.as_slice() {
+                [] => {
+                    let v =
+                        bool::try_from(c.prop(AGENT_PATH, AGENT_IFACE, "Speech")?).unwrap_or(false);
+                    outln!("{}", if v { "on" } else { "off" });
+                    return Ok(());
+                }
+                [v] if v == "on" => true,
+                [v] if v == "off" => false,
+                _ => return Err(Fail::Usage("expected [on | off]".into())),
+            };
+            c.call::<_, ()>(
+                AGENT_PATH,
+                "org.freedesktop.DBus.Properties",
+                "Set",
+                &(AGENT_IFACE, "Speech", Value::from(on)),
+            )
         }
         "status" => {
             Opts::parse(rest, &[], &[])?.npos(0, "no arguments")?;

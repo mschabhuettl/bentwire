@@ -120,6 +120,11 @@ pub fn parse(msg: &Message, test: bool, test_full: bool) -> Option<Result<Call, 
                             .map_err(|_| invalid("Scale takes an unsigned integer (u)"))?;
                         Call::Core(CoreCall::SetScale(s))
                     }
+                    (AGENT_PATH, AGENT_IFACE, "Speech") => {
+                        let b =
+                            bool::try_from(&*v).map_err(|_| invalid("Speech takes a boolean"))?;
+                        Call::Core(CoreCall::SetSpeech(b))
+                    }
                     _ => {
                         let x = introspect(&path, false, false);
                         let known = x.contains(&format!("<interface name=\"{i}\">"))
@@ -153,6 +158,10 @@ pub fn parse(msg: &Message, test: bool, test_full: bool) -> Option<Result<Call, 
                 },
                 "Play" => CoreCall::Play(body::<(String,)>(msg)?.0),
                 "Speak" => CoreCall::Speak(body::<(String,)>(msg)?.0),
+                "SpeakWith" => {
+                    let (text, o): (String, HashMap<String, OwnedValue>) = body(msg)?;
+                    parse_speak_with(text, &o)?
+                }
                 "Ask" => CoreCall::Ask(parse_ask(&body::<(HashMap<String, OwnedValue>,)>(msg)?.0)?),
                 "MoveTo" => {
                     let (x, y, s): (i32, i32, u32) = body(msg)?;
@@ -236,6 +245,30 @@ pub fn parse_ask(m: &HashMap<String, OwnedValue>) -> Result<AskSpec, CallError> 
         }
     }
     Ok(a)
+}
+
+/// `SpeakWith` options (B-TTS-1): `speech` (b). Unknown keys are InvalidArgs, as for Ask.
+pub fn parse_speak_with(
+    text: String,
+    m: &HashMap<String, OwnedValue>,
+) -> Result<CoreCall, CallError> {
+    let mut speech = None;
+    for (k, v) in m {
+        let v: &Value = match &**v {
+            Value::Value(inner) => inner,
+            other => other,
+        };
+        match k.as_str() {
+            "speech" => {
+                speech = Some(
+                    bool::try_from(v)
+                        .map_err(|_| invalid("SpeakWith key \"speech\" must be a boolean"))?,
+                )
+            }
+            other => return Err(invalid(format!("unknown SpeakWith key {other:?}"))),
+        }
+    }
+    Ok(CoreCall::SpeakWith { text, speech })
 }
 
 pub fn reply_error(conn: &Connection, h: &Header<'_>, e: &CallError) {
@@ -414,6 +447,7 @@ pub fn agent_props_map(p: &Properties) -> HashMap<&'static str, Value<'static>> 
     let mut m = HashMap::new();
     m.insert("Character", Value::from(safe(&p.character)));
     m.insert("Scale", Value::from(p.scale));
+    m.insert("Speech", Value::from(p.speech));
     m.insert(
         "Version",
         Value::from(env!("CARGO_PKG_VERSION").to_string()),
@@ -461,6 +495,7 @@ pub fn introspect(path: &str, test: bool, test_full: bool) -> String {
 <property name="Character" type="s" access="read"/>
 <property name="Version" type="s" access="read"/>
 <property name="Scale" type="u" access="readwrite"/>
+<property name="Speech" type="b" access="readwrite"/>
 </interface>"#
             .to_string(),
         CHAR_PATH => {
@@ -480,6 +515,9 @@ pub fn introspect(path: &str, test: bool, test_full: bool) -> String {
                     s += &format!("<arg name=\"{a}\" type=\"{c}\" direction=\"in\"/>");
                 }
                 s += "<arg name=\"id\" type=\"u\" direction=\"out\"/></method>";
+                if name == "Speak" {
+                    s += r#"<method name="SpeakWith"><arg name="text" type="s" direction="in"/><arg name="options" type="a{sv}" direction="in"/><arg name="id" type="u" direction="out"/></method>"#;
+                }
             }
             s += r#"<method name="Stop"><arg name="id" type="u" direction="in"/></method><method name="StopAll"><arg name="types" type="as" direction="in"/></method>"#;
             for (n, t, names) in [
@@ -623,5 +661,31 @@ mod tests {
         m.remove("heading");
         m.insert("bogus".into(), OwnedValue::from(3u32));
         assert_eq!(parse_ask(&m).unwrap_err().name, errors::INVALID_ARGS);
+    }
+
+    #[test]
+    fn b_tts_1_speak_with_options() {
+        let mut m: HashMap<String, OwnedValue> = HashMap::new();
+        let call = |m: &HashMap<String, OwnedValue>| parse_speak_with("hi".into(), m);
+        assert_eq!(
+            call(&m).unwrap(),
+            CoreCall::SpeakWith {
+                text: "hi".into(),
+                speech: None
+            }
+        );
+        m.insert("speech".into(), OwnedValue::from(true));
+        assert_eq!(
+            call(&m).unwrap(),
+            CoreCall::SpeakWith {
+                text: "hi".into(),
+                speech: Some(true)
+            }
+        );
+        m.insert("speech".into(), OwnedValue::from(1u32));
+        assert_eq!(call(&m).unwrap_err().name, errors::INVALID_ARGS);
+        m.remove("speech");
+        m.insert("voice".into(), OwnedValue::from(true));
+        assert_eq!(call(&m).unwrap_err().name, errors::INVALID_ARGS);
     }
 }

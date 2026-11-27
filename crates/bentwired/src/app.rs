@@ -60,6 +60,11 @@ pub struct App {
     pub next_output_id: u32,
     pub backend: Box<dyn Backend>,
     pub audio: Option<crate::audio::Audio>,
+    /// B-TTS-6: espeak-ng on its thread and the second output its speech plays on; none
+    /// in headless mode and with `--no-audio`.
+    pub speech: Option<(crate::speech::Speech, crate::audio::Audio)>,
+    /// The utterance the engine works on for the core.
+    pub speech_pending: Option<u64>,
     /// No audio device by design (headless, `--no-audio`): sounds count as played, so
     /// timing is as with sound. A device that failed to open reports failures instead.
     pub silent: bool,
@@ -479,6 +484,38 @@ impl App {
                     dbus::emit(&self.conn, target.as_deref(), &signal);
                 }
                 Output::SoundStart { sound } => self.start_sound(&sound),
+                Output::SpeechStart {
+                    serial,
+                    text,
+                    voice,
+                } => {
+                    self.trace(serde_json::json!({"type": "speech_start", "serial": serial,
+                        "text": text, "voice": {"language": voice.language,
+                        "gender": voice.gender, "pitch": voice.pitch,
+                        "words_per_minute": voice.words_per_minute}}));
+                    match &self.speech {
+                        Some((s, _)) => {
+                            self.speech_pending = Some(serial);
+                            s.say(crate::speech::Job {
+                                serial,
+                                text,
+                                voice,
+                            });
+                        }
+                        None => {
+                            let e = self.speech_failed(serial);
+                            self.deferred.push(e);
+                        }
+                    }
+                }
+                Output::SpeechStop => {
+                    self.trace(serde_json::json!({"type": "speech_stop"}));
+                    self.speech_pending = None;
+                    if let Some((s, a)) = &mut self.speech {
+                        s.cancel();
+                        a.stop();
+                    }
+                }
                 Output::SoundStop => {
                     self.trace(serde_json::json!({"type": "sound_stop"}));
                     if let Some(a) = &mut self.audio {
@@ -495,6 +532,7 @@ impl App {
                         install_hint_shown: self.install_hint_shown,
                         scale: Some(s.scale),
                         scale_chosen: Some(s.scale_chosen),
+                        speech: s.speech,
                     };
                     if let Err(e) = st.save(&self.state_path) {
                         log::warn!("writing {}: {e}", self.state_path.display());
@@ -533,6 +571,37 @@ impl App {
             log::warn!("sound {sound} could not be played");
             self.deferred.push(Event::SoundFailed);
         }
+    }
+
+    /// B-TTS-2: the engine's answer. The audio starts with the timeline; an utterance the
+    /// core stopped in the meantime stays silent.
+    pub fn speech_answer(&mut self, a: crate::speech::Answer) {
+        match a {
+            Ok(u) if self.speech_pending == Some(u.serial) => {
+                self.speech_pending = None;
+                let played = self.speech.as_mut().is_some_and(|(_, a)| a.play(&u.pcm));
+                let e = if played {
+                    Event::Speech {
+                        serial: u.serial,
+                        marks: u.marks,
+                    }
+                } else {
+                    self.speech_failed(u.serial)
+                };
+                self.event(e);
+            }
+            Err(serial) if self.speech_pending == Some(serial) => {
+                self.speech_pending = None;
+                let e = self.speech_failed(serial);
+                self.event(e);
+            }
+            _ => {}
+        }
+    }
+
+    fn speech_failed(&mut self, serial: u64) -> Event {
+        self.trace(serde_json::json!({"type": "speech_failed", "serial": serial}));
+        Event::SpeechFailed { serial }
     }
 
     /// PropertiesChanged and the scene, after every batch of outputs.
@@ -679,6 +748,7 @@ fn call_method(c: &api::Call) -> &'static str {
         Hide { .. } => "Hide",
         Play(_) => "Play",
         Speak(_) => "Speak",
+        SpeakWith { .. } => "SpeakWith",
         Ask(_) => "Ask",
         MoveTo { .. } => "MoveTo",
         GestureAt { .. } => "GestureAt",
@@ -686,6 +756,7 @@ fn call_method(c: &api::Call) -> &'static str {
         StopAll(_) => "StopAll",
         SetIdleOn(_) => "SetIdleOn",
         SetScale(_) => "SetScale",
+        SetSpeech(_) => "SetSpeech",
     }
 }
 
@@ -703,6 +774,8 @@ fn call_args(c: &api::Call) -> serde_json::Value {
         StopAll(t) => json!([t]),
         SetIdleOn(b) => json!([b]),
         SetScale(n) => json!([n]),
+        SetSpeech(b) => json!([b]),
+        SpeakWith { text, speech } => json!([text, {"speech": speech}]),
         ListCharacters | Quit => json!([]),
     }
 }

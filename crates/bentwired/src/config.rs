@@ -17,6 +17,8 @@ pub struct Config {
     pub character_paths: Vec<PathBuf>,
     /// B-SCALE-1 size factor, 1 to 4.
     pub scale: u32,
+    /// B-TTS-1 speech output.
+    pub speech: bool,
 }
 
 impl Default for Config {
@@ -32,6 +34,7 @@ impl Default for Config {
             double_click_ms: 500,
             character_paths: Vec::new(),
             scale: 1,
+            speech: false,
         }
     }
 }
@@ -49,6 +52,7 @@ pub const DEFAULT_CONFIG_TEXT: &str = "\
 # double_click_ms = 500
 # character_paths = []      # extra search roots (A-PACK-1)
 # scale = 1                 # character size: 1, 2, 3 or 4 (the Size menu wins once used)
+# speech = false            # speak with espeak-ng (the tray item wins once used)
 ";
 
 impl Config {
@@ -83,6 +87,7 @@ impl Config {
             idle: self.idle,
             double_click_ms: self.double_click_ms,
             scale: self.scale,
+            speech: self.speech,
         }
     }
 }
@@ -101,6 +106,8 @@ pub struct State {
     /// B-SCALE-1: the size factor of `left`/`top` (absent: 1) and whether the user chose it.
     pub scale: Option<u32>,
     pub scale_chosen: Option<bool>,
+    /// B-TTS-1: speech output as the user set it; absent until then.
+    pub speech: Option<bool>,
 }
 
 /// The builtin placeholder (A-CHAR-1).
@@ -219,6 +226,7 @@ pub(crate) mod tests {
             install_hint_shown: true,
             scale: Some(3),
             scale_chosen: Some(true),
+            speech: Some(true),
         };
         s.save(&p).unwrap();
         assert_eq!(State::load(&p), s);
@@ -233,6 +241,21 @@ pub(crate) mod tests {
         // State files of 0.1.x have no factor: 1, not chosen.
         let st: State = toml::from_str("character = \"a\"\nleft = 1").unwrap();
         assert_eq!((st.scale, st.scale_chosen), (None, None));
+    }
+
+    #[test]
+    fn b_tts_1_config_and_state_keys() {
+        assert!(!Config::default().to_core().speech);
+        let c: Config = toml::from_str("speech = true").unwrap();
+        assert!(c.to_core().speech);
+        // Not set by the user: not written, so older state files stay as they were.
+        let st = State {
+            character: Some("a".into()),
+            ..Default::default()
+        };
+        assert!(!toml::to_string(&st).unwrap().contains("speech"));
+        let st: State = toml::from_str("speech = false").unwrap();
+        assert_eq!(st.speech, Some(false));
     }
 
     #[test]
