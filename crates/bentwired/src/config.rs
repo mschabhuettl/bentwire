@@ -103,6 +103,8 @@ pub struct State {
     pub chosen: Option<bool>,
     /// B-CHAR-6: the install hint was shown.
     pub install_hint_shown: bool,
+    /// A copied `bentwire-placeholder` was reported as removable.
+    pub placeholder_hint_shown: bool,
     /// B-SCALE-1: the size factor of `left`/`top` (absent: 1) and whether the user chose it.
     pub scale: Option<u32>,
     pub scale_chosen: Option<bool>,
@@ -247,6 +249,7 @@ pub(crate) mod tests {
             visible: Some(true),
             chosen: Some(false),
             install_hint_shown: true,
+            placeholder_hint_shown: true,
             scale: Some(3),
             scale_chosen: Some(true),
             speech: Some(true),

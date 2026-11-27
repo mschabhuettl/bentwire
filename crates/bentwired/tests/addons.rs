@@ -83,6 +83,36 @@ fn read_pid(file: &Path) -> String {
     std::fs::read_to_string(file).unwrap().trim().to_string()
 }
 
+/// B-ADDON-3: a daemon that does not answer `Reload` does not hang the CLI; the change is
+/// made and the CLI says so, exit status 0.
+#[test]
+fn b_addon_3_cli_reload_without_answer_times_out() {
+    let e = Env::new("addhang");
+    // Owns the daemon's name and never answers.
+    let fake = connect(&e.addr);
+    fake.request_name("org.bentwire.Agent").unwrap();
+    let wire = addon(&e.dir.join("src"), "wire", "character", "1.0", "");
+    let t = Instant::now();
+    let (code, so, se) = cli(&e, &["addons", "install", wire.to_str().unwrap()]);
+    let took = t.elapsed();
+    assert_eq!(
+        (code, so.starts_with("installed wire 1.0")),
+        (0, true),
+        "{se}"
+    );
+    assert_eq!(
+        se,
+        "bentwire: bentwired did not answer Reload within 5 s; it applies this once it \
+         handles the call, or on its next start\n"
+    );
+    assert!(
+        took >= Duration::from_secs(5) && took < Duration::from_secs(15),
+        "{took:?}"
+    );
+    assert!(addons(&e).join("wire/addon.toml").exists());
+    drop(fake);
+}
+
 /// B-ADDON-1 to B-ADDON-3 without a daemon: install from a folder, a tar.gz and a file URL,
 /// list, enable, disable, remove; a bridge is never enabled by an install, also not one that
 /// replaces an enabled add-on; bad sources and manifests fail and leave nothing behind.

@@ -93,9 +93,9 @@ file. `bentwire say --speak` or `--no-speak` decides for one text.
 
 - espeak-ng is optional: bentwired loads `libespeak-ng.so.1` when it starts (Arch:
   `pacman -S espeak-ng`, Debian and Ubuntu: `apt install libespeak-ng1`, Fedora: `dnf
-  install espeak-ng`; restart bentwired after installing it). Without it the log says
-  `speech: espeak-ng not available` once, when it first would speak, and the text is shown
-  word by word as without speech.
+  install espeak-ng`; restart bentwired after installing it). Without it, or without its
+  data (`espeak-ng-data`), the log says `speech: espeak-ng not available` with the reason
+  once, when it first would speak, and the text is shown word by word as without speech.
 - Speech plays through the same audio backends as the character's sounds and is off when
   `sound_effects = false`.
 - The voice comes from the character's voice data (language, gender, pitch, speed; Earl,
@@ -138,5 +138,7 @@ bentwire addons remove door-bell
   replace an enabled one.
 - An enabled bridge is started by `bentwired` and runs as long as the daemon does; if it
   exits, it is restarted after 1 s, 2 s, 4 s and so on up to a minute.
-- The CLI tells a running daemon about each change (D-Bus `Reload`). After changing the
-  files by hand, run `pkill -HUP -x bentwired` or restart the daemon.
+- The CLI tells a running daemon about each change (D-Bus `Reload`) and waits up to 5 s
+  for it; a daemon that does not answer in time gets a note on stderr (exit status 0),
+  and it applies the change once it handles the call, or on its next start. After
+  changing the files by hand, run `pkill -HUP -x bentwired` or restart the daemon.

@@ -966,7 +966,11 @@ A new utterance first stops the current one. `End` ends it without `SpeechStop`.
 **B-TTS-6 espeak-ng in the daemon.**
 - `libespeak-ng.so.1` is loaded at run time; it is not a package dependency. A missing
   library or a failed initialisation is logged once, with the first utterance (`speech:
-  espeak-ng not available: ...`), and every utterance gets `SpeechFailed`.
+  espeak-ng not available: ...`), and every utterance gets `SpeechFailed`. What
+  espeak-ng prints to stderr while it initialises (a missing `espeak-ng-data`) is caught
+  and becomes part of that line. Reason: initialisation runs at every start, also with
+  speech off, and espeak-ng's own message would fill the log on each one; once per run,
+  and only when speech is wanted, needs no record of its own.
 - The daemon loads and initialises espeak-ng at start, on its main thread before it
   starts any other thread, unless it runs headless or with `--no-audio`; this also
   happens when speech output is off. Reason: `espeak_Initialize` sets the process locale
@@ -1400,7 +1404,8 @@ while a full-screen application runs (R-WIN-1 [INF]); compositors usually draw f
 windows above the top layer. KWin verification: section 6, item K2.
 
 **B-WL-4 Positions are not clamped.** (= agent-runtime R-WIN-4 [OBS] for the model.)
-- Left and Top are never clamped by MoveTo or drag.
+- Left and Top are never clamped by MoveTo or drag (at start they are pulled inside,
+  B-CFG-3).
 - The backend requests exactly that position. Parts beyond the surface's output are not
   shown, because a surface belongs to one output.
 - The output is chosen again (by recreating the surface) when the centre lies on another
@@ -1662,6 +1667,11 @@ The daemon reads the config file at start and when it receives SIGHUP or the D-B
   character up to 0.3.0). A `character` of `bentwire-placeholder` is read as `wire`,
   chosen or not as before;
 - `install_hint_shown`: B-CHAR-6 was shown (default false);
+- `placeholder_hint_shown`: a character `bentwire-placeholder` (the builtin character up to
+  0.3.0, copied by hand under a search root) was found at start and the log said once
+  `<path>: bentwire-placeholder was the builtin character up to bentwire 0.3 and is replaced
+  by wire; this copy is not needed and can be removed` (default false). The copy stays a
+  normal character; the daemon never deletes it;
 - `scale`, the size factor `left` and `top` were saved at, and `scale_chosen`, the user
   chose it (B-SCALE-1); a file without them counts as 1, not chosen;
 - `speech`: speech output as the user set it (B-TTS-1), written only once set; without it
@@ -1678,6 +1688,11 @@ The daemon reads the config file at start and when it receives SIGHUP or the D-B
   output (then topmost). A remembered position (B-CFG-2) wins. Reason: on a
   multi-monitor desktop the character should first appear on the screen the user works
   on, not on whichever output comes first in the layout.
+- At start the frame is pulled inside an output as on an output change (B-WL-4), without
+  a `Move`; a position partly off its output is not kept across a restart. Reason: a
+  position saved for another character (the 96 px `bentwire-placeholder` of 0.3, now the
+  128 px `wire`, or a chosen character that no longer loads) or on an output that is gone
+  would leave the character partly or wholly off screen.
 - Visible.
 - At start, a visible character is shown with an animated Show (cause 4).
 
@@ -2376,9 +2391,11 @@ bridges `command`; other keys are errors.
 - Limits: an archive or download has at most 256 MiB, unpacks to at most 1 GiB (for a tar
   archive the whole tar stream, headers included; for a ZIP the bytes written) and has at
   most 10000 entries, where every component of an entry's path counts (each may create a
-  folder). They are checked while downloading (curl's output is cut off) and
-  unpacking, so no more is ever written; the install fails with `<what> more than <limit>
-  (the limit for add-on archives)`. A folder is not limited.
+  folder); the headers of one tar entry (its header blocks with GNU long name and pax
+  extension data, which are held in memory) have at most 64 KiB. The limits are checked
+  while downloading (curl's output is cut off) and unpacking, so no more is ever written
+  or held; the install fails with `<what> more than <limit> (the limit for add-on
+  archives)`. A folder is not limited.
 - A character or balloon-theme add-on is enabled by its install. A bridge is never enabled
   by an install: a bridge that replaces an enabled add-on of the same name is disabled
   first, before its files are in place.
@@ -2398,7 +2415,10 @@ bridges `command`; other keys are errors.
 - After a change the CLI calls `Reload` (5.2) with the NO_AUTO_START flag, so a daemon
   is not started for this; when the daemon does not run, nothing happens, and any other
   error (a daemon older than `Reload`) prints `bentwire: bentwired did not reload (...);
-  restart it to apply this` on stderr, exit status 0. On `Reload` and on SIGHUP the daemon
+  restart it to apply this` on stderr, exit status 0. The CLI waits 5 s for the reply;
+  then it prints `bentwire: bentwired did not answer Reload within 5 s; it applies this
+  once it handles the call, or on its next start`, exit status 0 (the change is made; a call
+  already sent stays queued for a busy daemon). On `Reload` and on SIGHUP the daemon
   reads the add-ons and the enabled list again, rescans the characters (B-CHAR-1, which
   then also applies B-CHAR-4 and finds the theme, A-THEME-1) and starts or stops bridges.
   When the current character's add-on is disabled or removed, B-CHAR-4 applies as after

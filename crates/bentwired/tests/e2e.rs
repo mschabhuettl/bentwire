@@ -1393,6 +1393,51 @@ fn b_char_6_install_hint_once_with_only_builtin() {
     }
 }
 
+/// B-CFG-2: a hand-copied `bentwire-placeholder` (0.3 and older) is reported once as
+/// removable, and left in place.
+#[test]
+fn b_cfg_2_copied_placeholder_is_reported_once() {
+    let mut e = Env::new("oldph");
+    e.seed_state("install_hint_shown = true\n");
+    let root = e.dir.join("data/bentwire/characters");
+    let copy = root.join("bentwire-placeholder");
+    copy_dir(&fixtures().join("pebble"), &copy);
+    let log = e.dir.join("daemon.log");
+    let want = format!(
+        "{}: bentwire-placeholder was the builtin character up to bentwire 0.3",
+        copy.display()
+    );
+    for (run, reported) in [(0, true), (1, false)] {
+        let f = std::fs::File::create(&log).unwrap();
+        let child = e
+            .daemon_cmd(&["--characters", root.to_str().unwrap()])
+            .env("RUST_LOG", "info,zbus=error,tracing=error")
+            .stderr(f)
+            .spawn()
+            .unwrap();
+        e.daemon = Some(child);
+        let t = std::time::Instant::now();
+        while !e.name_owned() {
+            assert!(
+                t.elapsed() < std::time::Duration::from_secs(10),
+                "bentwired did not start"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        e.advance(500);
+        assert!(
+            e.state().contains("placeholder_hint_shown = true"),
+            "{}",
+            e.state()
+        );
+        e.client().call_unit(AGENT, AGENT_IF, "Quit", &()).unwrap();
+        assert_eq!(e.wait_exit(10), Some(0));
+        let text = std::fs::read_to_string(&log).unwrap();
+        assert_eq!(text.contains(&want), reported, "run {run}: {text}");
+    }
+    assert!(copy.join("character.toml").is_file());
+}
+
 /// Bottom centre of an `{x, y, w, h}` box of the snapshot.
 fn bottom_centre(o: &serde_json::Value) -> Option<(i64, i64)> {
     let v = |k: &str| o[k].as_i64();

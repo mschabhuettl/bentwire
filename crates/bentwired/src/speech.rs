@@ -237,9 +237,15 @@ impl Engine {
                 set_voice: dl.sym(c"espeak_SetVoiceByProperties")?,
             };
             let options = INITIALIZE_PHONEME_EVENTS | INITIALIZE_PHONEME_IPA | INITIALIZE_DONT_EXIT;
-            let rate = init(AUDIO_OUTPUT_SYNCHRONOUS, 0, std::ptr::null(), options);
+            // espeak-ng prints why it failed (a missing espeak-ng-data) to stderr; that goes
+            // into the message logged with the first utterance instead of every start.
+            let (rate, said) =
+                stderr_to_string(|| init(AUDIO_OUTPUT_SYNCHRONOUS, 0, std::ptr::null(), options));
             if rate <= 0 {
-                return Err("espeak_Initialize failed (no espeak-ng-data?)".into());
+                return Err(match said.trim() {
+                    "" => "espeak_Initialize failed (no espeak-ng-data?)".into(),
+                    t => format!("espeak_Initialize failed: {t}"),
+                });
             }
             set_callback(callback);
             Ok(Engine {
@@ -335,6 +341,37 @@ impl Engine {
     }
 }
 
+/// Runs `f` with file descriptor 2 on a pipe and returns what was written to it (up to the
+/// pipe's buffer, 64 KiB; more is dropped, never blocks). Only while no other thread runs.
+fn stderr_to_string<T>(f: impl FnOnce() -> T) -> (T, String) {
+    use std::os::fd::AsRawFd;
+    let Ok((mut r, w)) = std::io::pipe() else {
+        return (f(), String::new());
+    };
+    // SAFETY: plain fd calls on descriptors this function owns, and fd 2.
+    let saved = unsafe {
+        libc::fcntl(w.as_raw_fd(), libc::F_SETFL, libc::O_NONBLOCK);
+        let saved = libc::dup(2);
+        if saved >= 0 {
+            libc::dup2(w.as_raw_fd(), 2);
+        }
+        saved
+    };
+    let v = f();
+    if saved < 0 {
+        return (v, String::new());
+    }
+    // SAFETY: as above; stderr is unbuffered, so nothing is left to flush.
+    unsafe {
+        libc::dup2(saved, 2);
+        libc::close(saved);
+    }
+    drop(w);
+    let mut said = Vec::new();
+    let _ = std::io::Read::read_to_end(&mut r, &mut said);
+    (v, String::from_utf8_lossy(&said).into_owned())
+}
+
 fn speakable(text: &str) -> bool {
     text.chars().count() <= MAX_SPOKEN_CHARS
 }
@@ -368,6 +405,22 @@ mod tests {
             });
             assert_eq!(rx.recv().unwrap(), Some(serial));
         }
+    }
+
+    #[test]
+    fn b_tts_6_init_messages_are_captured() {
+        let (v, said) = stderr_to_string(|| {
+            let m = b"Error processing file 'phontab'.\n";
+            // SAFETY: writes a buffer to fd 2, as espeak-ng's fprintf(stderr) does.
+            unsafe { libc::write(2, m.as_ptr().cast(), m.len()) };
+            7
+        });
+        assert_eq!(
+            (v, said.as_str()),
+            (7, "Error processing file 'phontab'.\n")
+        );
+        // fd 2 is back: nothing more is captured.
+        assert_eq!(stderr_to_string(|| ()).1, "");
     }
 
     #[test]

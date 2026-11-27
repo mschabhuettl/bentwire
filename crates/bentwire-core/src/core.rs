@@ -372,6 +372,10 @@ impl Core {
                     None => (0, 0, true),
                 },
             };
+            // B-CFG-3: pulled inside as on an output change (a position saved for a smaller
+            // character or on an output that is gone), without a Move.
+            let (x, y) = geometry::pull_on_output_change(Rect::new(x, y, w, h), &self.outputs)
+                .unwrap_or((x, y));
             self.install(model, x, y);
             if visible {
                 self.enqueue_internal(Kind::Show {

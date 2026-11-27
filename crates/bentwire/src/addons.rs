@@ -3,9 +3,11 @@
 
 use crate::{AGENT_IFACE, AGENT_PATH, BUS_NAME, Fail, Opts, curl, fail, sha256_hex, xdg_dir};
 use bentwire_character::addon::{self, Addon, Kind, MANIFEST};
+use std::cell::Cell;
 use std::io::{Read, Seek};
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Component, Path, PathBuf};
+use std::rc::Rc;
 
 const USAGE: &str =
     "expected list, install <folder|archive|url> [--sha256 HEX], enable, disable or remove <name>";
@@ -56,6 +58,30 @@ impl<R: Read> Read for Capped<R> {
         }
         self.left -= n as u64;
         Ok(n)
+    }
+}
+
+/// B-ADDON-2: what the tar crate may read before it returns an entry: the entry's header
+/// blocks and its GNU long name and pax extension data, which it holds in memory.
+const TAR_HEADERS: u64 = 64 << 10;
+
+/// A reader that fails when more than `left` bytes come through it; the caller sets `left`.
+struct Budget<R> {
+    r: R,
+    left: Rc<Cell<u64>>,
+}
+
+impl<R: Read> Read for Budget<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let n = self.r.read(buf)? as u64;
+        if n > self.left.get() {
+            return Err(std::io::Error::other(too_large(
+                "an entry's tar headers are",
+                TAR_HEADERS,
+            )));
+        }
+        self.left.set(self.left.get() - n);
+        Ok(n as usize)
     }
 }
 
@@ -146,30 +172,47 @@ fn remove(name: &str) -> Result<(), Fail> {
     Ok(())
 }
 
+/// B-ADDON-3: how long the CLI waits for `Reload`.
+const RELOAD_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
 /// B-ADDON-3: a running daemon (none is started for this) reads the add-ons again
 /// (`Agent1.Reload`).
 fn tell_daemon() {
     use zbus::proxy::{CacheProperties, MethodFlags};
-    let Ok(conn) = zbus::blocking::Connection::session() else {
-        return;
-    };
-    let r = zbus::blocking::proxy::Builder::<zbus::blocking::Proxy>::new(&conn)
-        .destination(BUS_NAME)
-        .and_then(|b| b.path(AGENT_PATH))
-        .and_then(|b| b.interface(AGENT_IFACE))
-        .and_then(|b| b.cache_properties(CacheProperties::No).build())
-        .and_then(|p| {
-            p.call_with_flags::<_, _, ()>("Reload", MethodFlags::NoAutoStart.into(), &())
-        });
-    match r {
-        Ok(_) => {}
-        Err(zbus::Error::MethodError(n, ..))
+    let (tx, rx) = std::sync::mpsc::channel();
+    // zbus has no timeout for calls with flags; the thread ends with the process.
+    std::thread::spawn(move || {
+        // No session bus: no daemon either.
+        let Ok(conn) = zbus::blocking::Connection::session() else {
+            let _ = tx.send(Ok(None));
+            return;
+        };
+        let r = zbus::blocking::proxy::Builder::<zbus::blocking::Proxy>::new(&conn)
+            .destination(BUS_NAME)
+            .and_then(|b| b.path(AGENT_PATH))
+            .and_then(|b| b.interface(AGENT_IFACE))
+            .and_then(|b| b.cache_properties(CacheProperties::No).build())
+            .and_then(|p| {
+                p.call_with_flags::<_, _, ()>("Reload", MethodFlags::NoAutoStart.into(), &())
+            });
+        let _ = tx.send(r);
+    });
+    match rx.recv_timeout(RELOAD_TIMEOUT) {
+        Err(_) => eprintln!(
+            "bentwire: bentwired did not answer Reload within {} s; it applies this once it \
+             handles the call, or on its next start",
+            RELOAD_TIMEOUT.as_secs()
+        ),
+        Ok(Ok(_)) => {}
+        Ok(Err(zbus::Error::MethodError(n, ..)))
             if matches!(
                 n.as_str(),
                 "org.freedesktop.DBus.Error.NameHasNoOwner"
                     | "org.freedesktop.DBus.Error.ServiceUnknown"
             ) => {}
-        Err(e) => eprintln!("bentwire: bentwired did not reload ({e}); restart it to apply this"),
+        Ok(Err(e)) => {
+            eprintln!("bentwire: bentwired did not reload ({e}); restart it to apply this")
+        }
     }
 }
 
@@ -389,17 +432,22 @@ fn extract(file: &Path, to: &Path, limits: &Limits) -> Result<(), String> {
         }
     } else if magic[..n].starts_with(&[0x1f, 0x8b]) {
         // The whole tar stream counts, headers included.
-        let mut a = tar::Archive::new(Capped {
-            r: flate2::read::GzDecoder::new(f),
-            left: limits.unpacked,
-            what: unpacks,
-            limit: limits.unpacked,
+        let headers = Rc::new(Cell::new(TAR_HEADERS));
+        let mut a = tar::Archive::new(Budget {
+            r: Capped {
+                r: flate2::read::GzDecoder::new(f),
+                left: limits.unpacked,
+                what: unpacks,
+                limit: limits.unpacked,
+            },
+            left: headers.clone(),
         });
         for (i, e) in a.entries().map_err(io)?.enumerate() {
             if i >= limits.entries {
                 return Err(too_many());
             }
             let mut e = e.map_err(io)?;
+            headers.set(u64::MAX);
             let name = e.path().map_err(io)?.into_owned();
             let mode = e.header().mode().map_err(io)?;
             match e.header().entry_type() {
@@ -413,6 +461,9 @@ fn extract(file: &Path, to: &Path, limits: &Limits) -> Result<(), String> {
                 tar::EntryType::XGlobalHeader | tar::EntryType::XHeader => {}
                 _ => return Err(not_allowed(&name)),
             }
+            // The rest (a folder's or pax header's data) is not part of the next headers.
+            std::io::copy(&mut e, &mut std::io::sink()).map_err(io)?;
+            headers.set(TAR_HEADERS);
         }
     } else {
         return Err("not a folder, a .zip or a .tar.gz archive".into());
@@ -650,6 +701,43 @@ mod tests {
             })
             .sum()
         })
+    }
+
+    /// B-ADDON-2: GNU long names and pax extensions, which the tar crate holds in memory,
+    /// are refused above 64 KiB per entry; a usual long name still unpacks.
+    #[test]
+    fn b_addon_2_tar_extension_headers_are_capped() {
+        use tar::EntryType::{GNULongName, Regular, XHeader};
+        let d = tempdir("headers");
+        let long = format!("top/{}/addon.toml", "n".repeat(150));
+        let f = d.join("long.tar.gz");
+        let mut b = tar::Builder::new(flate2::write::GzEncoder::new(
+            std::fs::File::create(&f).unwrap(),
+            flate2::Compression::fast(),
+        ));
+        let mut h = tar::Header::new_gnu();
+        h.set_mode(0o644);
+        h.set_size(1);
+        b.append_data(&mut h, &long, &b"x"[..]).unwrap();
+        b.into_inner().unwrap().finish().unwrap();
+        extract(&f, &d.join("long"), &LIMITS).unwrap();
+        assert_eq!(std::fs::read(d.join("long").join(&long)).unwrap(), b"x");
+        let big = vec![b'a'; 200 << 10];
+        for (i, t) in [GNULongName, XHeader].into_iter().enumerate() {
+            let f = d.join(format!("big{i}.tar.gz"));
+            tar_gz(
+                &f,
+                &[
+                    ("././@LongLink", t, 0o644, &big),
+                    ("x", Regular, 0o644, b"x"),
+                ],
+            );
+            let e = extract(&f, &d.join(format!("big{i}")), &LIMITS).unwrap_err();
+            assert!(
+                e.contains("an entry's tar headers are more than 65536 bytes"),
+                "{t:?}: {e}"
+            );
+        }
     }
 
     /// B-ADDON-2: packed size, unpacked size (zip bombs: small packed, large unpacked; one
