@@ -76,11 +76,13 @@ stderr); 2 the request failed (for `ask`: nothing is printed, the reason goes to
 
 ## The builtin character
 
-`characters/builtin` holds Wire, bentwire's own character (CC0), in two renderings of the
-same drawing: `wire`, smooth and sharp on HiDPI outputs, which the daemon shows when no
-other character is chosen or installed, and `wire-retro`, 12 colours and hard edges as in
-1997 (`bentwire select wire-retro`). Both have the Agent animation set (`bentwire
-animations` lists it) and move their mouth with speech output.
+`characters/builtin` holds bentwire's own characters (CC0), each in two renderings of the
+same drawing. Wire, a piece of bent wire: `wire`, smooth and sharp on HiDPI outputs, which
+the daemon shows when no other character is chosen or installed, and `wire-retro`, 12
+colours and hard edges as in 1997 (`bentwire select wire-retro`). Quack, a rubber
+debugging duck: `quack` and `quack-retro` (`bentwire select quack`); it wobbles on the
+water when idle and squeaks on Alert and GetAttention. All have the Agent animation set
+(`bentwire animations` lists it) and move their mouth with speech output.
 
 ## Speech output
 

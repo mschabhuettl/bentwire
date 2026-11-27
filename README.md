@@ -102,8 +102,8 @@ yay -S bentwire
 
 The PKGBUILDs are kept in [`packaging/aur/`](packaging/aur/).
 
-The package installs the daemon, the CLI, the builtin character Wire and the D-Bus activation
-file, so `bentwire say hello` starts the daemon on demand. The optional systemd user unit is
+The package installs the daemon, the CLI, the builtin characters Wire and Quack and the D-Bus
+activation file, so `bentwire say hello` starts the daemon on demand. The optional systemd user unit is
 installed but not enabled. The classics pack is not packaged, because its repository grants
 no licence for Microsoft's files; install it as described [below](#the-classics-pack).
 
@@ -124,7 +124,7 @@ cd bentwire
 cargo build --release -p bentwired -p bentwire
 install -Dm755 target/release/bentwired target/release/bentwire -t ~/.local/bin/
 
-# The builtin character, Wire.
+# The builtin characters, Wire and Quack.
 mkdir -p ~/.local/share/bentwire/characters
 cp -r characters/builtin ~/.local/share/bentwire/characters/
 
@@ -153,6 +153,15 @@ from one vector rig (`crates/bentwire-convert/src/wire/`) and free to use (CC0).
 two renderings, `wire` (smooth, sharp on HiDPI screens) and `wire-retro` (12 colours, hard
 edges, as in 1997; `bentwire select wire-retro`), with the Agent animation set and a mouth
 that moves with speech output.
+
+### Quack, the rubber debugging duck
+
+<img src="docs/images/quack.png" width="536" alt="Quack, a yellow rubber duck with an orange beak floating on a little water: on the left smooth, on the right the retro rendering with hard pixels">
+
+Quack is the second builtin character: a rubber duck to explain your bugs to, drawn by code
+the same way (`crates/bentwire-convert/src/quack/`, CC0), as `quack` and `quack-retro`
+(`bentwire select quack`). It has Wire's animations, wobbles on the water when idle and
+squeaks on Alert and GetAttention.
 
 ### The classics pack
 
