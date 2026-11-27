@@ -84,8 +84,8 @@ fn read_pid(file: &Path) -> String {
 }
 
 /// B-ADDON-1 to B-ADDON-3 without a daemon: install from a folder, a tar.gz and a file URL,
-/// list, enable, disable, remove; a bridge is never enabled by an install; bad sources and
-/// manifests fail and leave nothing behind.
+/// list, enable, disable, remove; a bridge is never enabled by an install, also not one that
+/// replaces an enabled add-on; bad sources and manifests fail and leave nothing behind.
 #[test]
 fn b_addon_2_3_cli_install_list_enable_disable_remove() {
     let e = Env::new("addcli");
@@ -183,15 +183,20 @@ fn b_addon_2_3_cli_install_list_enable_disable_remove() {
     assert_eq!((code, se.contains("unknown kind")), (1, true), "{se}");
     let (code, _, se) = cli(&e, &["addons", "install", src.to_str().unwrap()]);
     assert_eq!((code, se.contains("no addon.toml")), (1, true), "{se}");
+    let evil_src = addon(&src, "evil", "character", "1", "");
+    std::fs::write(evil_src.join("x"), "x").unwrap();
     let evil = e.dir.join("evil.tar.gz");
-    let py = "import io, sys, tarfile\n\
-              t = tarfile.open(sys.argv[1], 'w:gz')\n\
-              for n, d in [('addon.toml', b'name = \"evil\"\\nkind = \"character\"\\nversion = \"1\"\\n'), ('../../escaped', b'x')]:\n\
-              \x20   i = tarfile.TarInfo(n); i.size = len(d); t.addfile(i, io.BytesIO(d))\n\
-              t.close()\n";
-    let st = std::process::Command::new("python3")
-        .args(["-I", "-c", py])
-        .arg(&evil)
+    // GNU tar keeps a `..` member name with -P.
+    let st = std::process::Command::new("tar")
+        .args([
+            "-czf",
+            evil.to_str().unwrap(),
+            "-P",
+            "--transform",
+            "s,^x$,../../escaped,",
+        ])
+        .args(["addon.toml", "x"])
+        .current_dir(&evil_src)
         .status()
         .unwrap();
     assert!(st.success());
@@ -208,6 +213,14 @@ fn b_addon_2_3_cli_install_list_enable_disable_remove() {
         .map(|d| d.unwrap().file_name().into_string().unwrap())
         .collect();
     assert_eq!(left, ["wire"], "no temp folder or evil add-on left");
+    // A character add-on replaced by a bridge of the same name is disabled.
+    assert_eq!(cli(&e, &["addons", "enable", "wire"]).0, 0);
+    let as_bridge = bridge(&src.join("other"), "wire", "exec sleep 600");
+    assert_eq!(
+        cli(&e, &["addons", "install", as_bridge.to_str().unwrap()]).0,
+        0
+    );
+    assert_eq!(list(), "wire\tbridge\t1\tdisabled\n");
 }
 
 /// B-ADDON-3, B-ADDON-4: a running daemon is told by the CLI and lists a character add-on
@@ -226,8 +239,11 @@ fn b_addon_4_character_addon_with_a_running_daemon() {
     let (code, _, se) = cli(&e, &["addons", "install", pack.to_str().unwrap()]);
     assert_eq!(code, 0, "{se}");
     wait_until("grit listed", 10, || chars().contains("grit\tPebble"));
+    // Never chosen: B-CHAR-4 picks the first id, grit, and pebble again once grit is gone.
+    assert_eq!(e.character(), "grit");
     assert_eq!(cli(&e, &["addons", "disable", "grit-pack"]).0, 0);
     wait_until("grit gone", 10, || !chars().contains("grit\t"));
+    assert_eq!(e.character(), "pebble");
     assert_eq!(cli(&e, &["addons", "enable", "grit-pack"]).0, 0);
     wait_until("grit back", 10, || chars().contains("grit\tPebble"));
     let m = pack.join("grit/character.toml");
@@ -235,8 +251,17 @@ fn b_addon_4_character_addon_with_a_running_daemon() {
     std::fs::write(&m, text.replace("\"Pebble\"", "\"Gravel\"")).unwrap();
     assert_eq!(cli(&e, &["addons", "install", pack.to_str().unwrap()]).0, 0);
     wait_until("new name listed", 10, || chars().contains("grit\tGravel"));
+    // Chosen: the current character stays after its add-on is removed, unlisted.
+    assert_eq!(cli(&e, &["select", "grit"]).0, 0);
     assert_eq!(cli(&e, &["addons", "remove", "grit-pack"]).0, 0);
     wait_until("grit removed", 10, || !chars().contains("grit\t"));
+    assert_eq!(e.character(), "grit");
+    let (code, so, _) = cli(&e, &["status"]);
+    assert_eq!(
+        (code, so.starts_with("character=grit\n")),
+        (0, true),
+        "{so}"
+    );
 }
 
 /// B-ADDON-5: a bridge that exits is restarted after 1 s, then 2 s (backoff); a disabled one
@@ -269,8 +294,9 @@ fn b_addon_5_crashing_bridge_restarts_with_backoff() {
     assert_eq!(times().len(), n, "a disabled bridge is not restarted");
 }
 
-/// B-ADDON-5: an enabled bridge runs with its argv in its folder; it stops on disable, and
-/// with the daemon on Quit, on SIGTERM and when the daemon is killed (PR_SET_PDEATHSIG).
+/// B-ADDON-5: an enabled bridge runs with its argv in its folder; it stops on disable, is
+/// replaced after a reinstall and enable, and stops with the daemon on Quit, on SIGTERM and
+/// when the daemon is killed (PR_SET_PDEATHSIG).
 #[test]
 fn b_addon_5_bridges_stop_with_the_daemon() {
     let mut e = Env::new("addstop");
@@ -295,6 +321,14 @@ fn b_addon_5_bridges_stop_with_the_daemon() {
     wait_until("stopped on disable", 10, || !alive(&pid));
     let _ = std::fs::remove_file(dir.join("pid"));
     assert_eq!(cli(&e, &["addons", "enable", "long"]).0, 0);
+    // A reinstall and enable right after it replace the running process.
+    let old = read_pid(&dir.join("pid"));
+    assert_eq!(cli(&e, &["addons", "install", tgz.to_str().unwrap()]).0, 0);
+    assert_eq!(cli(&e, &["addons", "enable", "long"]).0, 0);
+    wait_until("old process stopped", 10, || !alive(&old));
+    wait_until("new process", 10, || {
+        std::fs::read_to_string(dir.join("pid")).is_ok_and(|p| p.trim() != old && p.ends_with('\n'))
+    });
     let stop = |e: &mut Env, how: &str| {
         if !e.name_owned() {
             let _ = std::fs::remove_file(dir.join("pid"));

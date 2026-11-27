@@ -776,7 +776,9 @@ fn open_options() {
             log::warn!("writing {}: {e}", p.display());
         }
     }
-    if let Err(e) = std::process::Command::new("xdg-open").arg(&p).spawn() {
+    let mut cmd = std::process::Command::new("xdg-open");
+    crate::addons::unblock_signals(&mut cmd);
+    if let Err(e) = cmd.arg(&p).spawn() {
         log::warn!("xdg-open {}: {e}", p.display());
     }
 }

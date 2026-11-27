@@ -5,7 +5,7 @@ use bentwire_character::addon::{self, Addon, Kind};
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 const FIRST_DELAY: Duration = Duration::from_secs(1);
 const MAX_DELAY: Duration = Duration::from_secs(60);
@@ -31,10 +31,33 @@ pub fn enabled(dir: &Path, list: &Path) -> Vec<(PathBuf, Addon)> {
         .collect()
 }
 
+/// The daemon blocks the signals it reads through signalfd, and a child inherits that mask
+/// (std does not reset it): `cmd` starts with no signal blocked.
+pub fn unblock_signals(cmd: &mut Command) {
+    // SAFETY: only async-signal-safe calls between fork and exec.
+    unsafe {
+        cmd.pre_exec(|| {
+            let mut set: libc::sigset_t = std::mem::zeroed();
+            libc::sigemptyset(&mut set);
+            libc::sigprocmask(libc::SIG_SETMASK, &set, std::ptr::null_mut());
+            Ok(())
+        });
+    }
+}
+
+/// The modification time of an add-on's manifest: a reinstall changes it.
+fn stamp(dir: &Path) -> Option<SystemTime> {
+    std::fs::metadata(dir.join(addon::MANIFEST))
+        .and_then(|m| m.modified())
+        .ok()
+}
+
 struct Bridge {
     name: String,
     dir: PathBuf,
     command: Vec<String>,
+    /// [`stamp`] when it was enabled.
+    stamp: Option<SystemTime>,
     child: Option<Child>,
     started: Instant,
     /// The wait before the next restart.
@@ -60,14 +83,11 @@ impl Bridge {
             .current_dir(&self.dir)
             .stdin(Stdio::null())
             .process_group(0);
+        unblock_signals(&mut cmd);
         // SAFETY: only async-signal-safe calls between fork and exec.
         unsafe {
             cmd.pre_exec(move || {
-                // The daemon blocks the signals it reads through signalfd; the bridge
-                // starts with none blocked, and gets SIGTERM when the daemon dies.
-                let mut set: libc::sigset_t = std::mem::zeroed();
-                libc::sigemptyset(&mut set);
-                libc::sigprocmask(libc::SIG_SETMASK, &set, std::ptr::null_mut());
+                // SIGTERM when the daemon dies.
                 if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGTERM) != 0
                     || libc::getppid() != parent
                 {
@@ -129,8 +149,10 @@ impl Bridges {
             .into_iter()
             .filter(|(_, a)| a.kind == Kind::Bridge)
             .collect();
+        // A reinstall (another manifest time) restarts the bridge even when the disable and
+        // enable in between came as one SIGHUP.
         let same = |b: &Bridge, (dir, a): &(PathBuf, Addon)| {
-            b.name == a.name && b.dir == *dir && b.command == a.command
+            b.name == a.name && b.dir == *dir && b.command == a.command && b.stamp == stamp(dir)
         };
         let (keep, gone): (Vec<Bridge>, Vec<Bridge>) = std::mem::take(&mut self.list)
             .into_iter()
@@ -150,6 +172,7 @@ impl Bridges {
             let (dir, a) = w;
             let mut b = Bridge {
                 name: a.name,
+                stamp: stamp(&dir),
                 dir,
                 command: a.command,
                 child: None,
