@@ -1,6 +1,6 @@
 //! Speech output through espeak-ng (spec B-TTS-6). `libespeak-ng.so.1` is loaded at run
-//! time, so it is not a package dependency; without it every utterance fails and the
-//! core paces the text as before.
+//! time (at start, [`load`]), so it is not a package dependency; without it every utterance
+//! fails and the core paces the text as before.
 //!
 //! espeak-ng runs on its own thread in synchronous mode: `espeak_Synth` hands the PCM and
 //! the events to a callback on that thread and plays nothing. The few declarations below
@@ -38,31 +38,42 @@ pub struct Speech {
     wanted: Arc<AtomicU64>,
 }
 
+/// B-TTS-6: load and initialise espeak-ng. `espeak_Initialize` sets the process's LC_CTYPE
+/// (glibc's setlocale is not thread-safe), so this runs on the main thread before any other
+/// thread is spawned.
+pub fn load() -> Result<Engine, String> {
+    Engine::load(c"libespeak-ng.so.1")
+}
+
 impl Speech {
-    pub fn spawn(answer: impl Fn(Answer) + Send + 'static) -> Speech {
+    /// `engine` is [`load`]'s result; a failure is logged with the first utterance.
+    pub fn spawn(
+        engine: Result<Engine, String>,
+        answer: impl Fn(Answer) + Send + 'static,
+    ) -> Speech {
         let (tx, rx) = mpsc::channel::<Job>();
         let wanted = Arc::new(AtomicU64::new(0));
         let w = wanted.clone();
         std::thread::Builder::new()
             .name("bentwire-speech".into())
             .spawn(move || {
-                let mut engine: Option<Result<Engine, String>> = None;
+                let mut logged = false;
                 for job in rx {
                     if w.load(Ordering::SeqCst) != job.serial {
                         continue;
                     }
-                    let e = engine.get_or_insert_with(|| {
-                        Engine::load(c"libespeak-ng.so.1").inspect_err(|e| {
-                            log::warn!("speech: espeak-ng not available: {e}");
-                        })
-                    });
-                    let r = match e {
+                    let r = match &engine {
                         Ok(e) => e.synth(&job, &w).map_err(|err| {
                             if w.load(Ordering::SeqCst) == job.serial {
                                 log::warn!("speech: {err}");
                             }
                         }),
-                        Err(_) => Err(()),
+                        Err(e) => {
+                            if !std::mem::replace(&mut logged, true) {
+                                log::warn!("speech: espeak-ng not available: {e}");
+                            }
+                            Err(())
+                        }
                     };
                     answer(r.map_err(|_| job.serial));
                 }
@@ -127,7 +138,7 @@ const MAX_SPOKEN_CHARS: usize = 4000;
 const PITCH: c_int = 3;
 const RATE_MINIMUM: u32 = 80;
 
-struct Engine {
+pub struct Engine {
     rate: u32,
     synth: unsafe extern "C" fn(
         *const c_void,
@@ -340,24 +351,22 @@ mod tests {
 
     #[test]
     fn b_tts_6_missing_library_fails_every_utterance() {
-        assert!(Engine::load(c"libbentwire-no-such-espeak.so.1").is_err());
+        let e = Engine::load(c"libbentwire-no-such-espeak.so.1");
+        assert!(e.is_err());
         let (tx, rx) = mpsc::channel();
-        let s = Speech::spawn(move |a| tx.send(a.err()).unwrap());
-        // The real library may be installed here: only the shape of the answer is
-        // checked for it, a missing one must fail.
-        s.say(Job {
-            serial: 7,
-            text: "hi".into(),
-            voice: VoiceSpec {
-                language: "en".into(),
-                gender: None,
-                pitch: None,
-                words_per_minute: 170,
-            },
-        });
-        let a = rx.recv().unwrap();
-        if Engine::load(c"libespeak-ng.so.1").is_err() {
-            assert_eq!(a, Some(7));
+        let s = Speech::spawn(e, move |a| tx.send(a.err()).unwrap());
+        for serial in [7, 8] {
+            s.say(Job {
+                serial,
+                text: "hi".into(),
+                voice: VoiceSpec {
+                    language: "en".into(),
+                    gender: None,
+                    pitch: None,
+                    words_per_minute: 170,
+                },
+            });
+            assert_eq!(rx.recv().unwrap(), Some(serial));
         }
     }
 

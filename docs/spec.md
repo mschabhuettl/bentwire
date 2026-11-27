@@ -962,9 +962,16 @@ closes for any reason (also when the gallery opens), and when speech is turned o
 A new utterance first stops the current one. `End` ends it without `SpeechStop`.
 
 **B-TTS-6 espeak-ng in the daemon.**
-- `libespeak-ng.so.1` is loaded at run time with the first utterance; it is not a package
-  dependency. A missing library or a failed initialisation is logged once (`speech:
-  espeak-ng not available: ...`) and every utterance gets `SpeechFailed`.
+- `libespeak-ng.so.1` is loaded at run time; it is not a package dependency. A missing
+  library or a failed initialisation is logged once, with the first utterance (`speech:
+  espeak-ng not available: ...`), and every utterance gets `SpeechFailed`.
+- The daemon loads and initialises espeak-ng at start, on its main thread before it
+  starts any other thread, unless it runs headless or with `--no-audio`; this also
+  happens when speech output is off. Reason: `espeak_Initialize` sets the process locale
+  (espeak-ng 1.52 calls `setlocale(LC_CTYPE, "C.UTF-8")`, falling back to `UTF-8`,
+  `en_US.UTF-8` and `""`), and setlocale is not thread-safe in glibc. From then on
+  LC_CTYPE is that locale in the whole daemon instead of the C locale; bentwire does not
+  depend on it. `uselocale` per thread would not help, as the call is espeak-ng's own.
 - espeak-ng runs on its own thread in synchronous mode (it hands back PCM and events and
   plays nothing itself), with phoneme events in IPA. `Word` marks come from word events
   (their text position minus one, in characters), `Phoneme` marks from phoneme events (an

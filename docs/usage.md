@@ -83,10 +83,11 @@ phonemes. It is off by default. Turn it on with `bentwire speech on`, the tray m
 `~/.config/bentwire/config.toml`; the first three are remembered and win over the config
 file. `bentwire say --speak` or `--no-speak` decides for one text.
 
-- espeak-ng is optional: bentwired loads `libespeak-ng.so.1` when it first speaks (Arch:
+- espeak-ng is optional: bentwired loads `libespeak-ng.so.1` when it starts (Arch:
   `pacman -S espeak-ng`, Debian and Ubuntu: `apt install libespeak-ng1`, Fedora: `dnf
-  install espeak-ng`). Without it the log says `speech: espeak-ng not available` once and
-  the text is shown word by word as without speech.
+  install espeak-ng`; restart bentwired after installing it). Without it the log says
+  `speech: espeak-ng not available` once, when it first would speak, and the text is shown
+  word by word as without speech.
 - Speech plays through the same audio backends as the character's sounds and is off when
   `sound_effects = false`.
 - The voice comes from the character's voice data (language, gender, pitch, speed; Earl,
