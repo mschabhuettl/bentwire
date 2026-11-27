@@ -4232,6 +4232,25 @@ fn b_tts_5_stop_hide_switch_gallery_and_ask_close_stop_speech() {
     assert_eq!(speech_stops(&t), 4);
 }
 
+/// B-TTS-5, B-ADDON-5: Quit stops a running utterance before the daemon's Quit output (after
+/// which it waits for its bridges); without one it emits no SpeechStop.
+#[test]
+fn b_tts_5_quit_stops_speech_first() {
+    let mut t = speaking(vec![talker("c")], speech_on());
+    t.req(Call::Speak("a b".into()));
+    t.advance(t.now + 100);
+    answer(&mut t, vec![(0, ph("a")), (5000, SpeechMark::End)]);
+    t.advance(t.now + 10);
+    t.log.clear();
+    t.call(Call::Quit).unwrap();
+    let stop = t.log.iter().position(|(_, o)| *o == Output::SpeechStop);
+    let quit = t.log.iter().position(|(_, o)| *o == Output::Quit);
+    assert!(stop.is_some() && stop < quit, "{:?}", t.log);
+    let mut t = speaking(vec![talker("c")], speech_on());
+    t.call(Call::Quit).unwrap();
+    assert_eq!(speech_stops(&t), 0);
+}
+
 /// B-MENU-4, B-TTS-5: a client Speak that ends an Animate! play is spoken itself, and
 /// nothing of the ended play reaches the engine.
 #[test]

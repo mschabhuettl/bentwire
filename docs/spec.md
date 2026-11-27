@@ -957,8 +957,8 @@ used only when present and in range, otherwise its default:
 **B-TTS-5 Stopping.** The current utterance ends with `SpeechStop` when its Speak is
 interrupted (Stop, StopAll, user Hide, a character switch, also by the gallery's Back
 and Next, a client request ending an Animate! play, B-MENU-4), when its Ask balloon
-closes for any reason (also when the gallery opens), and when speech is turned off
-(B-TTS-1). The gallery opening alone does not end a running Speak, as without speech.
+closes for any reason (also when the gallery opens), when speech is turned off
+(B-TTS-1), and when the daemon quits (B-RUN-1), before it waits for its bridges. The gallery opening alone does not end a running Speak, as without speech.
 A new utterance first stops the current one. `End` ends it without `SpeechStop`.
 
 **B-TTS-6 espeak-ng in the daemon.**
@@ -1681,8 +1681,8 @@ the add-ons again, B-ADDON-3).
 - `bentwired` requests the bus name `org.bentwire.Agent` with DO_NOT_QUEUE. If the name
   is taken, it exits with status 1 and the message "already running".
 - A D-Bus activation file (`org.bentwire.Agent.service`) lets the CLI start it.
-- SIGTERM and `Quit` save the state and exit 0 without animation, after stopping the
-  bridge add-ons (B-ADDON-5).
+- SIGTERM and `Quit` save the state and exit 0 without animation, after stopping speech
+  and sounds (B-TTS-5) and then the bridge add-ons (B-ADDON-5).
 
 ### 3.14 Decisions added during the build
 
@@ -2413,8 +2413,9 @@ character of the same id or the pack's theme; disabling it brings those back.
 - Signals go to the bridge's process group, or to the bridge alone if it left the group.
   A bridge that is disabled or removed gets SIGTERM to its process group, and so does an
   enabled one whose `addon.toml` changed (a reinstall), which is then started again. When
-  the daemon quits (Quit, SIGTERM, SIGINT, the end of the session bus, B-RUN-1) every
-  bridge gets SIGTERM to its process group, and SIGKILL if it still runs 2 s later.
+  the daemon quits (Quit, SIGTERM, SIGINT, the end of the session bus, B-RUN-1), it first
+  stops speech and sounds, then every bridge gets SIGTERM to its process group, and
+  SIGKILL if it still runs 2 s later.
 - Reason: issue #18 and the roadmap ("no plugin code in the daemon process"); a crashing
   bridge must not spin, and a bridge must not outlive the daemon that started it.
 

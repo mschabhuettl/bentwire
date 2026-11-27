@@ -761,6 +761,8 @@ impl Core {
             }
             Call::Quit => {
                 self.reply(token, Ok(ReplyValue::Unit));
+                // B-TTS-5: before the daemon waits for its bridges (B-ADDON-5).
+                self.stop_speech();
                 self.persist_dirty = false;
                 if let Some(s) = self.state_snapshot() {
                     self.out.push(Output::PersistState(s));

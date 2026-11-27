@@ -388,6 +388,9 @@ fn run(args: args::Args) -> Result<(), String> {
         app.tick();
         app.bridges.restart_due();
     }
+    // B-ADDON-5: nothing plays while the bridges stop (speech stopped with the core's Quit).
+    app.audio = None;
+    app.speech = None;
     app.bridges.stop_all();
     let _ = conn.release_name(dbus::BUS_NAME);
     Ok(())
