@@ -1659,7 +1659,8 @@ The daemon reads the config file at start and when it receives SIGHUP or the D-B
 - `character`, `left`, `top`, `visible`;
 - `chosen`: the user chose `character` (B-CHAR-4). A file without it (written by 0.1.1)
   counts as chosen unless `character` is absent or `bentwire-placeholder` (the builtin
-  character up to 0.3.0);
+  character up to 0.3.0). A `character` of `bentwire-placeholder` is read as `wire`,
+  chosen or not as before;
 - `install_hint_shown`: B-CHAR-6 was shown (default false);
 - `scale`, the size factor `left` and `top` were saved at, and `scale_chosen`, the user
   chose it (B-SCALE-1); a file without them counts as 1, not chosen;

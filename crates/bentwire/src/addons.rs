@@ -359,6 +359,10 @@ fn extract(file: &Path, to: &Path, limits: &Limits) -> Result<(), String> {
     // Every component of an entry's path counts: each may create a folder.
     let mut names = limits.entries;
     if magic[..n].starts_with(b"PK") {
+        // Before the zip crate reads the whole central directory into memory.
+        if zip_entries(&mut f).map_err(io)? > limits.entries as u64 {
+            return Err(too_many());
+        }
         let mut z = zip::ZipArchive::new(f).map_err(|e| e.to_string())?;
         if z.len() > limits.entries {
             return Err(too_many());
@@ -414,6 +418,25 @@ fn extract(file: &Path, to: &Path, limits: &Limits) -> Result<(), String> {
         return Err("not a folder, a .zip or a .tar.gz archive".into());
     }
     Ok(())
+}
+
+/// The entry count of a zip file's end of central directory record (0 when there is none;
+/// the zip crate then fails on its own). A Zip64 archive stores 0xFFFF here, which is above
+/// any entry limit.
+fn zip_entries(f: &mut std::fs::File) -> std::io::Result<u64> {
+    use std::io::SeekFrom;
+    let len = f.seek(SeekFrom::End(0))?;
+    let back = len.min(22 + 0xFFFF);
+    f.seek(SeekFrom::Start(len - back))?;
+    let mut tail = Vec::with_capacity(back as usize);
+    f.by_ref().take(back).read_to_end(&mut tail)?;
+    f.rewind()?;
+    let n = tail
+        .windows(4)
+        .rposition(|w| w == b"PK\x05\x06")
+        .and_then(|i| tail.get(i + 10..i + 12))
+        .map_or(0, |b| u16::from_le_bytes([b[0], b[1]]));
+    Ok(n.into())
 }
 
 fn too_many(limit: usize) -> String {
@@ -685,6 +708,18 @@ mod tests {
             .collect();
         let mz = d.join("many.zip");
         zip_file(&mz, &many_zip, None);
+        assert_eq!(
+            zip_entries(&mut std::fs::File::open(&mz).unwrap()).unwrap(),
+            11
+        );
+        // An end record claiming 60000 entries is refused before the central directory is
+        // read (the zip crate would reserve memory for all of them).
+        let lying = d.join("lying.zip");
+        let mut eocd = b"PK\x05\x06\0\0\0\0".to_vec();
+        eocd.extend([0x60, 0xEA, 0x60, 0xEA, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        std::fs::write(&lying, eocd).unwrap();
+        let e = extract(&lying, &d.join("lying"), &LIMITS).unwrap_err();
+        assert!(e.contains("archive has more than 10000 entries"), "{e}");
         let mt = d.join("many.tar.gz");
         tar_gz(&mt, &many_tar);
         for (i, f) in [&mz, &mt].into_iter().enumerate() {

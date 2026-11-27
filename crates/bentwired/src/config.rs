@@ -124,10 +124,21 @@ impl State {
     }
 
     pub fn load(path: &Path) -> State {
-        std::fs::read_to_string(path)
+        let st: State = std::fs::read_to_string(path)
             .ok()
             .and_then(|t| toml::from_str(&t).ok())
-            .unwrap_or_default()
+            .unwrap_or_default();
+        st.upgraded()
+    }
+
+    /// B-CFG-2 upgrade rule: the placeholder (up to 0.3) is now `wire`; a file without
+    /// `chosen` keeps counting as not chosen.
+    fn upgraded(mut self) -> State {
+        if self.character.as_deref() == Some(PLACEHOLDER) {
+            self.chosen = Some(self.chosen());
+            self.character = Some(BUILTIN[0].into());
+        }
+        self
     }
 
     pub fn save(&self, path: &Path) -> std::io::Result<()> {
@@ -280,6 +291,14 @@ pub(crate) mod tests {
         assert!(!st("character = \"merlin\"\nchosen = false").chosen());
         assert!(st("character = \"bentwire-placeholder\"\nchosen = true").chosen());
         assert!(!st("").install_hint_shown);
+        // The placeholder becomes wire, chosen as before.
+        let up = |t: &str| st(t).upgraded();
+        let a = up("character = \"bentwire-placeholder\"\nleft = 1");
+        assert_eq!((a.character.as_deref(), a.chosen()), (Some("wire"), false));
+        let b = up("character = \"bentwire-placeholder\"\nchosen = true");
+        assert_eq!((b.character.as_deref(), b.chosen()), (Some("wire"), true));
+        let c = up("character = \"merlin\"");
+        assert_eq!((c.character.as_deref(), c.chosen), (Some("merlin"), None));
     }
 
     pub(crate) fn tempdir() -> PathBuf {
