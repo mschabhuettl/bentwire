@@ -1,6 +1,6 @@
 //! Office balloon theme (A-THEME-1) from the Office balloon DLL's bitmap and icon resources, as the
 //! layout of bentwire-render's theme loader (`balloon-themes/<id>/theme.toml`). Resource ids and
-//! strip layouts are office-assistant R-OB-5, R-OB-8 and R-OB-11. Read at pack generation time
+//! strip layouts are office-assistant R-OB-5, R-OB-8, R-OB-9, R-OB-11 and R-OB-36 (A-THEME-2). Read at pack generation time
 //! only; nothing of it is embedded in code.
 
 use std::path::Path;
@@ -198,55 +198,30 @@ fn icon(res: &[(u32, u32, Vec<u8>)], id: u32) -> Result<(u32, u32, Vec<u8>), Err
     Ok((w as u32, h as u32, out))
 }
 
-/// Write `balloon-themes/<id>/` files (theme.toml and PNGs) for render's theme loader.
-/// `source` is the DLL's file name, recorded in the theme.toml comment; `generator` names the
-/// script that ran the extraction.
-pub fn extract_theme(
-    dll: &[u8],
-    dir: &Path,
-    name: &str,
-    source: &str,
-    generator: &str,
-) -> Result<(), Error> {
-    let res = pe_resources(dll)?;
-    std::fs::create_dir_all(dir)?;
-    let png = |file: &str, (w, h, d): (u32, u32, Vec<u8>)| -> Result<(), Error> {
-        std::fs::write(dir.join(file), encode_png_rgba(w, h, &d)?)?;
-        Ok(())
-    };
-    // R-OB-11: button strips of 10 frames, 5 masks then 5 images.
-    for (size, ids) in [("small", [105, 106, 107]), ("large", [108, 109, 110])] {
-        for (part, id) in ["left", "mid", "right"].iter().zip(ids) {
-            png(
-                &format!("button-{size}-{part}.png"),
-                fold(&strip(&res, id)?, 10, &[0, 1, 2, 3, 4], &[5, 6, 7, 8, 9])?,
-            )?;
-        }
-    }
-    // R-OB-8: bullets, 5 frames of 15x15: mask, then 4 states.
-    png(
-        "bullet.png",
-        fold(&strip(&res, 101)?, 5, &[0; 4], &[1, 2, 3, 4])?,
-    )?;
-    png(
-        "bullet-tip.png",
-        fold(&strip(&res, 102)?, 5, &[0; 4], &[1, 2, 3, 4])?,
-    )?;
-    // R-OB-9: arrows, mask plus 2 states.
-    png(
-        "arrow-up.png",
-        fold(&strip(&res, 103)?, 3, &[0; 2], &[1, 2])?,
-    )?;
-    png(
-        "arrow-down.png",
-        fold(&strip(&res, 104)?, 3, &[0; 2], &[1, 2])?,
-    )?;
-    // R-OB-5: tip icon, group 100.
-    png("tip.png", icon(&res, 100)?)?;
-    let frames = r#"["normal", "default", "hot", "pressed", "disabled"]"#;
-    let toml = format!(
+// R-OB-36: the strips are bottom-up DIBs indexed from the bottom, so strip index s of an
+// n-frame strip is frame n - 1 - s counted from the top.
+
+/// Button strip frames as RGBA, side by side in the order [`BUTTON_FRAMES`] names: state s
+/// is image s and mask s + 5 (R-OB-11), frames 9 - s and 4 - s from the top.
+fn button_frames(s: &Strip) -> Result<(u32, u32, Vec<u8>), Error> {
+    fold(s, 10, &[4, 3, 2, 1, 0], &[9, 8, 7, 6, 5])
+}
+
+/// Bullet strip frames as RGBA, side by side in the order [`BULLET_FRAMES`] names: state s
+/// is image s (frame 4 - s from the top), all with mask index 4, the top frame (R-OB-8).
+fn bullet_frames(s: &Strip) -> Result<(u32, u32, Vec<u8>), Error> {
+    fold(s, 5, &[0; 4], &[4, 3, 2, 1])
+}
+
+const BUTTON_FRAMES: &str = r#"["normal", "hot", "pressing", "pressed", "disabled"]"#;
+const BULLET_FRAMES: &str = r#"["normal", "hot", "pressing", "pressed"]"#;
+
+fn theme_toml(name: &str, source: &str, generator: &str) -> String {
+    let frames = BUTTON_FRAMES;
+    let bullet_frames = BULLET_FRAMES;
+    format!(
         r#"# Office balloon theme, extracted from {source} at pack generation time
-# ({generator}). Frame names follow office-assistant R-OB-8/R-OB-11 [inf].
+# ({generator}). Frame names follow office-assistant R-OB-8, R-OB-11, R-OB-36.
 format = 1
 name = "{name}"
 
@@ -264,12 +239,137 @@ frames = {frames}
 
 [bullets]
 label = "bullet.png"
-label_frames = ["normal", "hot", "pressed", "disabled"]
+label_frames = {bullet_frames}
 
 [icons]
 tip = "tip.png"
 "#
-    );
+    )
+}
+
+/// Write `balloon-themes/<id>/` files (theme.toml and PNGs) for render's theme loader.
+/// `source` is the DLL's file name, recorded in the theme.toml comment; `generator` names the
+/// script that ran the extraction.
+pub fn extract_theme(
+    dll: &[u8],
+    dir: &Path,
+    name: &str,
+    source: &str,
+    generator: &str,
+) -> Result<(), Error> {
+    let res = pe_resources(dll)?;
+    std::fs::create_dir_all(dir)?;
+    let png = |file: &str, (w, h, d): (u32, u32, Vec<u8>)| -> Result<(), Error> {
+        std::fs::write(dir.join(file), encode_png_rgba(w, h, &d)?)?;
+        Ok(())
+    };
+    // R-OB-11: button strips of 10 frames, 5 masks then 5 images (top to bottom).
+    for (size, ids) in [("small", [105, 106, 107]), ("large", [108, 109, 110])] {
+        for (part, id) in ["left", "mid", "right"].iter().zip(ids) {
+            png(
+                &format!("button-{size}-{part}.png"),
+                button_frames(&strip(&res, id)?)?,
+            )?;
+        }
+    }
+    // R-OB-8: bullets, 5 frames of 15x15: mask, then 4 states (top to bottom).
+    png("bullet.png", bullet_frames(&strip(&res, 101)?)?)?;
+    png("bullet-tip.png", bullet_frames(&strip(&res, 102)?)?)?;
+    // R-OB-9: arrows, 5 frames of 17x9 in the bullet layout and order.
+    png("arrow-up.png", bullet_frames(&strip(&res, 103)?)?)?;
+    png("arrow-down.png", bullet_frames(&strip(&res, 104)?)?)?;
+    // R-OB-5: tip icon, group 100.
+    png("tip.png", icon(&res, 100)?)?;
+    let toml = theme_toml(name, source, generator);
     std::fs::write(dir.join("theme.toml"), toml)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A vertical strip of `n` frames of `fw` x `fh`, listed top to bottom. Image frame `f` has
+    /// the colour [f, 100, 200]; mask frame `f` (in `masks`) is black (opaque) except column
+    /// `f`, which is white (transparent).
+    fn synthetic(fw: u32, fh: u32, n: u32, masks: &[u32]) -> Strip {
+        let mut rgb = Vec::new();
+        for f in 0..n {
+            for _ in 0..fh {
+                for x in 0..fw {
+                    rgb.push(if !masks.contains(&f) {
+                        [f as u8, 100, 200]
+                    } else if x == f {
+                        [255, 255, 255]
+                    } else {
+                        [0, 0, 0]
+                    });
+                }
+            }
+        }
+        Strip {
+            w: fw,
+            h: fh * n,
+            rgb,
+        }
+    }
+
+    /// Output frame `k` of `fw` x `fh`: (colour of an opaque pixel, transparent columns).
+    fn frame(out: &(u32, u32, Vec<u8>), fw: u32, k: u32) -> ([u8; 3], Vec<u32>) {
+        let (_, _, d) = out;
+        let px = |x: u32| {
+            let o = ((k * fw + x) * 4) as usize;
+            [d[o], d[o + 1], d[o + 2], d[o + 3]]
+        };
+        let clear: Vec<u32> = (0..fw).filter(|&x| px(x)[3] == 0).collect();
+        let opaque = (0..fw).find(|&x| px(x)[3] == 255).unwrap();
+        let c = px(opaque);
+        (c[..3].try_into().unwrap(), clear)
+    }
+
+    // R-OB-11, R-OB-36: strip index s is frame 9 - s from the top; image s, mask s + 5.
+    #[test]
+    fn r_ob_11_button_strip_state_order() {
+        let out = button_frames(&synthetic(11, 22, 10, &[0, 1, 2, 3, 4])).unwrap();
+        assert_eq!((out.0, out.1), (55, 22));
+        // normal, hot, pressing, pressed, disabled: (image frame, mask frame) from the top.
+        for (k, (image, mask)) in [(9, 4), (8, 3), (7, 2), (6, 1), (5, 0)].iter().enumerate() {
+            let (c, clear) = frame(&out, 11, k as u32);
+            assert_eq!(clear, vec![*mask], "state {k}: mask");
+            assert_eq!(c, [*image as u8, 100, 200], "state {k}: image");
+        }
+        assert_eq!(
+            BUTTON_FRAMES,
+            r#"["normal", "hot", "pressing", "pressed", "disabled"]"#
+        );
+        let t: toml::Value = toml::from_str(&theme_toml("Office", "x.dll", "test")).unwrap();
+        for size in ["small", "large"] {
+            assert_eq!(
+                t["buttons"][size]["frames"].as_array().unwrap().len(),
+                5,
+                "[buttons.{size}]"
+            );
+        }
+    }
+
+    // R-OB-8, R-OB-9, R-OB-36: mask index 4 (frame 0 from the top); image s is frame 4 - s.
+    #[test]
+    fn r_ob_8_r_ob_9_bullet_strip_state_order() {
+        let bullet = bullet_frames(&synthetic(15, 15, 5, &[0])).unwrap();
+        assert_eq!((bullet.0, bullet.1), (60, 15));
+        // Arrows 103/104: 17 x 45, 5 frames of 17 x 9, bullet order.
+        let arrow = bullet_frames(&synthetic(17, 9, 5, &[0])).unwrap();
+        assert_eq!((arrow.0, arrow.1), (68, 9));
+        for (out, fw) in [(&bullet, 15), (&arrow, 17)] {
+            // normal, hot, pressing, pressed.
+            for (k, image) in [4u8, 3, 2, 1].iter().enumerate() {
+                let (c, clear) = frame(out, fw, k as u32);
+                assert_eq!(clear, vec![0], "frame {k}: mask is frame 0");
+                assert_eq!(c, [*image, 100, 200], "frame {k}: image");
+            }
+        }
+        assert_eq!(BULLET_FRAMES, r#"["normal", "hot", "pressing", "pressed"]"#);
+        let t: toml::Value = toml::from_str(&theme_toml("Office", "x.dll", "test")).unwrap();
+        assert_eq!(t["bullets"]["label_frames"].as_array().unwrap().len(), 4);
+    }
 }

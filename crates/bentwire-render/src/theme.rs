@@ -7,17 +7,19 @@
 //! left = "b-left.png"      # strips: equal-width frames side by side
 //! middle = "b-mid.png"
 //! right = "b-right.png"
-//! frames = ["normal", "default", "hot", "pressed", "disabled"]
+//! frames = ["normal", "hot", "pressing", "pressed", "disabled"]
 //! [buttons.large]          # height 24
 //! [bullets]
 //! label = "bullet.png"
-//! label_frames = ["normal", "hot", "pressed", "disabled"]
+//! label_frames = ["normal", "hot", "pressing", "pressed"]
 //! [icons]                  # 32 x 32, each optional
 //! tip = "tip.png"
 //! ```
 //!
-//! Masks are already folded into alpha. Anything missing falls back to the
-//! look-alike (B-OB-1).
+//! Masks are already folded into alpha. Only the frames `normal`, `hot`, `pressed` and
+//! `disabled` are drawn; other names (`pressing`, or `default` of older themes) are ignored
+//! and a missing state frame falls back to `normal` (B-REN-7). A missing strip or icon falls
+//! back to the look-alike (B-OB-1).
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -25,7 +27,6 @@ use std::path::Path;
 use bentwire_core::api::{ControlState, IconKind};
 use serde::Deserialize;
 
-use crate::art;
 use crate::canvas::{Canvas, Rect, Rgb, RgbaImage};
 
 #[derive(Deserialize)]
@@ -238,25 +239,21 @@ impl Theme {
         true
     }
 
-    /// Draws a themed button whose strip height equals the rect height. Returns the
-    /// caption colour and shift as the look-alike does.
+    /// Draws a themed button whose strip height equals the rect height, in its state's
+    /// frame (R-OB-11: no default or focused frame). Returns the caption colour and shift
+    /// as the look-alike does; the caller draws the focus rectangle (R-OB-10).
     pub(crate) fn draw_button(
         &self,
         c: &mut Canvas,
         k: u32,
         r: Rect,
         state: ControlState,
-        focused: bool,
     ) -> Option<(Rgb, i32)> {
         let b = self
             .buttons
             .iter()
             .find(|b| b.left.img.height as i32 == r.h)?;
-        let name = match state {
-            ControlState::Normal if focused => "default",
-            s => state_name(s),
-        };
-        let i = b.left.index(name).or(b.left.index("normal"))?;
+        let i = b.left.index(state_name(state)).or(b.left.index("normal"))?;
         let ki = k as i32;
         let h = r.h as u32;
         let (lw, rw) = (b.left.frame_width(), b.right.frame_width());
@@ -295,21 +292,16 @@ impl Theme {
             rw * k,
             h * k,
         );
-        if focused && state != ControlState::Disabled {
-            art::dotted_rect(
-                c,
-                k,
-                Rect::new(r.x + 3, r.y + 3, r.w - 6, r.h - 6),
-                Rgb::BLACK,
-            );
-        }
         Some(match state {
-            ControlState::Disabled => (art::GREY, 0),
+            ControlState::Disabled => (DISABLED_CAPTION, 0),
             ControlState::Pressed => (Rgb::BLACK, 1),
             _ => (Rgb::BLACK, 0),
         })
     }
 }
+
+/// R-OB-11 caption colour of a disabled button.
+const DISABLED_CAPTION: Rgb = Rgb(0xB2, 0xB2, 0xB2);
 
 fn state_name(s: ControlState) -> &'static str {
     match s {

@@ -196,11 +196,16 @@ pub fn draw_office_balloon(
     let m = fonts.metrics(&body_font);
     for b in &s.buttons {
         let r = rect(b.rect);
-        let themed = theme.and_then(|t| t.draw_button(c, k, r, b.state, b.focused));
-        let (col, shift) = themed.unwrap_or_else(|| art::button_frame(c, k, r, b.state, b.focused));
+        let themed = theme.and_then(|t| t.draw_button(c, k, r, b.state));
         let w = fonts.text_width(&body_font, &b.caption);
-        let x = r.x + (r.w - w) / 2 + shift;
-        let y = r.y + (r.h - m.height) / 2 + shift;
+        let (x, y) = (r.x + (r.w - w) / 2, r.y + (r.h - m.height) / 2);
+        if themed.is_some() && b.focused && b.state != ControlState::Disabled {
+            // R-OB-10: around the unshifted caption, 2 px wider left and right, 1 px lower.
+            let f = Rect::new(x - 2, y, w + 4, m.height + 1);
+            art::dotted_rect(c, k, f, Rgb::BLACK);
+        }
+        let (col, shift) = themed.unwrap_or_else(|| art::button_frame(c, k, r, b.state, b.focused));
+        let (x, y) = (x + shift, y + shift);
         fonts.draw_text(c, k, x, y, &body_font, &b.caption, col, false);
         if let Some(i) = b.mnemonic_index {
             let before: String = b.caption.chars().take(i).collect();
