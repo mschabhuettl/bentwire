@@ -158,6 +158,7 @@ cargo metadata --format-version 1 \
 | event-listener-strategy | 0.5.4 | Apache-2.0 OR MIT |
 | fastrand | 2.5.0 | Apache-2.0 OR MIT |
 | fdeflate | 0.3.7 | MIT OR Apache-2.0 |
+| filetime | 0.2.30 | MIT/Apache-2.0 |
 | find-msvc-tools | 0.1.15 | MIT OR Apache-2.0 |
 | flacenc | 0.5.1 | Apache-2.0 |
 | flate2 | 1.1.11 | MIT OR Apache-2.0 |
@@ -259,6 +260,7 @@ cargo metadata --format-version 1 \
 | stable_deref_trait | 1.2.1 | MIT OR Apache-2.0 |
 | syn | 2.0.119 | MIT OR Apache-2.0 |
 | syn | 3.0.10 | MIT OR Apache-2.0 |
+| tar | 0.4.46 | MIT OR Apache-2.0 |
 | task-local | 0.1.1 | MIT OR Apache-2.0 |
 | tempfile | 3.27.0 | MIT OR Apache-2.0 |
 | thiserror | 1.0.69 | MIT OR Apache-2.0 |

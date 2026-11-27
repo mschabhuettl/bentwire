@@ -2239,8 +2239,10 @@ bridges `command`; other keys are errors.
   (`GetConnectionUnixProcessID`; a daemon is not started for this). On SIGHUP the daemon
   reads the add-ons and the enabled list again, rescans the characters (B-CHAR-1, which
   then also applies B-CHAR-4 and finds the theme, A-THEME-1) and starts or stops bridges.
-  A character whose add-on was disabled or removed while it is the current one stays
-  until another is selected, as when a pack folder is deleted; it is no longer listed.
+  When the current character's add-on is disabled or removed, B-CHAR-4 applies as after
+  any rescan: a character the user never chose is replaced by the next default; a chosen
+  one stays until another is selected, as when a pack folder is deleted, and is no longer
+  listed.
 - Reason: the enabled state is the user's choice, so it lives in the config directory, in
   a file of its own that the CLI may rewrite; SIGHUP already means "read your files again"
   and needs no new D-Bus method.
@@ -2259,15 +2261,18 @@ character of the same id or the pack's theme; disabling it brings those back.
   the bridges once it owns its bus name and has started, and on SIGHUP (B-ADDON-3). The
   program is `command[0]`, taken from the add-on folder when it is a relative path with a
   `/`, else from `PATH`; it runs in the add-on folder with the daemon's environment, stdin
-  `/dev/null`, stdout and stderr inherited, no blocked signals, in its own process group,
-  and with `PR_SET_PDEATHSIG` = SIGTERM (spawned from the daemon's main thread).
+  `/dev/null`, stdout and stderr inherited, no blocked signals (also for the daemon's other
+  children, which would otherwise inherit the signals it reads through signalfd), in its
+  own process group, and with `PR_SET_PDEATHSIG` = SIGTERM (spawned from the daemon's main
+  thread).
 - A bridge that exits, or cannot be started, is started again after a wait: 1 s after the
   first exit, doubling after each further one up to 60 s, and back to 1 s after a run of
   60 s or more. SIGCHLD wakes the daemon to notice an exit; the wait is real time, also in
   headless mode.
-- A bridge that is disabled or removed gets SIGTERM to its process group. When the daemon
-  quits (Quit, SIGTERM, SIGINT, the end of the session bus, B-RUN-1) every bridge gets
-  SIGTERM to its process group, and SIGKILL if it still runs 2 s later.
+- A bridge that is disabled or removed gets SIGTERM to its process group, and so does an
+  enabled one whose `addon.toml` changed (a reinstall), which is then started again. When
+  the daemon quits (Quit, SIGTERM, SIGINT, the end of the session bus, B-RUN-1) every
+  bridge gets SIGTERM to its process group, and SIGKILL if it still runs 2 s later.
 - Reason: issue #18 and the roadmap ("no plugin code in the daemon process"); a crashing
   bridge must not spin, and a bridge must not outlive the daemon that started it.
 

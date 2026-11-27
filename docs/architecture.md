@@ -13,12 +13,12 @@ and keep `bentwired` a thin shell around backends).
 |---|---|---|
 | `crates/agent-formats` | Parsers: ACS 2.0, ACF/ACA 2.0, Agent 1.5 (OLE ACS, ACF/AAF), ACT. Publishable, no daemon deps. Parse to faithful source structures; no conversion policy. | - |
 | `crates/agent-fixtures` | `publish = false`. Writers that emit valid ACS, ACF/ACA, ACF/AAF, ACT files from synthetic pictures (tests only). | - |
-| `crates/bentwire-character` | Manifest model (plain structs, hand-written TOML mapping), reader for folder and `.bwc`, writer, compositor (character-format 5.3), canonical dump (character-format 11.1), interpreter B (traces), validation, FLAC/WAVE decode. | - |
+| `crates/bentwire-character` | Manifest model (plain structs, hand-written TOML mapping), reader for folder and `.bwc`, writer, compositor (character-format 5.3), canonical dump (character-format 11.1), interpreter B (traces), validation, FLAC/WAVE decode; the add-on manifest and enabled list (spec B-ADDON-1, B-ADDON-3). | - |
 | `crates/bentwire-convert` | Source structures to bentwire characters; MS ADPCM rule; WMF rasteriser (`src/wmf/`); round-trip check. | agent-formats, bentwire-character |
 | `crates/bentwire-core` | Deterministic behaviour core (spec section 2, B-CORE-1): clock, draws and input events in; scene, sound commands, replies and signals out. No I/O. Own playback model; the manifest adapter is in `bentwired/src/model.rs`. | - |
 | `crates/bentwire-render` | Software rendering: character picture to buffers, Agent balloon, Office balloon (own look-alike, or a balloon theme from a pack), XP-style menu, text with the bundled Tahoma. Implements the core's text-metrics trait. | bentwire-character, bentwire-core |
-| `crates/bentwired` | The daemon: discovery, config/state files, Wayland backend (smithay-client-toolkit, layer-shell), headless backend (spec T-4), zbus API, ksni tray, audio (libpulse-simple or libpipewire loaded at run time, else ALSA through rodio; spec A-DESK-7). | core, render, character |
-| `crates/bentwire` | CLI (spec 5.5): thin zbus client, plus local `convert`. | bentwire-convert |
+| `crates/bentwired` | The daemon: discovery, config/state files, bridge add-on supervision (spec B-ADDON-5), Wayland backend (smithay-client-toolkit, layer-shell), headless backend (spec T-4), zbus API, ksni tray, audio (libpulse-simple or libpipewire loaded at run time, else ALSA through rodio; spec A-DESK-7). | core, render, character |
+| `crates/bentwire` | CLI (spec 5.5): thin zbus client, plus local `convert` and `addons` (B-ADDON-2, B-ADDON-3). | bentwire-convert, bentwire-character |
 | `crates/bentwire-notify` | Notification bridge (spec B-NOTIFY-1): a session bus monitor for `Notify` calls, `Speak` to the daemon. | - |
 | `crates/bentwire-mqtt` | MQTT bridge (spec B-MQTT-1): zbus client of the API plus rumqttc, Home Assistant discovery. | - |
 | `clients/` | `clients/shell/` (bash and zsh), `clients/claude-code/` (hooks), `clients/git/` (git hooks), `clients/systemd/` (`OnFailure=` template). Use the CLI only. | - |

@@ -60,9 +60,9 @@ it is enabled, the daemon starts it once it owns its bus name and supervises it:
 - It runs in its own process group. If it exits, for any reason, it is started again after
   1 s, then 2 s, 4 s and so on up to 60 s; after a run of 60 s or more the wait starts at
   1 s again.
-- It is stopped with SIGTERM to its process group when it is disabled or removed, and when
-  the daemon quits (Quit, SIGTERM, SIGINT, the end of the session bus); a bridge still
-  running 2 s after that gets SIGKILL. If the daemon dies without stopping it, the bridge
+- It is stopped with SIGTERM to its process group when it is disabled or removed. When the
+  daemon quits (Quit, SIGTERM, SIGINT, the end of the session bus), every bridge gets
+  SIGTERM, and SIGKILL if it still runs 2 s later. If the daemon dies without stopping it, the bridge
   gets SIGTERM from the kernel (`PR_SET_PDEATHSIG`). That signal reaches only the bridge
   process itself: a wrapper script should `exec` the real program, as below.
 - Installing never enables a bridge, also not when it replaces an enabled one: only
