@@ -1697,6 +1697,64 @@ fn library_gallery_corner_walk_keeps_next_and_back_under_the_pointer() {
     assert!(all.is_empty(), "{all:#?}");
 }
 
+/// A-CHAR-1, B-GAL-1: with only `builtin`, the daemon lists Wire in both renderings, starts
+/// with `wire`, and the gallery's Next previews `wire-retro` with Wave.
+#[test]
+fn a_char_1_b_gal_1_gallery_shows_wire() {
+    let mut e = Env::new("galwire");
+    e.seed_state("install_hint_shown = true\n");
+    let builtin = repo().join("characters/builtin");
+    e.start_raw(&["--characters", builtin.to_str().unwrap()]);
+    e.advance(3000);
+    assert_eq!(e.character(), "wire");
+    let c = e.client();
+    let list: Vec<(String, String, String)> = c
+        .conn
+        .call_method(
+            Some("org.bentwire.Agent"),
+            AGENT,
+            Some(AGENT_IF),
+            "ListCharacters",
+            &(),
+        )
+        .unwrap()
+        .body()
+        .deserialize()
+        .unwrap();
+    let names: Vec<(&str, &str)> = list
+        .iter()
+        .map(|(id, name, _)| (id.as_str(), name.as_str()))
+        .collect();
+    assert_eq!(names, [("wire", "Wire"), ("wire-retro", "Wire (retro)")]);
+    open_gallery_menu(&e);
+    let s = e.snapshot();
+    let next = s["office_balloon"]["buttons"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|b| b["caption"] == "Next>")
+        .expect("Next")
+        .clone();
+    e.click(
+        1,
+        int(&next["rect"]["x"]) as i32 + 5,
+        int(&next["rect"]["y"]) as i32 + 5,
+    );
+    e.advance(100);
+    assert_eq!(e.character(), "wire-retro");
+    // The new character's Show, then the Wave preview.
+    let mut s = e.snapshot();
+    for _ in 0..30 {
+        if s["picture"]["animation"] == "Wave" {
+            break;
+        }
+        e.advance(100);
+        s = e.snapshot();
+    }
+    assert_eq!(s["picture"]["animation"], "Wave", "{s}");
+    assert!(!s["office_balloon"].is_null(), "gallery stays open");
+}
+
 /// Opens the gallery from the character menu.
 fn open_gallery_menu(e: &Env) {
     let (x, y) = centre(e);

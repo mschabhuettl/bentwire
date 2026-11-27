@@ -1,7 +1,7 @@
 //! Wire, bentwire's own CC0 character (architecture A-CHAR-1): a piece of bent wire with a
 //! face, described once as a vector rig ([`rig`]) and rendered by code ([`raster`]) in two
 //! styles: `wire` (modern: anti-aliased, real alpha, 1x and 2x sheets) and `wire-retro`
-//! (16-colour indexed sheets, hard edges, 1x). The same animation table drives both.
+//! (12-colour indexed sheets: 11 colours and transparent; hard edges, 1x). The same animation table drives both.
 //! Deterministic: same code, same bytes.
 
 pub mod raster;
