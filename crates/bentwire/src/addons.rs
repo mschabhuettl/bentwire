@@ -1,7 +1,7 @@
 //! `bentwire addons` (spec B-ADDON-2, B-ADDON-3): add-ons in `$XDG_DATA_HOME/bentwire/addons`,
 //! the enabled list in `$XDG_CONFIG_HOME/bentwire/addons.toml`.
 
-use crate::{BUS_NAME, Fail, Opts, download, fail, sha256_hex, xdg_dir};
+use crate::{BUS_NAME, Fail, Opts, curl, fail, sha256_hex, xdg_dir};
 use bentwire_character::addon::{self, Addon, Kind, MANIFEST};
 use std::io::{Read, Seek};
 use std::os::unix::fs::OpenOptionsExt;
@@ -9,6 +9,55 @@ use std::path::{Component, Path, PathBuf};
 
 const USAGE: &str =
     "expected list, install <folder|archive|url> [--sha256 HEX], enable, disable or remove <name>";
+
+/// B-ADDON-2: an archive or download has at most `packed` bytes, unpacks to at most
+/// `unpacked` bytes and has at most `entries` entries.
+struct Limits {
+    packed: u64,
+    unpacked: u64,
+    entries: usize,
+}
+
+const LIMITS: Limits = Limits {
+    packed: 256 << 20,
+    unpacked: 1 << 30,
+    entries: 10_000,
+};
+
+/// `n` bytes for a message: in MiB when it is a whole number of them.
+fn size(n: u64) -> String {
+    if n >= 1 << 20 && n.is_multiple_of(1 << 20) {
+        format!("{} MiB", n >> 20)
+    } else {
+        format!("{n} bytes")
+    }
+}
+
+fn too_large(what: &str, limit: u64) -> String {
+    format!(
+        "{what} more than {} (the limit for add-on archives)",
+        size(limit)
+    )
+}
+
+/// A reader that fails as soon as more than `left` bytes came through it.
+struct Capped<R> {
+    r: R,
+    left: u64,
+    what: &'static str,
+    limit: u64,
+}
+
+impl<R: Read> Read for Capped<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let n = self.r.read(buf)?;
+        if n as u64 > self.left {
+            return Err(std::io::Error::other(too_large(self.what, self.limit)));
+        }
+        self.left -= n as u64;
+        Ok(n)
+    }
+}
 
 pub fn run(args: &[String]) -> Result<(), Fail> {
     let o = Opts::parse(args, &[], &["--sha256"])?;
@@ -120,6 +169,30 @@ fn tell_daemon() {
     }
 }
 
+/// B-ADDON-2: curl as in B-CLI-1, cut off after `max` bytes.
+fn download(url: &str, to: &Path, max: u64) -> Result<(), Fail> {
+    let mut child = curl(url)
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| fail(format!("cannot run \"curl\": {e}")))?;
+    let mut body = Capped {
+        r: child.stdout.take().expect("piped"),
+        left: max,
+        what: "download is",
+        limit: max,
+    };
+    let r = std::fs::File::create(to).and_then(|mut f| std::io::copy(&mut body, &mut f));
+    if r.is_err() {
+        let _ = child.kill();
+    }
+    let ok = child.wait().is_ok_and(|s| s.success());
+    match r {
+        Err(e) => Err(fail(format!("{url}: {e}"))),
+        Ok(_) if ok => Ok(()),
+        Ok(_) => Err(fail(format!("downloading {url} failed"))),
+    }
+}
+
 fn install(src: &str, sha: Option<&str>) -> Result<(), Fail> {
     let sha = sha.map(str::to_ascii_lowercase);
     if sha
@@ -163,7 +236,7 @@ fn install_into(tmp: &Path, dir: &Path, src: &str, sha: Option<&str>) -> Result<
         }
         let f = tmp.join("download");
         eprintln!("bentwire: downloading {src}");
-        download(src, &f)?;
+        download(src, &f, LIMITS.packed)?;
         Some(f)
     } else if Path::new(src).is_dir() {
         if sha.is_some() {
@@ -183,7 +256,7 @@ fn install_into(tmp: &Path, dir: &Path, src: &str, sha: Option<&str>) -> Result<
         {
             return Err(fail(format!("{src}: SHA-256 does not match")));
         }
-        extract(f, &stage).map_err(|e| fail(format!("{src}: {e}")))?;
+        extract(f, &stage, &LIMITS).map_err(|e| fail(format!("{src}: {e}")))?;
     }
     // The manifest is at the top, or in the only top-level folder of an archive.
     let root = if stage.join(MANIFEST).is_file() {
@@ -266,28 +339,61 @@ fn copy_tree(from: &Path, to: &Path) -> Result<(), String> {
 /// B-ADDON-2: unpack a ZIP or gzip-compressed tar archive into the new folder `to`. Only
 /// folders and regular files with relative paths that stay inside are allowed; the mode
 /// becomes 0755 for executable files, else 0644, and the times are those of the unpacking.
-fn extract(file: &Path, to: &Path) -> Result<(), String> {
+/// `limits` are checked while unpacking, so no more than they allow is ever written.
+fn extract(file: &Path, to: &Path, limits: &Limits) -> Result<(), String> {
     let io = |e: std::io::Error| e.to_string();
     let mut f = std::fs::File::open(file).map_err(io)?;
+    if f.metadata().map_err(io)?.len() > limits.packed {
+        return Err(too_large("archive is", limits.packed));
+    }
     let mut magic = [0u8; 4];
     let n = f.read(&mut magic).map_err(io)?;
     f.rewind().map_err(io)?;
     std::fs::create_dir(to).map_err(io)?;
+    let unpacks = "archive unpacks to";
+    let too_many = || {
+        format!(
+            "archive has more than {} entries (the limit for add-on archives)",
+            limits.entries
+        )
+    };
     if magic[..n].starts_with(b"PK") {
         let mut z = zip::ZipArchive::new(f).map_err(|e| e.to_string())?;
+        if z.len() > limits.entries {
+            return Err(too_many());
+        }
+        // One budget for all entries, counted in bytes actually unpacked.
+        let mut left = limits.unpacked;
         for i in 0..z.len() {
-            let mut e = z.by_index(i).map_err(|e| e.to_string())?;
+            let e = z.by_index(i).map_err(|e| e.to_string())?;
             let name = PathBuf::from(e.name());
             // Only the type bits of a regular file or a folder, if any.
             let mode = e.unix_mode().unwrap_or(0);
             if !matches!(mode & 0o170000, 0 | 0o100000 | 0o040000) {
                 return Err(not_allowed(&name));
             }
-            put(to, &name, e.is_dir(), mode, &mut e)?;
+            let dir = e.is_dir();
+            let mut r = Capped {
+                r: e,
+                left,
+                what: unpacks,
+                limit: limits.unpacked,
+            };
+            put(to, &name, dir, mode, &mut r)?;
+            left = r.left;
         }
     } else if magic[..n].starts_with(&[0x1f, 0x8b]) {
-        let mut a = tar::Archive::new(flate2::read::GzDecoder::new(f));
-        for e in a.entries().map_err(io)? {
+        // The whole tar stream counts, headers included.
+        let mut a = tar::Archive::new(Capped {
+            r: flate2::read::GzDecoder::new(f),
+            left: limits.unpacked,
+            what: unpacks,
+            limit: limits.unpacked,
+        });
+        for (i, e) in a.entries().map_err(io)?.enumerate() {
+            if i >= limits.entries {
+                return Err(too_many());
+            }
             let mut e = e.map_err(io)?;
             let name = e.path().map_err(io)?.into_owned();
             let mode = e.header().mode().map_err(io)?;
@@ -410,7 +516,7 @@ mod tests {
                 ("./top/run.sh", Regular, 0o700, b"#!/bin/sh\n"),
             ],
         );
-        extract(&t, &d.join("t")).unwrap();
+        extract(&t, &d.join("t"), &LIMITS).unwrap();
         use std::os::unix::fs::PermissionsExt;
         let mode = |p: &Path| std::fs::metadata(p).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode(&d.join("t/top/addon.toml")), 0o644);
@@ -421,12 +527,12 @@ mod tests {
             &[("addon.toml", None, b"y"), ("bin/run", Some(0o755), b"z")],
             None,
         );
-        extract(&z, &d.join("z")).unwrap();
+        extract(&z, &d.join("z"), &LIMITS).unwrap();
         assert_eq!(std::fs::read(d.join("z/addon.toml")).unwrap(), b"y");
         assert_eq!(mode(&d.join("z/bin/run")), 0o755);
         let other = d.join("x.txt");
         std::fs::write(&other, "hello").unwrap();
-        let e = extract(&other, &d.join("o")).unwrap_err();
+        let e = extract(&other, &d.join("o"), &LIMITS).unwrap_err();
         assert!(e.contains("not a folder"), "{e}");
         std::fs::remove_dir_all(&d).unwrap();
     }
@@ -446,7 +552,7 @@ mod tests {
         for (i, (name, t)) in cases_tar.iter().enumerate() {
             let f = d.join(format!("{i}.tar.gz"));
             tar_gz(&f, &[(name, *t, 0o644, b"x")]);
-            let e = extract(&f, &d.join(format!("out{i}"))).unwrap_err();
+            let e = extract(&f, &d.join(format!("out{i}")), &LIMITS).unwrap_err();
             assert!(
                 e.contains("leaves the add-on folder") || e.contains("links"),
                 "{name}: {e}"
@@ -455,12 +561,12 @@ mod tests {
         for (i, name) in ["../evil", "/tmp/bw-evil-abs"].iter().enumerate() {
             let f = d.join(format!("{i}.zip"));
             zip_file(&f, &[(name, None, b"x")], None);
-            let e = extract(&f, &d.join(format!("zout{i}"))).unwrap_err();
+            let e = extract(&f, &d.join(format!("zout{i}")), &LIMITS).unwrap_err();
             assert!(e.contains("leaves the add-on folder"), "{name}: {e}");
         }
         let f = d.join("link.zip");
         zip_file(&f, &[("addon.toml", None, b"x")], Some("etc"));
-        let e = extract(&f, &d.join("zlink")).unwrap_err();
+        let e = extract(&f, &d.join("zlink"), &LIMITS).unwrap_err();
         assert!(e.contains("links"), "{e}");
         assert!(!d.join("evil").exists() && !Path::new("/tmp/bw-evil-abs").exists());
         // Folders: a link is refused too.
@@ -483,6 +589,110 @@ mod tests {
             m.permissions().mode() & 0o7777
         };
         assert_eq!((mode("run"), mode("data")), (0o755, 0o644));
+        std::fs::remove_dir_all(&d).unwrap();
+    }
+
+    /// The bytes of all files below `d`.
+    fn disk(d: &Path) -> u64 {
+        std::fs::read_dir(d).map_or(0, |rd| {
+            rd.map(|e| {
+                let p = e.unwrap().path();
+                if p.is_dir() {
+                    disk(&p)
+                } else {
+                    p.metadata().unwrap().len()
+                }
+            })
+            .sum()
+        })
+    }
+
+    /// B-ADDON-2: packed size, unpacked size (zip bombs: small packed, large unpacked; one
+    /// budget for all entries) and entry count are limited while unpacking, and downloads
+    /// while downloading; nothing over the limit reaches the disk.
+    #[test]
+    fn b_addon_2_archive_limits() {
+        use tar::EntryType::Regular;
+        let d = tempdir("limits");
+        let small = Limits {
+            packed: 1 << 20,
+            unpacked: 1 << 20,
+            entries: 10,
+        };
+        let zeros = vec![0u8; 4 << 20];
+        let half = vec![0u8; 600 << 10];
+        let z = d.join("bomb.zip");
+        zip_file(
+            &z,
+            &[("addon.toml", None, b"x"), ("big", None, &zeros)],
+            None,
+        );
+        let t = d.join("bomb.tar.gz");
+        tar_gz(
+            &t,
+            &[
+                ("addon.toml", Regular, 0o644, b"x"),
+                ("big", Regular, 0o644, &zeros),
+            ],
+        );
+        let two = d.join("two.zip");
+        zip_file(&two, &[("a", None, &half), ("b", None, &half)], None);
+        for (i, f) in [&z, &t, &two].into_iter().enumerate() {
+            assert!(
+                f.metadata().unwrap().len() < 64 << 10,
+                "{f:?} is small packed"
+            );
+            let out = d.join(format!("bomb{i}"));
+            let e = extract(f, &out, &small).unwrap_err();
+            assert!(
+                e.contains("archive unpacks to more than 1 MiB (the limit for add-on archives)"),
+                "{f:?}: {e}"
+            );
+            assert!(disk(&out) <= 1 << 20, "{f:?}: {} bytes written", disk(&out));
+            extract(f, &d.join(format!("ok{i}")), &LIMITS).unwrap();
+        }
+        // Entries.
+        let names: Vec<String> = (0..11).map(|i| format!("f{i}")).collect();
+        let many_zip: Vec<(&str, Option<u32>, &[u8])> = names
+            .iter()
+            .map(|n| (n.as_str(), None, &b"x"[..]))
+            .collect();
+        let many_tar: Vec<(&str, tar::EntryType, u32, &[u8])> = names
+            .iter()
+            .map(|n| (n.as_str(), Regular, 0o644, &b"x"[..]))
+            .collect();
+        let mz = d.join("many.zip");
+        zip_file(&mz, &many_zip, None);
+        let mt = d.join("many.tar.gz");
+        tar_gz(&mt, &many_tar);
+        for (i, f) in [&mz, &mt].into_iter().enumerate() {
+            let e = extract(f, &d.join(format!("many{i}")), &small).unwrap_err();
+            assert!(e.contains("archive has more than 10 entries"), "{f:?}: {e}");
+            let ten = Limits {
+                entries: 11,
+                ..small
+            };
+            extract(f, &d.join(format!("eleven{i}")), &ten).unwrap();
+        }
+        // Packed size.
+        let tiny = Limits {
+            packed: 100,
+            ..small
+        };
+        let e = extract(&mt, &d.join("packed"), &tiny).unwrap_err();
+        assert!(e.contains("archive is more than 100 bytes"), "{e}");
+        // A download stops at its limit.
+        let big = d.join("big.bin");
+        std::fs::write(&big, &zeros).unwrap();
+        let to = d.join("dl");
+        let url = format!("file://{}", big.display());
+        let Err(Fail::Exit(1, Some(e))) = download(&url, &to, 1 << 20) else {
+            panic!("download over the limit");
+        };
+        assert!(e.contains("download is more than 1 MiB"), "{e}");
+        assert!(to.metadata().unwrap().len() <= 1 << 20);
+        assert!(download(&url, &to, 4 << 20).is_ok());
+        assert_eq!(to.metadata().unwrap().len(), 4 << 20);
         std::fs::remove_dir_all(&d).unwrap();
     }
 }

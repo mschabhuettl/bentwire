@@ -2360,11 +2360,17 @@ bridges `command`; other keys are errors.
   bit is set, else 0644, and the time of the install as modification time (the discovery
   cache, B-CHAR-1, keys on it); this holds for folders too. A failure before the new copy
   is renamed into place leaves the installed copy as it was and exits 1.
+- Limits: an archive or download has at most 256 MiB, unpacks to at most 1 GiB (for a tar
+  archive the whole tar stream, headers included; for a ZIP the bytes written) and has at
+  most 10000 entries. They are checked while downloading (curl's output is cut off) and
+  unpacking, so no more is ever written; the install fails with `<what> more than <limit>
+  (the limit for add-on archives)`. A folder is not limited.
 - A character or balloon-theme add-on is enabled by its install. A bridge is never enabled
   by an install: a bridge that replaces an enabled add-on of the same name is disabled
   first, before its files are in place.
 - Reason: installing must not run code the user did not enable; links are refused
-  outright, which is simpler than checking where each one points.
+  outright, which is simpler than checking where each one points. An archive from the net
+  must not fill the disk: a few KiB can unpack to many GiB. A folder is the user's own.
 
 **B-ADDON-3 Enabled add-ons.** **bentwire decision.**
 - The enabled list is `$XDG_CONFIG_HOME/bentwire/addons.toml`, `enabled = ["name", ...]`,
