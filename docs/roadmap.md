@@ -63,6 +63,7 @@ track the current state.
 - The Office balloon theme proven from the original: the order of the button states and
   the balloon size constants.
 - Optional smoothing for vector characters.
+- **Quack**, the second own character (see below).
 - A slimmer classics pack.
 - Flatpak.
 
@@ -73,8 +74,10 @@ track the current state.
   edges) and a modern smooth look (anti-aliased, alpha, 1x and 2x).
 - The first is **Wire**, a piece of bent wire. Done: it replaces the placeholder in
   `builtin`, as `wire` (modern, the default) and `wire-retro` (issue #23).
-- Ideas after that: Quack (a debugging duck), Hermit (a hermit crab, "shell"), Greybeard
-  (an old sysadmin), Blink (a cursor), Cron (an alarm clock), Floppy.
+- The second is **Quack**, a rubber debugging duck. Done: `quack` and `quack-retro` in
+  `builtin`, with a wobble when idle and a squeak on Alert and GetAttention (issue #24).
+- Ideas after that: Hermit (a hermit crab, "shell"), Greybeard (an old sysadmin), Blink (a
+  cursor), Cron (an alarm clock), Floppy.
 - Later, a separate `mascots` pack with free mascots of free-software projects (for example
   Ferris, Xenia, Tux, Konqi, the Go gopher, Pepper & Carrot), each under its own licence.
 

@@ -1,24 +1,68 @@
-//! Wire, the builtin character (A-CHAR-1): reproducible, complete in both renderings, every
-//! animation ends (or is an idle loop), mouths on the frames speech holds, and the committed
-//! copy in characters/builtin is what the generator writes.
+//! The builtin characters Wire and Quack (A-CHAR-1): reproducible, complete in both
+//! renderings, every animation ends (or is an idle loop), mouths on the frames speech holds,
+//! and the committed copy in characters/builtin is what the generator writes.
 
 use bentwire_character::model::{Branch, Exit, Manifest};
 use bentwire_character::write::PackageData;
 use bentwire_character::{AGENT_STATES, Character};
-use bentwire_convert::wire::{LICENCE, Style, wire};
+use bentwire_convert::own::{Design, LICENCE, Style};
+use bentwire_convert::quack::QUACK;
+use bentwire_convert::wire::WIRE;
 use std::sync::OnceLock;
 
-const STYLES: [Style; 2] = [Style::Modern, Style::Retro];
-
-/// Each rendering built once per test binary (a build takes seconds in debug mode).
-fn built(style: Style) -> &'static PackageData {
-    static CELLS: [OnceLock<PackageData>; 2] = [OnceLock::new(), OnceLock::new()];
-    CELLS[style as usize].get_or_init(|| wire(style).unwrap())
+/// One builtin character: a design in one rendering; `{:?}` prints its id.
+#[derive(Clone, Copy)]
+struct Ch {
+    design: &'static Design,
+    style: Style,
+    /// Index into the caches below.
+    n: usize,
 }
 
-fn loaded(style: Style) -> &'static Character {
-    static CELLS: [OnceLock<Character>; 2] = [OnceLock::new(), OnceLock::new()];
-    CELLS[style as usize].get_or_init(|| built(style).load().unwrap())
+impl std::fmt::Debug for Ch {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str(&self.id())
+    }
+}
+
+impl Ch {
+    fn id(self) -> String {
+        self.design.id(self.style)
+    }
+}
+
+const CHARS: [Ch; 4] = [
+    Ch {
+        design: &WIRE,
+        style: Style::Modern,
+        n: 0,
+    },
+    Ch {
+        design: &WIRE,
+        style: Style::Retro,
+        n: 1,
+    },
+    Ch {
+        design: &QUACK,
+        style: Style::Modern,
+        n: 2,
+    },
+    Ch {
+        design: &QUACK,
+        style: Style::Retro,
+        n: 3,
+    },
+];
+
+/// Each character built once per test binary (a build takes seconds in debug mode).
+fn built(c: Ch) -> &'static PackageData {
+    static CELLS: [OnceLock<PackageData>; 4] = [const { OnceLock::new() }; 4];
+    CELLS[c.n].get_or_init(|| c.design.build(c.style).unwrap())
+}
+
+fn loaded(c: Ch) -> &'static Character {
+    static CELLS: [OnceLock<Character>; 4] = [const { OnceLock::new() }; 4];
+    CELLS[c.n].get_or_init(|| built(c).load().unwrap())
 }
 
 /// The animations clients and the brief expect: the Agent standard names, plus the Office
@@ -89,10 +133,10 @@ const NAMES: &[&str] = &[
 ];
 
 #[test]
-fn a_char_1_wire_is_reproducible_and_complete() {
-    for style in STYLES {
+fn a_char_1_builtin_characters_are_reproducible_and_complete() {
+    for style in CHARS {
         let a = built(style).to_bwc().unwrap();
-        let b = wire(style).unwrap().to_bwc().unwrap();
+        let b = style.design.build(style.style).unwrap().to_bwc().unwrap();
         assert!(a == b, "{style:?}: two runs differ");
         let c = loaded(style);
         assert!(c.warnings.is_empty(), "{:?}", c.warnings);
@@ -119,7 +163,7 @@ fn a_char_1_wire_is_reproducible_and_complete() {
         let pic = c.compose_frame(rest, None, 1);
         assert_eq!((pic.width, pic.height), (128, 128));
         let partial = pic.data.chunks(4).any(|p| p[3] > 0 && p[3] < 255);
-        match style {
+        match style.style {
             Style::Modern => {
                 assert!(partial, "anti-aliased");
                 let hi = c.compose_frame(rest, None, 2);
@@ -145,8 +189,12 @@ fn a_char_1_wire_is_reproducible_and_complete() {
 /// Both renderings share one animation table: same names, timing, branches and states.
 #[test]
 fn a_char_1_retro_and_modern_share_the_animations() {
-    let m = &built(Style::Modern).manifest;
-    let r = &built(Style::Retro).manifest;
+    for pair in CHARS.chunks(2) {
+        a_char_1_share(&built(pair[0]).manifest, &built(pair[1]).manifest);
+    }
+}
+
+fn a_char_1_share(m: &Manifest, r: &Manifest) {
     assert_eq!(m.states, r.states);
     assert_eq!(m.animations.len(), r.animations.len());
     for (a, b) in m.animations.iter().zip(&r.animations) {
@@ -174,7 +222,7 @@ fn a_char_1_retro_and_modern_share_the_animations() {
 #[test]
 fn a_char_1_no_picture_touches_the_border() {
     let mut cut = Vec::new();
-    for style in STYLES {
+    for style in CHARS {
         let c = loaded(style);
         for a in &c.manifest.animations {
             for (i, f) in a.frames.iter().enumerate() {
@@ -198,8 +246,8 @@ fn a_char_1_no_picture_touches_the_border() {
 /// member, and the held ends of Explain, the gestures and RestPose) has all seven mouth
 /// types, each drawn differently, inside the frame.
 #[test]
-fn r_lip_1_wire_speaks_with_every_mouth_type() {
-    for style in STYLES {
+fn r_lip_1_builtin_characters_speak_with_every_mouth_type() {
+    for style in CHARS {
         let c = loaded(style);
         let m = &c.manifest;
         let mut held: Vec<&str> = m
@@ -250,7 +298,7 @@ fn r_lip_1_wire_speaks_with_every_mouth_type() {
 /// (B-SW-A) from any frame. Return animations exist and have `exit = "end"` on every frame.
 #[test]
 fn b_sw_a_animations_end_and_exit() {
-    for style in STYLES {
+    for style in CHARS {
         let m = &built(style).manifest;
         let idle_only = |n: &String| {
             m.states
@@ -337,7 +385,7 @@ fn a_char_1_committed_builtin_matches_generator() {
     let pack = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../characters/builtin");
     assert_eq!(
         std::fs::read_to_string(pack.join("pack.toml")).unwrap(),
-        bentwire_convert::wire::BUILTIN_PACK_TOML
+        bentwire_convert::own::BUILTIN_PACK_TOML
     );
     assert_eq!(
         std::fs::read_to_string(pack.join("LICENSE")).unwrap(),
@@ -352,10 +400,10 @@ fn a_char_1_committed_builtin_matches_generator() {
     ids.sort();
     assert_eq!(
         ids,
-        ["wire", "wire-retro"],
+        ["quack", "quack-retro", "wire", "wire-retro"],
         "stale folders in characters/builtin"
     );
-    for style in STYLES {
+    for style in CHARS {
         let dir = pack.join(style.id());
         let pkg = built(style);
         assert_eq!(
@@ -371,12 +419,51 @@ fn a_char_1_committed_builtin_matches_generator() {
         }
         let c = Character::load(&dir).unwrap();
         assert!(c.warnings.is_empty());
-        assert_manifest_ids(&c.manifest);
+        assert_manifest_ids(&c.manifest, style.design.name);
     }
 }
 
-fn assert_manifest_ids(m: &Manifest) {
+fn assert_manifest_ids(m: &Manifest, name: &str) {
     let en = m.character.info.iter().find(|i| i.lang == "en").unwrap();
-    assert!(en.name.starts_with("Wire"));
+    assert!(en.name.starts_with(name));
     assert!(m.character.info.iter().any(|i| i.lang == "de"));
+}
+
+/// Quack's own touches within the shared table: Alert and GetAttention squeak (Wire's are
+/// silent), and Idle1_3 rocks the whole duck one way and then the other.
+#[test]
+fn a_char_1_quack_squeaks_and_wobbles() {
+    for ch in CHARS {
+        let c = loaded(ch);
+        let m = &c.manifest;
+        let quack = ch.design.id == "quack";
+        for a in ["Alert", "GetAttention"] {
+            let s = m.animation(a).unwrap().frames[0].sound.as_deref();
+            assert_eq!(s, quack.then_some("squeak"), "{ch:?} {a}");
+        }
+        assert_eq!(m.sounds.iter().any(|(id, _)| id == "squeak"), quack);
+        if !quack {
+            continue;
+        }
+        // Mean x of the opaque pixels.
+        let mid = |i: usize| {
+            let f = &m.animation("Idle1_3").unwrap().frames[i];
+            let p = c.compose_frame(f, None, 1);
+            let (mut sum, mut n) = (0.0, 0.0);
+            for y in 0..p.height {
+                for x in 0..p.width {
+                    if p.alpha(x, y) > 0 {
+                        sum += x as f64;
+                        n += 1.0;
+                    }
+                }
+            }
+            sum / n
+        };
+        let (rest, left, right) = (mid(0), mid(1), mid(2));
+        assert!(
+            left < rest - 0.5 && right > rest + 0.5,
+            "{ch:?}: {left} {rest} {right}"
+        );
+    }
 }

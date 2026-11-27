@@ -1253,7 +1253,7 @@ fn spec_5_5_characters_install_classics() {
     assert_eq!(
         so,
         format!(
-            "installed bentwire-classics 9.9.1 in {}\nbentwired now has 3 characters\n",
+            "installed bentwire-classics 9.9.1 in {}\nbentwired now has 5 characters\n",
             dest.display()
         )
     );
@@ -1750,8 +1750,8 @@ fn library_gallery_corner_walk_keeps_next_and_back_under_the_pointer() {
     assert!(all.is_empty(), "{all:#?}");
 }
 
-/// A-CHAR-1, B-GAL-1: with only `builtin`, the daemon lists Wire in both renderings, starts
-/// with `wire`, and the gallery's Next previews `wire-retro` with Wave.
+/// A-CHAR-1, B-GAL-1: with only `builtin`, the daemon lists Wire and Quack in both
+/// renderings, starts with `wire`, and the gallery's Next previews `wire-retro` with Wave.
 #[test]
 fn a_char_1_b_gal_1_gallery_shows_wire() {
     let mut e = Env::new("galwire");
@@ -1778,7 +1778,15 @@ fn a_char_1_b_gal_1_gallery_shows_wire() {
         .iter()
         .map(|(id, name, _)| (id.as_str(), name.as_str()))
         .collect();
-    assert_eq!(names, [("wire", "Wire"), ("wire-retro", "Wire (retro)")]);
+    assert_eq!(
+        names,
+        [
+            ("quack", "Quack"),
+            ("quack-retro", "Quack (retro)"),
+            ("wire", "Wire"),
+            ("wire-retro", "Wire (retro)")
+        ]
+    );
     open_gallery_menu(&e);
     let s = e.snapshot();
     let next = s["office_balloon"]["buttons"]

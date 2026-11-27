@@ -6,6 +6,8 @@ pub mod act;
 pub mod build;
 pub mod classics;
 mod lcid_table;
+pub mod own;
+pub mod quack;
 pub mod sibling;
 pub mod sound;
 pub mod theme;

@@ -38,13 +38,23 @@ correction no longer applies.
 
 ## Wire
 
-Wire (`characters/builtin/wire`, `wire-retro`) is bentwire's own character. Its pictures
-and sounds are made entirely by code in this repository: the vector rig, the rasteriser
-and the sound synthesis in `crates/bentwire-convert/src/wire/`, run by `cargo run -p
-bentwire-convert --bin gen-builtin`. No image generator, no traced or copied artwork and
+Wire (`characters/builtin/wire`, `wire-retro`) is bentwire's first own character. Its
+pictures and sounds are made entirely by code in this repository: the vector rig, the
+rasteriser and the sound synthesis in `crates/bentwire-convert/src/wire/` and `src/own/`,
+run by `cargo run -p bentwire-convert --bin gen-builtin`. No image generator, no traced or copied artwork and
 no third-party data went into it. It is dedicated to the public domain under
 [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/); the legal code is
 `characters/builtin/LICENSE` and the `LICENSE` file in each character folder.
+
+## Quack
+
+Quack (`characters/builtin/quack`, `quack-retro`) is bentwire's second own character, a
+rubber debugging duck, made the same way as Wire: the vector rig in
+`crates/bentwire-convert/src/quack/`, the shared rasteriser and animation table in
+`crates/bentwire-convert/src/own/` and its squeak synthesized by code, with no image
+generator, no traced or copied artwork and no third-party data. It is dedicated to the
+public domain under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/), with the
+same `LICENSE` files as Wire.
 
 ## Tahoma replacement (Wine)
 

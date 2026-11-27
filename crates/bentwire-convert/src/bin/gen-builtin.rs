@@ -1,8 +1,10 @@
 //! `cargo run -p bentwire-convert --bin gen-builtin [ROOT]`: regenerate `characters/builtin`
-//! (pack.toml, LICENSE and the folders of `wire` and `wire-retro`) under ROOT (default: the
-//! repository root).
+//! (pack.toml, LICENSE and the folders of `wire`, `wire-retro`, `quack` and `quack-retro`)
+//! under ROOT (default: the repository root).
 
-use bentwire_convert::wire::{BUILTIN_PACK_TOML, LICENCE, Style, wire};
+use bentwire_convert::own::{BUILTIN_PACK_TOML, LICENCE, Style};
+use bentwire_convert::quack::QUACK;
+use bentwire_convert::wire::WIRE;
 use std::path::PathBuf;
 
 fn main() {
@@ -14,12 +16,15 @@ fn main() {
     std::fs::create_dir_all(&pack).expect("create pack folder");
     std::fs::write(pack.join("pack.toml"), BUILTIN_PACK_TOML).expect("write pack.toml");
     std::fs::write(pack.join("LICENSE"), LICENCE).expect("write LICENSE");
-    for style in [Style::Modern, Style::Retro] {
-        let dir = pack.join(style.id());
+    for (design, style) in [WIRE, QUACK]
+        .iter()
+        .flat_map(|d| [(d, Style::Modern), (d, Style::Retro)])
+    {
+        let dir = pack.join(design.id(style));
         if dir.exists() {
             std::fs::remove_dir_all(&dir).expect("remove old character");
         }
-        let pkg = wire(style).expect("build character");
+        let pkg = design.build(style).expect("build character");
         pkg.write_folder(&dir).expect("write character");
         println!("wrote {}", dir.display());
     }

@@ -1,11 +1,12 @@
-//! Rasteriser for Wire's shapes, in two styles: coverage anti-aliasing into RGBA (modern) or
-//! hard edges into palette indices, a pixel being set iff its centre is inside (retro).
-//! Deterministic: IEEE arithmetic and `sqrt` only.
+//! Rasteriser for the own characters' shapes, in two styles: coverage anti-aliasing into RGBA
+//! (modern) or hard edges into palette indices, a pixel being set iff its centre is inside
+//! (retro). Deterministic: IEEE arithmetic and `sqrt` only.
 
 /// A point in canvas units (x right, y down).
 pub type P = (f64, f64);
 
-/// Colour roles; the retro palette is this list in order, after the transparent index 0.
+/// Colour roles of all own characters. A character's retro palette is its own list of roles,
+/// in order, after the transparent index 0.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Role {
     Ink,
@@ -19,21 +20,12 @@ pub enum Role {
     Yellow,
     Blue,
     Grey,
+    DuckShade,
+    Duck,
+    DuckLight,
+    Beak,
+    BeakDark,
 }
-
-pub const ROLES: [Role; 11] = [
-    Role::Ink,
-    Role::CopperDark,
-    Role::Copper,
-    Role::CopperLight,
-    Role::Face,
-    Role::White,
-    Role::MouthDark,
-    Role::Tongue,
-    Role::Yellow,
-    Role::Blue,
-    Role::Grey,
-];
 
 pub fn rgb(r: Role) -> [u8; 3] {
     match r {
@@ -48,11 +40,12 @@ pub fn rgb(r: Role) -> [u8; 3] {
         Role::Yellow => [0xf8, 0xcc, 0x30],
         Role::Blue => [0x9c, 0xd0, 0xf4],
         Role::Grey => [0x9c, 0x9c, 0xa8],
+        Role::DuckShade => [0xe8, 0xa0, 0x18],
+        Role::Duck => [0xff, 0xd4, 0x38],
+        Role::DuckLight => [0xff, 0xf2, 0xa0],
+        Role::Beak => [0xf8, 0x88, 0x20],
+        Role::BeakDark => [0xc0, 0x54, 0x18],
     }
-}
-
-fn index(r: Role) -> u8 {
-    ROLES.iter().position(|&x| x == r).unwrap() as u8 + 1
 }
 
 pub enum Shape {
@@ -82,19 +75,20 @@ impl Shape {
 }
 
 /// A canvas of `w` x `h` output pixels showing canvas units from `origin` at `k` pixels
-/// per unit.
+/// per unit; a hard one holds indices into the palette of `roles`.
 pub struct Canvas {
     pub w: usize,
     pub h: usize,
     k: f64,
     origin: P,
     hard: bool,
+    roles: &'static [Role],
     rgba: Vec<[f64; 4]>,
     idx: Vec<u8>,
 }
 
 impl Canvas {
-    pub fn new(w: u32, h: u32, k: f64, origin: P, hard: bool) -> Self {
+    pub fn new(w: u32, h: u32, k: f64, origin: P, hard: bool, roles: &'static [Role]) -> Self {
         let n = (w * h) as usize;
         Canvas {
             w: w as usize,
@@ -102,6 +96,7 @@ impl Canvas {
             k,
             origin,
             hard,
+            roles,
             rgba: if hard { vec![] } else { vec![[0.0; 4]; n] },
             idx: if hard { vec![0; n] } else { vec![] },
         }
@@ -131,7 +126,7 @@ impl Canvas {
         let i = y * self.w + x;
         if self.hard {
             if d <= 0.0 {
-                self.idx[i] = index(role);
+                self.idx[i] = self.roles.iter().position(|&x| x == role).unwrap() as u8 + 1;
             }
             return;
         }
@@ -269,10 +264,10 @@ impl Canvas {
     }
 }
 
-/// The retro palette: index 0 (transparent) then [`ROLES`].
-pub fn palette() -> Vec<[u8; 3]> {
+/// The retro palette: index 0 (transparent) then `roles`.
+pub fn palette(roles: &[Role]) -> Vec<[u8; 3]> {
     std::iter::once([0, 0, 0])
-        .chain(ROLES.iter().map(|&r| rgb(r)))
+        .chain(roles.iter().map(|&r| rgb(r)))
         .collect()
 }
 
