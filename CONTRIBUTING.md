@@ -144,7 +144,7 @@ look and wallpaper, and the bentwire tray icon in the panel. The output is a fix
 
 ```sh
 cargo build -p bentwired -p bentwire && cargo build -p bentwired --examples
-scripts/screenshots.sh                                   # builtin only, into docs/screenshots/
+scripts/screenshots.sh                                   # builtin only, into docs/screenshots/ (and docs/images/quack.png)
 scripts/screenshots.sh --classics ../bentwire-classics   # classics, into that checkout's screenshots/
 scripts/screenshots.sh --classics ../bentwire-classics --gifs   # GIFs only (same as scripts/gifs.sh)
 scripts/screenshots.sh --classics ../bentwire-classics --all    # PNGs and GIFs
