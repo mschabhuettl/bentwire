@@ -7,6 +7,13 @@ D-Bus API (`org.bentwire.Agent1`) and the character format (`format = 1`) are fr
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-11-27
+
+### Fixed
+
+- The test for the 5 s `Reload` timeout no longer counts the first build of the CLI, which
+  made `check()` of the AUR source package fail for 0.5.0.
+
 ## [0.5.0] - 2026-11-27
 
 ### Added
@@ -295,7 +302,8 @@ First release.
 - Configuration file `~/.config/bentwire/config.toml`, reloaded on `SIGHUP`.
 - Documentation: behaviour spec, format research, sources, credits, decisions, roadmap.
 
-[Unreleased]: https://github.com/mschabhuettl/bentwire/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/mschabhuettl/bentwire/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/mschabhuettl/bentwire/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/mschabhuettl/bentwire/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/mschabhuettl/bentwire/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/mschabhuettl/bentwire/compare/v0.2.2...v0.3.0
