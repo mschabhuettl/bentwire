@@ -2381,9 +2381,11 @@ bridges `command`; other keys are errors.
 - Limits: an archive or download has at most 256 MiB, unpacks to at most 1 GiB (for a tar
   archive the whole tar stream, headers included; for a ZIP the bytes written) and has at
   most 10000 entries, where every component of an entry's path counts (each may create a
-  folder). They are checked while downloading (curl's output is cut off) and
-  unpacking, so no more is ever written; the install fails with `<what> more than <limit>
-  (the limit for add-on archives)`. A folder is not limited.
+  folder); the headers of one tar entry (its header blocks with GNU long name and pax
+  extension data, which are held in memory) have at most 64 KiB. The limits are checked
+  while downloading (curl's output is cut off) and unpacking, so no more is ever written
+  or held; the install fails with `<what> more than <limit> (the limit for add-on
+  archives)`. A folder is not limited.
 - A character or balloon-theme add-on is enabled by its install. A bridge is never enabled
   by an install: a bridge that replaces an enabled add-on of the same name is disabled
   first, before its files are in place.
