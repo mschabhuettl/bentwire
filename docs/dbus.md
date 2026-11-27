@@ -70,6 +70,7 @@ signals.
 | `ListCharacters` | `() -> a(sss)` | (id, name, description) of every installed character, sorted by id; also rescans the search roots (B-CHAR-1, B-CHAR-3) | |
 | `Select` | `(s id) -> ()` | switch to that character (B-CHAR-5); open requests end with `CharacterChanged` | `NoSuchCharacter`, `InvalidCharacter` (message: the load error) |
 | `Quit` | `() -> ()` | save the state and exit (B-RUN-1) | |
+| `Reload` | `() -> ()` | read the config, the characters and the add-ons again, as on SIGHUP (B-ADDON-3); replies when done | |
 
 | Property | Type | Access | Meaning |
 |---|---|---|---|

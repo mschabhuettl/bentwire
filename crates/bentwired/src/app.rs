@@ -127,6 +127,10 @@ impl App {
         let conn = self.conn.clone();
         match call {
             Call::Ping => dbus::reply(&conn, &h, &()),
+            Call::Reload => {
+                self.reload();
+                dbus::reply(&conn, &h, &())
+            }
             Call::GetMachineId => {
                 let id = std::fs::read_to_string("/etc/machine-id").unwrap_or_default();
                 dbus::reply(&conn, &h, &(id.trim(),))
@@ -730,7 +734,8 @@ impl App {
         }
     }
 
-    /// SIGHUP: reload config, rediscover characters (B-CFG-1) and add-ons (B-ADDON-3).
+    /// SIGHUP and Agent1.Reload: reload config, rediscover characters (B-CFG-1) and add-ons
+    /// (B-ADDON-3).
     pub fn reload(&mut self) {
         match config::Config::load(&config::config_path()) {
             Ok(c) => {

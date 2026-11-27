@@ -549,6 +549,14 @@ fn b_cfg_1_sighup_reloads_language() {
         assert!(t.elapsed().as_secs() < 5, "language not reloaded");
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
+    // B-ADDON-3: Agent1.Reload does the same and answers once it has.
+    std::fs::write(
+        e.dir.join("cfg/bentwire/config.toml"),
+        "language = \"en\"\n",
+    )
+    .unwrap();
+    c.call_unit(AGENT, AGENT_IF, "Reload", &()).unwrap();
+    assert_eq!(list(&c)[0].1, "Pebble");
 }
 
 #[test]

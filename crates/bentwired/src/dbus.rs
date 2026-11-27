@@ -38,6 +38,8 @@ pub enum Call {
     Get(String, String),
     GetAll(String),
     Introspect(String),
+    /// Agent1.Reload: what SIGHUP does (B-ADDON-3).
+    Reload,
     Ping,
     GetMachineId,
 }
@@ -147,6 +149,7 @@ pub fn parse(msg: &Message, test: bool, test_full: bool) -> Option<Result<Call, 
                 "ListCharacters" => Call::Core(CoreCall::ListCharacters),
                 "Select" => Call::Core(CoreCall::Select(body::<(String,)>(msg)?.0)),
                 "Quit" => Call::Core(CoreCall::Quit),
+                "Reload" => Call::Reload,
                 _ => return unknown_method(),
             },
             (CHAR_IFACE, m) if path == CHAR_PATH => Call::Core(match m {
@@ -492,6 +495,7 @@ pub fn introspect(path: &str, test: bool, test_full: bool) -> String {
 <method name="ListCharacters"><arg name="characters" type="a(sss)" direction="out"/></method>
 <method name="Select"><arg name="id" type="s" direction="in"/></method>
 <method name="Quit"/>
+<method name="Reload"/>
 <property name="Character" type="s" access="read"/>
 <property name="Version" type="s" access="read"/>
 <property name="Scale" type="u" access="readwrite"/>

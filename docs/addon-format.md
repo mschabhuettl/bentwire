@@ -128,4 +128,5 @@ goes over one of them.
 | `$XDG_DATA_HOME/bentwire/addons/<name>/` | an installed add-on (`~/.local/share/bentwire/addons/`) |
 | `$XDG_CONFIG_HOME/bentwire/addons.toml` | the enabled list, `enabled = ["name", ...]`, written by the CLI |
 
-A running daemon reads both again on SIGHUP, which the CLI sends after each change.
+A running daemon reads both again on SIGHUP and on the D-Bus method `Reload`, which the
+CLI calls after each change.

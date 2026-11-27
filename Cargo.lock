@@ -280,7 +280,6 @@ dependencies = [
  "bentwire-character",
  "bentwire-convert",
  "flate2",
- "libc",
  "serde",
  "sha2",
  "tar",

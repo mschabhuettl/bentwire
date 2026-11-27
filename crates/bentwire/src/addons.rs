@@ -1,7 +1,7 @@
 //! `bentwire addons` (spec B-ADDON-2, B-ADDON-3): add-ons in `$XDG_DATA_HOME/bentwire/addons`,
 //! the enabled list in `$XDG_CONFIG_HOME/bentwire/addons.toml`.
 
-use crate::{BUS_NAME, Fail, Opts, curl, fail, sha256_hex, xdg_dir};
+use crate::{AGENT_IFACE, AGENT_PATH, BUS_NAME, Fail, Opts, curl, fail, sha256_hex, xdg_dir};
 use bentwire_character::addon::{self, Addon, Kind, MANIFEST};
 use std::io::{Read, Seek};
 use std::os::unix::fs::OpenOptionsExt;
@@ -146,26 +146,30 @@ fn remove(name: &str) -> Result<(), Fail> {
     Ok(())
 }
 
-/// A running daemon (none is started for this) gets SIGHUP and reads the add-ons again.
+/// B-ADDON-3: a running daemon (none is started for this) reads the add-ons again
+/// (`Agent1.Reload`).
 fn tell_daemon() {
+    use zbus::proxy::{CacheProperties, MethodFlags};
     let Ok(conn) = zbus::blocking::Connection::session() else {
         return;
     };
-    let pid = conn
-        .call_method(
-            Some("org.freedesktop.DBus"),
-            "/org/freedesktop/DBus",
-            Some("org.freedesktop.DBus"),
-            "GetConnectionUnixProcessID",
-            &(BUS_NAME,),
-        )
-        .ok()
-        .and_then(|m| m.body().deserialize::<u32>().ok());
-    if let Some(pid) = pid {
-        // SAFETY: plain kill(2).
-        unsafe {
-            libc::kill(pid as libc::pid_t, libc::SIGHUP);
-        }
+    let r = zbus::blocking::proxy::Builder::<zbus::blocking::Proxy>::new(&conn)
+        .destination(BUS_NAME)
+        .and_then(|b| b.path(AGENT_PATH))
+        .and_then(|b| b.interface(AGENT_IFACE))
+        .and_then(|b| b.cache_properties(CacheProperties::No).build())
+        .and_then(|p| {
+            p.call_with_flags::<_, _, ()>("Reload", MethodFlags::NoAutoStart.into(), &())
+        });
+    match r {
+        Ok(_) => {}
+        Err(zbus::Error::MethodError(n, ..))
+            if matches!(
+                n.as_str(),
+                "org.freedesktop.DBus.Error.NameHasNoOwner"
+                    | "org.freedesktop.DBus.Error.ServiceUnknown"
+            ) => {}
+        Err(e) => eprintln!("bentwire: bentwired did not reload ({e}); restart it to apply this"),
     }
 }
 

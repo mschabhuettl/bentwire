@@ -2126,6 +2126,7 @@ the menu. `--dump-frames DIR` writes
 | `ListCharacters` | `() -> a(sss)` | id, name, description (B-CHAR-1, B-CHAR-3), sorted by id |
 | `Select` | `(s id) -> ()` | B-CHAR-5. Errors: `NoSuchCharacter`, `InvalidCharacter` (with the load error) |
 | `Quit` | `() -> ()` | B-RUN-1 |
+| `Reload` | `() -> ()` | what SIGHUP does (B-CFG-1, B-ADDON-3); the reply comes when it is done |
 | property `Character` | `s`, read | current id, `""` if none |
 | property `Version` | `s`, read | daemon version |
 | property `Scale` | `u`, read and write | size factor 1 to 4 (B-SCALE-1); a write is the user's choice and is persisted; other values: `InvalidArgs` |
@@ -2231,8 +2232,8 @@ activation. If that also fails, it prints `bentwired is not running` and exits 1
 | `characters` | `ListCharacters` | `id<TAB>name` per line, current marked with `*` |
 | `characters install classics` | local, then `ListCharacters` if the daemon runs | `installed bentwire-classics <version> in <dir>`, then `bentwired now has <n> characters` |
 | `addons [list]` | local (B-ADDON-3) | `name<TAB>kind<TAB>version<TAB>enabled` or `disabled` per line, sorted by name |
-| `addons install <folder\|archive\|url> [--sha256 HEX]` | local (B-ADDON-2), then SIGHUP | `installed <name> <version> (<kind>) in <dir>`; for a bridge a second line `a bridge runs only once enabled: bentwire addons enable <name>` |
-| `addons enable\|disable\|remove <name>` | local (B-ADDON-3), then SIGHUP | nothing |
+| `addons install <folder\|archive\|url> [--sha256 HEX]` | local (B-ADDON-2), then `Reload` | `installed <name> <version> (<kind>) in <dir>`; for a bridge a second line `a bridge runs only once enabled: bentwire addons enable <name>` |
+| `addons enable\|disable\|remove <name>` | local (B-ADDON-3), then `Reload` | nothing |
 | `select <id>` | `Select` | nothing; for `NoSuchCharacter`, hint lines on stderr |
 | `animations` | `AnimationNames` | one per line |
 | `scale [<n>]` | `Scale` (read; write with `n`, 1 to 4) | without `n`: the factor; with `n`: nothing |
@@ -2381,8 +2382,10 @@ bridges `command`; other keys are errors.
   name fails with exit 1.
 - A disabled add-on is not used at all: its characters and theme are not found
   (B-ADDON-4) and a bridge is not run (B-ADDON-5).
-- After a change the CLI sends SIGHUP to the owner of `org.bentwire.Agent`
-  (`GetConnectionUnixProcessID`; a daemon is not started for this). On SIGHUP the daemon
+- After a change the CLI calls `Reload` (5.2) with the NO_AUTO_START flag, so a daemon
+  is not started for this; when the daemon does not run, nothing happens, and any other
+  error (a daemon older than `Reload`) prints `bentwire: bentwired did not reload (...);
+  restart it to apply this` on stderr, exit status 0. On `Reload` and on SIGHUP the daemon
   reads the add-ons and the enabled list again, rescans the characters (B-CHAR-1, which
   then also applies B-CHAR-4 and finds the theme, A-THEME-1) and starts or stops bridges.
   When the current character's add-on is disabled or removed, B-CHAR-4 applies as after
@@ -2390,8 +2393,10 @@ bridges `command`; other keys are errors.
   one stays until another is selected, as when a pack folder is deleted, and is no longer
   listed.
 - Reason: the enabled state is the user's choice, so it lives in the config directory, in
-  a file of its own that the CLI may rewrite; SIGHUP already means "read your files again"
-  and needs no new D-Bus method.
+  a file of its own that the CLI may rewrite. A method call reaches the owner of the bus
+  name and nobody else; a signal to the pid that `GetConnectionUnixProcessID` gives could
+  hit another process (the CLI in another PID namespace than the bus, or the pid reused
+  after the daemon exited), and SIGHUP ends most processes.
 
 **B-ADDON-4 Characters and themes from add-ons.** **bentwire decision.** (Extends
 A-PACK-1.) The folders of the enabled `character` and `balloon-theme` add-ons are search
@@ -2417,6 +2422,8 @@ character of the same id or the pack's theme; disabling it brings those back.
   next SIGHUP instead. SIGCHLD wakes the daemon to notice an exit; the wait is real time, also in
   headless mode.
 - Signals go to the bridge's process group, or to the bridge alone if it left the group.
+  The daemon signals only a bridge it has not reaped yet, so that pid, and the process
+  group with that id, cannot belong to another process; no pidfd is needed.
   A bridge that is disabled or removed gets SIGTERM to its process group, and so does an
   enabled one whose `addon.toml` changed (a reinstall), which is then started again. When
   the daemon quits (Quit, SIGTERM, SIGINT, the end of the session bus, B-RUN-1), it first
