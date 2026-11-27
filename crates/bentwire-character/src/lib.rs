@@ -6,6 +6,7 @@
 //! let picture = c.compose_frame(&a.frames[0], None, 1); // RGBA at display size
 //! ```
 
+pub mod addon;
 pub mod audio;
 pub mod dump;
 pub mod image;
