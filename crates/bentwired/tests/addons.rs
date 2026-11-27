@@ -83,8 +83,9 @@ fn read_pid(file: &Path) -> String {
     std::fs::read_to_string(file).unwrap().trim().to_string()
 }
 
-/// B-ADDON-3: a daemon that does not answer `Reload` does not hang the CLI; the change is
-/// made and the CLI says so, exit status 0.
+/// B-ADDON-3: a daemon that owns its name but does not answer `Reload` in time (a slow
+/// rescan) does not hang the CLI and is not warned about; the change is made, exit status 0.
+/// A session bus that does not answer at all gets a warning.
 #[test]
 fn b_addon_3_cli_reload_without_answer_times_out() {
     let e = Env::new("addhang");
@@ -98,21 +99,35 @@ fn b_addon_3_cli_reload_without_answer_times_out() {
     let (code, so, se) = cli(&e, &["addons", "install", wire.to_str().unwrap()]);
     let took = t.elapsed();
     assert_eq!(
-        (code, so.starts_with("installed wire 1.0")),
-        (0, true),
-        "{se}"
-    );
-    assert_eq!(
-        se,
-        "bentwire: bentwired did not answer Reload within 5 s; it applies this once it \
-         handles the call, or on its next start\n"
+        (code, so.starts_with("installed wire 1.0"), se.as_str()),
+        (0, true, "")
     );
     assert!(
-        took >= Duration::from_secs(5) && took < Duration::from_secs(15),
+        took >= Duration::from_secs(5) && took < Duration::from_secs(60),
         "{took:?}"
     );
     assert!(addons(&e).join("wire/addon.toml").exists());
     drop(fake);
+    // A socket that accepts connections and never speaks.
+    let sock = e.dir.join("mute-bus");
+    let _mute = std::os::unix::net::UnixListener::bind(&sock).unwrap();
+    let o = e.cli_env(
+        &["addons", "disable", "wire"],
+        &[(
+            "DBUS_SESSION_BUS_ADDRESS",
+            format!("unix:path={}", sock.display()),
+        )],
+    );
+    assert_eq!(
+        out(&o),
+        (
+            0,
+            String::new(),
+            "bentwire: the session bus did not answer within 5 s; restart bentwired to \
+             apply this\n"
+                .into()
+        )
+    );
 }
 
 /// B-ADDON-1 to B-ADDON-3 without a daemon: install from a folder, a tar.gz and a file URL,

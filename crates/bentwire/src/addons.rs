@@ -180,6 +180,8 @@ const RELOAD_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 fn tell_daemon() {
     use zbus::proxy::{CacheProperties, MethodFlags};
     let (tx, rx) = std::sync::mpsc::channel();
+    let on_bus = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let connected = on_bus.clone();
     // zbus has no timeout for calls with flags; the thread ends with the process.
     std::thread::spawn(move || {
         // No session bus: no daemon either.
@@ -187,6 +189,7 @@ fn tell_daemon() {
             let _ = tx.send(Ok(None));
             return;
         };
+        connected.store(true, std::sync::atomic::Ordering::Relaxed);
         let r = zbus::blocking::proxy::Builder::<zbus::blocking::Proxy>::new(&conn)
             .destination(BUS_NAME)
             .and_then(|b| b.path(AGENT_PATH))
@@ -198,9 +201,12 @@ fn tell_daemon() {
         let _ = tx.send(r);
     });
     match rx.recv_timeout(RELOAD_TIMEOUT) {
+        // On the bus, a name without an owner fails at once (NO_AUTO_START): the daemon
+        // runs and is still rescanning; the call stays queued for it.
+        Err(_) if on_bus.load(std::sync::atomic::Ordering::Relaxed) => {}
         Err(_) => eprintln!(
-            "bentwire: bentwired did not answer Reload within {} s; it applies this once it \
-             handles the call, or on its next start",
+            "bentwire: the session bus did not answer within {} s; restart bentwired to \
+             apply this",
             RELOAD_TIMEOUT.as_secs()
         ),
         Ok(Ok(_)) => {}

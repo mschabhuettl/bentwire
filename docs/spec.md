@@ -2463,9 +2463,10 @@ bridges `command`; other keys are errors.
   is not started for this; when the daemon does not run, nothing happens, and any other
   error (a daemon older than `Reload`) prints `bentwire: bentwired did not reload (...);
   restart it to apply this` on stderr, exit status 0. The CLI waits 5 s for the reply;
-  then it prints `bentwire: bentwired did not answer Reload within 5 s; it applies this
-  once it handles the call, or on its next start`, exit status 0 (the change is made; a call
-  already sent stays queued for a busy daemon). On `Reload` and on SIGHUP the daemon
+  then it exits 0 without a message (the change is made; the call stays queued for a daemon
+  that is still rescanning). Only when the session bus itself has not answered by then
+  does it print `bentwire: the session bus did not answer within 5 s; restart bentwired
+  to apply this`, exit status 0. On `Reload` and on SIGHUP the daemon
   reads the add-ons and the enabled list again, rescans the characters (B-CHAR-1, which
   then also applies B-CHAR-4 and finds the theme, A-THEME-1) and starts or stops bridges.
   When the current character's add-on is disabled or removed, B-CHAR-4 applies as after
