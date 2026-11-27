@@ -5,7 +5,8 @@
 use bentwire_character::model::{Branch, Exit, Manifest};
 use bentwire_character::write::PackageData;
 use bentwire_character::{AGENT_STATES, Character};
-use bentwire_convert::wire::{LICENCE, Style, wire};
+use bentwire_convert::own::{LICENCE, Style};
+use bentwire_convert::wire::{WIRE, wire};
 use std::sync::OnceLock;
 
 const STYLES: [Style; 2] = [Style::Modern, Style::Retro];
@@ -337,7 +338,7 @@ fn a_char_1_committed_builtin_matches_generator() {
     let pack = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../characters/builtin");
     assert_eq!(
         std::fs::read_to_string(pack.join("pack.toml")).unwrap(),
-        bentwire_convert::wire::BUILTIN_PACK_TOML
+        bentwire_convert::own::BUILTIN_PACK_TOML
     );
     assert_eq!(
         std::fs::read_to_string(pack.join("LICENSE")).unwrap(),
@@ -356,7 +357,7 @@ fn a_char_1_committed_builtin_matches_generator() {
         "stale folders in characters/builtin"
     );
     for style in STYLES {
-        let dir = pack.join(style.id());
+        let dir = pack.join(WIRE.id(style));
         let pkg = built(style);
         assert_eq!(
             std::fs::read_to_string(dir.join("character.toml")).unwrap(),
