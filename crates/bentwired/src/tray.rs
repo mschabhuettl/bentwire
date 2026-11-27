@@ -102,7 +102,7 @@ impl ksni::Tray for BwTray {
 }
 
 /// dbusmenu items; a run of choice items (`checked: Some`) becomes one radio group, the
-/// speech output item a check item (B-TRAY-1).
+/// smooth edges and speech output items check items (B-TRAY-1).
 fn menu_items(entries: &[MenuEntry]) -> Vec<ksni::MenuItem<BwTray>> {
     let label = |l: &str| dbusmenu_label(&l.replace('\0', ""));
     let mut out = Vec::new();
@@ -120,14 +120,17 @@ fn menu_items(entries: &[MenuEntry]) -> Vec<ksni::MenuItem<BwTray>> {
             ),
             MenuEntry::Item {
                 label: l,
-                action: MenuAction::Speech,
+                action: a @ (MenuAction::Speech | MenuAction::Smooth),
                 checked,
             } => out.push(
                 CheckmarkItem {
                     label: label(l),
                     checked: checked.unwrap_or(false),
-                    activate: Box::new(|t: &mut BwTray| {
-                        let _ = t.tx.send(TrayInput::Menu(MenuAction::Speech));
+                    activate: Box::new({
+                        let a = *a;
+                        move |t: &mut BwTray| {
+                            let _ = t.tx.send(TrayInput::Menu(a));
+                        }
                     }),
                     ..Default::default()
                 }
@@ -272,6 +275,16 @@ mod tests {
                 label: "&Size".into(),
                 entries: (1..=4).map(item).collect(),
             },
+            MenuEntry::Item {
+                label: "S&mooth Edges".into(),
+                action: MenuAction::Smooth,
+                checked: Some(true),
+            },
+            MenuEntry::Item {
+                label: "S&peech".into(),
+                action: MenuAction::Speech,
+                checked: Some(false),
+            },
         ];
         let items = menu_items(&entries);
         assert!(matches!(&items[0], ksni::MenuItem::Standard(s) if s.label == "_Hide"));
@@ -284,5 +297,18 @@ mod tests {
         };
         let labels: Vec<&str> = g.options.iter().map(|o| o.label.as_str()).collect();
         assert_eq!((labels, g.selected), (vec!["_1x", "_2x", "_3x", "_4x"], 2));
+        // B-SMOOTH-1, B-TTS-1: two check items, not a radio group.
+        let [
+            ksni::MenuItem::Checkmark(smooth),
+            ksni::MenuItem::Checkmark(speech),
+        ] = &items[2..]
+        else {
+            panic!("{items:?}");
+        };
+        assert_eq!(
+            (smooth.label.as_str(), smooth.checked),
+            ("S_mooth Edges", true)
+        );
+        assert_eq!((speech.label.as_str(), speech.checked), ("S_peech", false));
     }
 }

@@ -603,6 +603,7 @@ fn t_4_headless_scene_golden() {
         width: 64,
         height: 64,
         scale: 1,
+        smooth: false,
         picture: Picture::Empty,
         output: Some(7),
         dragging: false,

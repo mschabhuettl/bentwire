@@ -3302,6 +3302,7 @@ fn scale_state(left: i32, top: i32, scale: u32, scale_chosen: bool) -> StateFile
         scale,
         scale_chosen,
         speech: None,
+        smooth: None,
     }
 }
 
@@ -4085,6 +4086,86 @@ fn b_tts_1_b_tray_1_speak_with_and_tray_item() {
             ..
         }
     )));
+}
+
+/// B-SMOOTH-1: off by default; the tray item and the `Smooth` property set it at once in
+/// the scene, it is persisted and wins over the config key; without a choice the config
+/// key applies, also on SIGHUP.
+#[test]
+fn b_smooth_1_setting_tray_property_and_persistence() {
+    let smooth = |t: &T| {
+        let c = t.core.scene().character.unwrap();
+        assert_eq!(c.smooth, t.core.properties().smooth);
+        c.smooth
+    };
+    let item = |t: &T| {
+        t.core.scene().tray.menu.into_iter().find(|e| {
+            matches!(
+                e,
+                MenuEntry::Item {
+                    action: MenuAction::Smooth,
+                    ..
+                }
+            )
+        })
+    };
+    let mut t = speaking(vec![talker("c")], Config::default());
+    assert!(!smooth(&t));
+    assert_eq!(
+        item(&t),
+        Some(MenuEntry::Item {
+            label: "S&mooth Edges".into(),
+            action: MenuAction::Smooth,
+            checked: Some(false),
+        })
+    );
+    t.ev(Event::Tray(TrayInput::Menu(MenuAction::Smooth)));
+    assert!(smooth(&t));
+    assert!(matches!(
+        item(&t),
+        Some(MenuEntry::Item {
+            checked: Some(true),
+            ..
+        })
+    ));
+    t.advance(t.now + 1000);
+    assert_eq!(persisted(&t).unwrap().smooth, Some(true));
+    // A SIGHUP config without `smooth` does not undo the user's choice.
+    t.ev(Event::Config(Config::default()));
+    assert!(smooth(&t));
+    assert_eq!(t.call(Call::SetSmooth(false)), Ok(ReplyValue::Unit));
+    assert!(!smooth(&t));
+    t.advance(t.now + 1000);
+    assert_eq!(persisted(&t).unwrap().smooth, Some(false));
+    // Not in the character's own menu.
+    t.press(PointerKind::Press, Surface::Character, 2, 510, 510);
+    t.press(PointerKind::Release, Surface::Character, 2, 510, 510);
+    let menu = t.core.scene().menu.unwrap().entries;
+    assert!(!menu.iter().any(|e| matches!(
+        e,
+        MenuEntry::Item {
+            action: MenuAction::Smooth,
+            ..
+        }
+    )));
+
+    let on = Config {
+        smooth: true,
+        ..Config::default()
+    };
+    let st = |smooth| StateFile {
+        character: "c".into(),
+        smooth,
+        ..Default::default()
+    };
+    let t = T::with_config(vec![talker("c")], Some(st(Some(false))), vec![], on.clone());
+    assert!(!smooth(&t));
+    let mut t = T::with_config(vec![talker("c")], Some(st(None)), vec![], Config::default());
+    assert!(!smooth(&t));
+    t.ev(Event::Config(on));
+    assert!(smooth(&t));
+    t.advance(t.now + 1000);
+    assert_eq!(persisted(&t).map(|s| s.smooth), Some(None));
 }
 
 #[test]

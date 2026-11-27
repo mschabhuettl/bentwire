@@ -214,6 +214,20 @@ pub fn density(c: &Character, k: u32, scale: u32) -> u32 {
     }
 }
 
+/// B-SMOOTH-1: the density a smoothed picture for `density` is composed at: the densest
+/// `hidpi` key of the character's sheets when it is a multiple of `density` above it.
+/// `None`: no denser pictures, the picture is drawn as without smoothing.
+pub fn smooth_density(c: &Character, density: u32) -> Option<u32> {
+    let k = c
+        .manifest
+        .sheets
+        .iter()
+        .flat_map(|s| s.hidpi.keys())
+        .copied()
+        .max()?;
+    (density > 0 && k > density && k % density == 0).then_some(k)
+}
+
 /// The composed character picture at `density` times the display size, straight RGBA,
 /// with its mouth (speech output only, R-LIP-1) clipped to the frame (B-PIX-2).
 pub fn picture(c: &Character, p: &Picture, density: u32) -> RgbaImage {

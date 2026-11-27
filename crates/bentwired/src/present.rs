@@ -8,7 +8,7 @@ use bentwire_render::balloon::{self, agent_balloon_region, office_balloon_region
 use bentwire_render::canvas::{Rect, Region, RgbaImage};
 use bentwire_render::font::Fonts;
 use bentwire_render::menu::{MenuGeometry, draw_menu, menu_layout, submenu_scene};
-use bentwire_render::picture::picture_buffer;
+use bentwire_render::picture::{downsample, picture_buffer};
 use bentwire_render::theme::Theme;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -81,16 +81,19 @@ pub fn scale_of(outputs: &[OutputInfo], id: Option<u32>) -> (u32, bool) {
 }
 
 /// The character picture at buffer scale `k` and the scene's size factor (B-SCALE-1):
-/// at `k` or at `k` times the factor, see [`library::density`]. The buffer maps it to the
-/// surface (logical size times `k`) by nearest neighbour.
+/// at `k` or at `k` times the factor, see [`library::density`]. With smooth edges
+/// (B-SMOOTH-1) it is composed at [`library::smooth_density`] and box-filtered down to that.
+/// The buffer maps it to the surface (logical size times `k`) by nearest neighbour.
 pub fn character_picture(scene: &Scene, lib: &Library, k: u32) -> Option<RgbaImage> {
     let ch = scene.character.as_ref()?;
     let c = lib.get(&ch.id)?;
-    Some(library::picture(
-        c,
-        &ch.picture,
-        library::density(c, k, ch.scale),
-    ))
+    let d = library::density(c, k, ch.scale);
+    Some(
+        match ch.smooth.then(|| library::smooth_density(c, d)).flatten() {
+            Some(s) => downsample(&library::picture(c, &ch.picture, s), s / d),
+            None => library::picture(c, &ch.picture, d),
+        },
+    )
 }
 
 /// B-WL-7: when `scene` differs from `last` only in the character's position (a drag),
@@ -413,6 +416,7 @@ mod tests {
                 width: size * scale,
                 height: size * scale,
                 scale,
+                smooth: false,
                 picture: Picture::Frame {
                     animation: "RestPose".into(),
                     frame: 0,

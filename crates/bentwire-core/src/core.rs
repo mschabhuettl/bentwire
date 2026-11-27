@@ -242,6 +242,10 @@ pub struct Core {
     /// config key).
     speech_on: bool,
     speech_chosen: bool,
+    /// B-SMOOTH-1: smooth edges on, and whether the user set it (it then wins over the
+    /// config key).
+    smooth_on: bool,
+    smooth_chosen: bool,
     utterance: Option<Utterance>,
     last_serial: u64,
     press: Option<Press>,
@@ -289,11 +293,14 @@ impl Core {
             _ => init.config.scale,
         });
         let speech_chosen = init.state.as_ref().and_then(|s| s.speech);
+        let smooth_chosen = init.state.as_ref().and_then(|s| s.smooth);
         Core {
             scale,
             scale_chosen,
             speech_on: speech_chosen.unwrap_or(init.config.speech),
             speech_chosen: speech_chosen.is_some(),
+            smooth_on: smooth_chosen.unwrap_or(init.config.smooth),
+            smooth_chosen: smooth_chosen.is_some(),
             utterance: None,
             last_serial: 0,
             now: 0,
@@ -416,6 +423,9 @@ impl Core {
                 let was = (self.speech_on, self.config.sound_effects);
                 if !self.speech_chosen {
                     self.speech_on = c.speech;
+                }
+                if !self.smooth_chosen {
+                    self.smooth_on = c.smooth;
                 }
                 self.config = c;
                 if (was.0 && !self.speech_on) || (was.1 && !self.config.sound_effects) {
@@ -629,6 +639,7 @@ impl Core {
             scale: self.scale,
             scale_chosen: self.scale_chosen,
             speech: self.speech_chosen.then_some(self.speech_on),
+            smooth: self.smooth_chosen.then_some(self.smooth_on),
         })
     }
 
@@ -785,6 +796,10 @@ impl Core {
             Call::SetSpeech(on) => {
                 self.reply(token, Ok(ReplyValue::Unit));
                 self.choose_speech(on);
+            }
+            Call::SetSmooth(on) => {
+                self.reply(token, Ok(ReplyValue::Unit));
+                self.choose_smooth(on);
             }
             Call::SetIdleOn(on) => {
                 self.reply(token, Ok(ReplyValue::Unit));
@@ -1628,6 +1643,13 @@ impl Core {
         if !on {
             self.speech_switched_off();
         }
+    }
+
+    /// The user set smooth edges (tray, `Smooth` property): persisted, wins over config.
+    fn choose_smooth(&mut self, on: bool) {
+        self.smooth_on = on;
+        self.smooth_chosen = true;
+        self.mark_dirty();
     }
 
     /// The next mark of the utterance is due (B-TTS-4, R-LIP-1).
@@ -2755,8 +2777,14 @@ impl Core {
                 })
                 .collect(),
         });
-        // B-TRAY-1: the speech output check item, in the tray only.
+        // B-TRAY-1: the smooth edges (B-SMOOTH-1) and speech output check items, in the
+        // tray only.
         if tray {
+            v.push(MenuEntry::Item {
+                label: l10n::menu_string(self.lang, MenuString::Smooth).into(),
+                action: MenuAction::Smooth,
+                checked: Some(self.smooth_on),
+            });
             v.push(MenuEntry::Item {
                 label: l10n::menu_string(self.lang, MenuString::Speech).into(),
                 action: MenuAction::Speech,
@@ -2921,6 +2949,7 @@ impl Core {
                 }
             }
             MenuAction::Speech => self.choose_speech(!self.speech_on),
+            MenuAction::Smooth => self.choose_smooth(!self.smooth_on),
         }
     }
 
@@ -3027,6 +3056,7 @@ impl Core {
             width: geometry::size(&c.model, self.scale).0,
             height: geometry::size(&c.model, self.scale).1,
             scale: self.scale,
+            smooth: self.smooth_on,
             picture: match c.player.picture() {
                 Pic::Empty => Picture::Empty,
                 Pic::Pose(p) => Picture::Pose(p),
@@ -3189,6 +3219,7 @@ impl Core {
                 .unwrap_or_default(),
             scale: self.scale,
             speech: self.speech_on,
+            smooth: self.smooth_on,
         }
     }
 }
