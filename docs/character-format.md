@@ -231,8 +231,14 @@ order lets a row-streaming PNG decoder reach the first frame after a few rows.
 
 ### 5.2 Pixel format
 
-- **Normative is the decoded RGBA.** A loader accepts 8-bit indexed PNG (with `tRNS`) and
-  8-bit RGBA PNG. Pixels with alpha 0 are equal whatever their colour.
+- **Normative is the decoded RGBA.** A loader accepts indexed PNG of bit depth 1, 2, 4 or 8
+  (with `tRNS`) and 8-bit RGBA PNG. Pixels with alpha 0 are equal whatever their colour.
+- **Encoding (bentwire writer, since 0.6):** indexed sheets use the smallest bit depth that
+  holds the palette and every index, without filters; RGBA sheets use no filter or the
+  per-row minimum-sum filter, whichever is smaller; one `IDAT` deflated by libdeflate at
+  level 12. Indices, palette and `tRNS` are the same as with the earlier 8-bit encoding, so
+  every decoded picture is unchanged (issue #21; every bentwire reader since 0.1.0 decodes
+  all indexed depths).
 - **Converted palette characters are written as indexed PNG:** `PLTE` is the source palette
   in source order (255 entries for qmark, 128 for Totem, as stored), `tRNS` makes exactly the
   source's transparent index transparent. Other indices with the same RGB stay opaque, as

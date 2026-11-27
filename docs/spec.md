@@ -1909,7 +1909,7 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   cross-reference errors (the validator's rules); unknown non-`x-` keys and tolerated ZIP
   deviations (media entry not stored, manifest not first) are warnings; a sheet, sound or
   icon that fails to decode only disables the animations using it (B-CHAR-2). Besides
-  8-bit indexed and RGBA, the loader accepts any PNG colour type and depth (indexed stays
+  indexed (bit depth 1 to 8) and RGBA, the loader accepts any PNG colour type and depth (indexed stays
   indexed, others become RGBA). Reason: character-format 4 makes unknown keys a warning,
   and editors export other PNG variants.
 - **A-CHAR-3 HiDPI file choice.** Per layer, the file (base = key 1, or a `hidpi` key) with
