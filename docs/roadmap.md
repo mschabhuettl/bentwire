@@ -60,12 +60,19 @@ track the current state.
 
 ## 0.5 "Polish and reach"
 
-- The Office balloon theme proven from the original: the order of the button states and
-  the balloon size constants.
 - Optional smoothing for vector characters.
 - **Quack**, the second own character (see below).
-- A slimmer classics pack.
-- Flatpak.
+
+## 0.6 "Proven and slim"
+
+- The Office balloon theme proven from the original: the order of the button states and
+  the balloon size constants (issue #19).
+- A slimmer classics pack: the same pixels in smaller PNGs, and a release archive without
+  the README pictures (issue #21).
+
+## 0.7
+
+- Flatpak (issue #22).
 
 ## Own characters (after 0.2)
 
