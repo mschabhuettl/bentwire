@@ -155,22 +155,30 @@ fn check_cached(path: &Path, old: &Cache, new: &mut Cache) -> Option<Entry> {
     e
 }
 
-/// The cache file layout: the daemon version (a new version may check differently) and
-/// the entries.
+/// The cache file layout: the daemon build (another build may check differently) and the
+/// entries.
 #[derive(Serialize, Deserialize)]
 struct CacheFile {
     version: String,
     entries: Vec<(PathBuf, Option<SystemTime>, u64, Option<Entry>)>,
 }
 
+/// The daemon build: its version and the modification time and size of its executable, so
+/// a rebuild with the same version (a `-git` package, a development build) checks again.
+fn build_id() -> String {
+    let exe = std::env::current_exe().and_then(std::fs::metadata);
+    let exe = exe.map_or((None, 0), |m| (m.modified().ok(), m.len()));
+    format!("{} {:?}", env!("CARGO_PKG_VERSION"), exe)
+}
+
 /// B-CHAR-1: the cache kept in `file` by an earlier daemon; empty when it is missing,
-/// unreadable or from another version.
+/// unreadable or from another build.
 pub fn load_cache(file: &Path) -> Cache {
     let Ok(bytes) = std::fs::read(file) else {
         return Cache::new();
     };
     match serde_json::from_slice::<CacheFile>(&bytes) {
-        Ok(c) if c.version == env!("CARGO_PKG_VERSION") => c
+        Ok(c) if c.version == build_id() => c
             .entries
             .into_iter()
             .map(|(p, t, n, e)| (p, (t, n, e)))
@@ -183,12 +191,17 @@ pub fn load_cache(file: &Path) -> Cache {
     }
 }
 
-/// Write `cache` to `file` (temp file, then rename); failures are only logged.
+/// Write `cache` to `file` (temp file, then rename); failures are only logged. Entries JSON
+/// cannot hold (a path that is not UTF-8, a time before 1970) are left out and read again
+/// at the next start.
 pub fn save_cache(file: &Path, cache: &Cache) {
     let c = CacheFile {
-        version: env!("CARGO_PKG_VERSION").into(),
+        version: build_id(),
         entries: cache
             .iter()
+            .filter(|(p, (t, ..))| {
+                p.to_str().is_some() && t.is_none_or(|t| t >= SystemTime::UNIX_EPOCH)
+            })
             .map(|(p, (t, n, e))| (p.clone(), *t, *n, e.clone()))
             .collect(),
     };
@@ -200,7 +213,7 @@ pub fn save_cache(file: &Path, cache: &Cache) {
     })();
     if let Err(e) = res {
         let _ = std::fs::remove_file(&tmp);
-        log::debug!("discovery cache {}: {e}", file.display());
+        log::warn!("discovery cache {}: {e}", file.display());
     }
 }
 
@@ -407,7 +420,10 @@ mod tests {
         assert_eq!(e2[0].info[0].name, "X-one");
         // Another version or a damaged file: an empty cache.
         let other = std::fs::read_to_string(&file).unwrap().replacen(
-            &format!("\"version\":\"{}\"", env!("CARGO_PKG_VERSION")),
+            &format!(
+                "\"version\":{}",
+                serde_json::to_string(&build_id()).unwrap()
+            ),
             "\"version\":\"0.0.0\"",
             1,
         );

@@ -159,10 +159,10 @@ clock. Timer resolution is 1 ms.
 - These check results are also kept in `$XDG_CACHE_HOME/bentwire/discovery.json` (default
   `~/.cache/bentwire/discovery.json`), written (temp file, then rename) after a scan that
   changed them and read at start, so a start reads only the manifests that changed since
-  the last one. A file from another daemon version, or one that does not parse, counts as
-  empty; a write that fails is only logged. **bentwire decision.** Reason: reading and
-  parsing the 62 manifests of the classics pack took about 120 ms of every start (issue
-  #44).
+  the last one. A file from another daemon build (version, or modification time and size
+  of the executable), or one that does not parse, counts as empty; a write that fails is
+  logged. **bentwire decision.** Reason: reading and parsing the 62 manifests of the
+  classics pack took about 120 ms of every start (issue #44).
 
 **B-CHAR-2 Loading.**
 - Loading follows character-format 4 to 7. An unknown `format` major or `family` is
