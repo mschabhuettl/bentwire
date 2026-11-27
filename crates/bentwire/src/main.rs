@@ -18,6 +18,8 @@ macro_rules! outln {
     }};
 }
 
+mod addons;
+
 const BUS_NAME: &str = "org.bentwire.Agent";
 const AGENT_PATH: &str = "/org/bentwire/Agent";
 const CHAR_PATH: &str = "/org/bentwire/Character";
@@ -37,6 +39,9 @@ usage: bentwire <command> [args]
   stop [<id>] [--all]
   characters
   characters install classics
+  addons [list]
+  addons install <folder|archive|https-url> [--sha256 HEX]
+  addons enable|disable|remove <name>
   select <id>
   animations
   scale [<1-4>]
@@ -434,6 +439,7 @@ fn run(args: &[String]) -> Result<(), Fail> {
                 c.call::<_, ()>(CHAR_PATH, CHAR_IFACE, "Stop", &(id,))
             }
         }
+        "addons" => addons::run(rest),
         "characters" if rest.first().is_some_and(|a| a == "install") => {
             Opts::parse(&rest[1..], &[], &[])?.npos(1, "a pack name (classics)")?;
             if rest[1] != "classics" {
@@ -600,14 +606,17 @@ fn select_hints(id: &str, installed: &[String]) -> Vec<String> {
     v
 }
 
+/// `$var` if it is absolute, else `$HOME/fallback`.
+fn xdg_dir(var: &str, fallback: &str) -> PathBuf {
+    match std::env::var_os(var) {
+        Some(v) if Path::new(&v).is_absolute() => PathBuf::from(v),
+        _ => PathBuf::from(std::env::var_os("HOME").unwrap_or_else(|| "/".into())).join(fallback),
+    }
+}
+
 /// Where `characters install` puts packs: `$XDG_DATA_HOME/bentwire/characters` (A-PACK-1).
 fn characters_dir() -> PathBuf {
-    let data = match std::env::var_os("XDG_DATA_HOME") {
-        Some(v) if Path::new(&v).is_absolute() => PathBuf::from(v),
-        _ => PathBuf::from(std::env::var_os("HOME").unwrap_or_else(|| "/".into()))
-            .join(".local/share"),
-    };
-    data.join("bentwire/characters")
+    xdg_dir("XDG_DATA_HOME", ".local/share").join("bentwire/characters")
 }
 
 /// Release assets of bentwire-classics; `BENTWIRE_CLASSICS_URL` replaces it (tests).
@@ -627,10 +636,12 @@ fn run_tool(cmd: &mut Command) -> Result<(), Fail> {
     }
 }
 
-/// Quiet curl (`-sS`: no progress meter, errors still shown).
+/// Quiet curl (`-sS`: no progress meter, errors still shown); HTTPS or a local file, and
+/// redirects only to HTTPS.
 fn download(url: &str, to: &Path) -> Result<(), Fail> {
     let mut c = Command::new("curl");
-    c.args(["-fsSL", "--proto", "=https,file", "--retry", "2", "-o"])
+    c.args(["-fsSL", "--proto", "=https,file", "--proto-redir", "=https"])
+        .args(["--retry", "2", "-o"])
         .arg(to);
     run_tool(c.arg(url)).map_err(|_| fail(format!("downloading {url} failed")))
 }

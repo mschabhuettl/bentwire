@@ -7,10 +7,15 @@ license.workspace = true
 publish = false
 
 [dependencies]
+bentwire-character.workspace = true
 bentwire-convert.workspace = true
 serde.workspace = true
 sha2.workspace = true
 zbus = "5"
+libc = "0.2"
+flate2 = "1"
+tar = { version = "0.4", default-features = false }
+zip = { version = "2", default-features = false, features = ["deflate"] }
 
 # The Rust example of docs/dbus.md, kept in docs and compiled here so that CI builds it.
 [[example]]
