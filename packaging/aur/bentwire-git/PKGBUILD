@@ -8,6 +8,7 @@ arch=(x86_64)
 url='https://github.com/mschabhuettl/bentwire'
 license=('MIT OR Apache-2.0' 'LGPL-2.1-or-later')
 depends=(alsa-lib glibc libgcc libxkbcommon)
+optdepends=('espeak-ng: speech output')
 makedepends=(cargo git pkgconf)
 provides=("$_pkgname")
 conflicts=("$_pkgname")

@@ -78,7 +78,8 @@ FLAC and PCM WAVE" (D1 B).
 ### 1.2 Out of v1
 
 - **Speech:**
-  - TTS and speech output;
+  - TTS engines other than espeak-ng (speech output with espeak-ng came in 0.3,
+    section 3.8);
   - `.WAV`/`.LWV` URLs in Speak;
   - speech recognition (Listen, Listening/Hearing driven by voice, the Voice Commands
     window).
@@ -115,6 +116,8 @@ I/O. The core gets these inputs:
 It produces these outputs:
 - scene state (surfaces, positions, pictures, input shapes, balloons, menu);
 - sound start and stop commands;
+- speech start and stop commands (the engine's timeline comes back as an input event,
+  B-TTS-2);
 - D-Bus replies and signals.
 
 Backends:
@@ -492,8 +495,8 @@ closing character-format 14 item 3.
   character-format 11 stay unclipped.
 - Test vector: a synthetic frame with an opaque 10x10 square, plus a mouth layer that
   overlaps it by 5 px. Only the overlapping pixels change.
-- Note: in v1 (no TTS) mouth variants are never displayed (B-LIP-2). The rule matters for
-  later TTS and for tests.
+- Note: mouth variants are displayed only with speech output (R-LIP-1, B-TTS-2); text-only
+  Speak shows none (B-LIP-2).
 
 **R-WIN-2 / B-PIX-3 Shape and input.**
 - The visible and clickable shape of the character is the set of pixels with alpha > 0
@@ -760,9 +763,10 @@ frame still moves instantly, and the request ends failed (`Hidden`).
 - n must be in 1..2147483645. 0x7FFFFFFE and 0x7FFFFFFF are reserved
   (= agent-runtime R-Q-7). Violations give a method error `InvalidArgs`.
 
-**B-SPEAK-2 Status.** Speak always completes with success in v1.
+**B-SPEAK-2 Status.** Speak always completes with success, spoken (B-TTS-4) or not.
 - Reason: R-SPEAK-4 gives 0 whenever "Play spoken audio" is on and there is no TTS
-  voice. bentwire has no TTS and no such option.
+  voice. The failure for "Play spoken audio" off has no counterpart: speech output off
+  (B-TTS-1) is bentwire's default, and a Speak must not fail because of it.
 
 **R-BAL-1 Style.**
 - The balloon style comes from the manifest:
@@ -836,9 +840,10 @@ and `BalloonShown` is emitted (= agent-runtime R-BAL-7). During a drag it is not
   `interval = 352 x 170 / clamp(170 x f, 50, 250)` ms (truncated), where f is config
   `speaking_speed` (0.5 to 1.5, default 1.0).
 - The report's defaultSpeed is the voice's speed when the character has a TTS voice, else
-  170. bentwire always uses 170. **bentwire decision.** Reason: without a TTS engine
-  there is no voice on Linux, which is the server's "no TTS voice" case. A `[voice]`
-  table in the manifest (earl, merlin) does not change this in v1.
+  170. On this text-only pacer bentwire always uses 170; the voice's speed only sets the
+  words per minute of speech output (B-TTS-3). **bentwire decision.** Reason: the pacer
+  runs when there is no engine, no speech or no sound, which is the server's "no TTS
+  voice" case, and speech off must leave every Speak as it was before speech output.
 - The output phase ends one interval after the last word, so N words last N x interval.
 - With AutoPace off, the whole text appears at once and the end time is unchanged.
   **bentwire decision** for U-10. Reason: the report's reading; no other evidence.
@@ -865,7 +870,109 @@ and `BalloonShown` is emitted (= agent-runtime R-BAL-7). During a drag it is not
   - when the character is hidden.
 - `BalloonHidden` is emitted.
 
-### 3.8 Lip sync without TTS
+### 3.8 Speech output and lip sync
+
+Speech output (0.3) speaks Speak and Ask texts through a TTS engine and moves the mouth
+with it, as Agent fed the parsed text to its engine (= agent-runtime R-BAL-11). The core
+stays deterministic: it asks for an utterance and gets the engine's timeline back as
+timestamped events (B-TTS-2). The rules B-TTS-1 to B-TTS-6 are **bentwire decisions**
+where they go beyond R-BAL-11 and R-LIP-1.
+
+**B-TTS-1 Setting.**
+- Speech output is off by default. Config key `speech` (B-CFG-1). The tray menu's check
+  item (B-TRAY-1) and the Agent1 property `Speech` (5.2) are the user's choice: it is
+  persisted (B-CFG-2) and from then on wins over the config key, as the size factor does
+  (B-SCALE-1). Changes apply at once.
+- `SpeakWith(text, {"speech": b})` (5.3) decides for that one Speak.
+- A Speak is spoken when speech output is on for it, config `sound_effects` is on and its
+  text has a word. An Ask is spoken when speech output is on, sounds are on and its
+  heading or text is not empty. The gallery balloon (B-GAL-1) and the install hint
+  (B-CHAR-6) are never spoken. Think is out of v1; it would never speak (R-SPEAK-4).
+- Sound off with speech on gives the text-only pacer and no speech. Reason: sounds off
+  means a silent character; speech is sound.
+- When the setting is turned off (menu, property, SIGHUP) or `sound_effects` goes off
+  while an utterance runs (also one `SpeakWith` asked for), its audio stops (B-TTS-5) and a Speak goes on with the
+  text-only pacer (B-TTS-4). Turning it on applies from the next Speak or Ask.
+
+**B-TTS-2 Engine boundary** (B-CORE-1).
+- Out: `SpeechStart(serial, text, voice)` when a spoken Speak enters its output phase
+  (after R-BAL-7 showed the empty balloon) or a spoken Ask's balloon opens. `serial`
+  numbers the utterances; `text` is the spoken text: B-SPEAK-1 applied with the spoken
+  part of each `\Map\` and every tag removed, or for an Ask the heading and the text
+  without markup (B-ASK-3), joined by a line break; `voice` is B-TTS-3.
+- Out: `SpeechStop` stops the current utterance's audio (B-TTS-5).
+- In: `Speech(serial, marks)`, the whole timeline of the utterance. Each mark has a time
+  in ms after the event, which is when its audio starts: `Word(o)`, a word starting at
+  character offset `o` (0-based) of `text`; `Phoneme(p)`, an IPA phoneme (one or more code
+  points; a pause is `_`); `End`, the end of the audio, which is the last mark.
+- In: `SpeechFailed(serial)`: no engine, synthesis failed, or the audio cannot play.
+- Every `SpeechStart` gets exactly one of the two. One with another serial than the
+  current utterance's is ignored, so a late answer after a stop does nothing.
+- Tests feed hand-made timelines through the same events (fake engine). The daemon's
+  engine is espeak-ng (B-TTS-6).
+
+**B-TTS-3 Voice.** From the character's `[voice]` (character-format 4); each value is
+used only when present and in range, otherwise its default:
+- `language`: `[voice].language` (a BCP 47 tag: 1 to 16 ASCII letters, digits and `-`),
+  else the UI language (B-L10N-1).
+- `gender`: `[voice].gender` (earl 1, merlin 2, acs-format 3.2.2), read in SAPI 4
+  numbering, 1 female, 2 male [INF], else none.
+- `pitch`: `[voice].pitch`, read as the base pitch in Hz, the unit of Agent's `\Pit\`
+  tag [INF], if 1 to 1000 (Agent 1.5 files store 65535, probably "default",
+  agent15-format).
+- Words per minute: R-BAL-8's effectiveSpeed with defaultSpeed = `[voice].speed` if 1 to
+  1000 (4294967295 means "default"), else 170: `clamp(defaultSpeed x f, 50, 250)`, f =
+  config `speaking_speed`.
+- espeak-ng: the language tag lowercased is the voice language (`en-us`), espeak-ng's
+  gender numbers are the other way round (1 male, 2 female), the pitch is espeak-ng's
+  0 to 100 scale with 50 at 100 Hz (200 Hz for a female voice), `clamp(50 x Hz / base,
+  0, 100)`, and the rate is clamped to espeak-ng's minimum of 80.
+- Reason: the manifest keeps Agent's raw voice data; espeak-ng has no Agent voices, so
+  language, gender, pitch and speed are what carries over. The research does not trace
+  the meaning of gender and pitch; the numbering and unit above are the SAPI 4
+  conventions Agent's engines used, unverified. A language without an espeak-ng voice
+  falls back to its primary subtag (`de-at` to `de`); a text in another language than
+  the voice's is read with the voice's rules (a German text with merlin's `en-US`).
+
+**B-TTS-4 Pacing with speech** (adapts agent-runtime R-BAL-11).
+- The balloon appears empty (R-BAL-7) and stays empty until the first `Word` mark.
+- Each balloon word has a spoken start: the offset in `text` where its spoken text begins.
+  A word inside the balloon part of a `\Map\` starts where the Map's spoken part starts.
+  `Word(o)` reveals every word whose spoken start is at most `o` (at least the first
+  word), firing their bookmarks as R-BAL-8 does. Words the engine does not report as
+  words (a lone `-`) appear with the next reported one.
+- With AutoPace off the whole text appears at once (as R-BAL-8).
+- `End` ends the output phase: the remaining words appear, bookmarks after the last word
+  fire, AutoHide starts (R-BAL-10), status 0 (B-SPEAK-2).
+- `SpeechFailed`, or speech turned off during the utterance (B-TTS-1): the text-only pacer
+  takes over at once for the words not spoken yet. The next word appears at once, each
+  further one after the R-BAL-8 interval, and the end is `remaining x interval` later.
+  Before the first word this is exactly the text-only Speak.
+- The scroll (R-BAL-9) is unchanged. A spoken Ask's balloon is unchanged; its speech only
+  moves the mouth.
+- Reason: the balloon follows the audio word by word, as Agent's per-word bookmarks did;
+  offsets instead of a word count, because the engine's words differ from the balloon's
+  (a number is several spoken words).
+
+**B-TTS-5 Stopping.** The current utterance ends with `SpeechStop` when its Speak is
+interrupted (Stop, StopAll, user Hide, a character switch, also by the gallery's Back
+and Next, a client request ending an Animate! play, B-MENU-4), when its Ask balloon
+closes for any reason (also when the gallery opens), and when speech is turned off
+(B-TTS-1). The gallery opening alone does not end a running Speak, as without speech.
+A new utterance first stops the current one. `End` ends it without `SpeechStop`.
+
+**B-TTS-6 espeak-ng in the daemon.**
+- `libespeak-ng.so.1` is loaded at run time with the first utterance; it is not a package
+  dependency. A missing library or a failed initialisation is logged once (`speech:
+  espeak-ng not available: ...`) and every utterance gets `SpeechFailed`.
+- espeak-ng runs on its own thread in synchronous mode (it hands back PCM and events and
+  plays nothing itself), with phoneme events in IPA. `Word` marks come from word events
+  (their text position minus one, in characters), `Phoneme` marks from phoneme events (an
+  empty name, espeak-ng's pause, becomes `_`), `End` from the length of the PCM.
+- The PCM plays through the audio backends of A-DESK-7 on a second output, so sound
+  effects and speech do not cut each other. The utterance starts when its audio is
+  handed to the device; an output that does not open gives `SpeechFailed`. Headless mode
+  and `--no-audio` have no engine.
 
 **R-LIP-1 Table.**
 - Phoneme to mouth uses the 116-entry table in acs-format 5.4. An unknown phoneme keeps
@@ -883,18 +990,30 @@ and `BalloonShown` is emitted (= agent-runtime R-BAL-7). During a drag it is not
   - `o` gives 6;
   - `w` gives 6;
   - `Q` keeps the previous mouth.
+- With speech output each `Phoneme` mark (B-TTS-2) sets the mouth. A phoneme of several
+  code points (espeak-ng gives `ˈaɪ`, `ts`) takes the type of its first code point that is
+  in the table; stress and length marks are not. One without such a code point keeps
+  the previous mouth. The mouth is none again at `End`, and when the utterance stops.
+  **bentwire decision.** Reason: the table maps single code points; the first known one
+  is the sound the mouth opens with.
+- The mouth is drawn (B-PIX-2) while the current frame has a mouth of that type;
+  otherwise the frame is drawn without one. The balloon anchor stays the mouth point of
+  the lowest mouth type on the frame (B-BAL-3), so the balloon does not move with every
+  phoneme.
 
 **B-LIP-1 Amplitude quantisation** (= agent-runtime R-LIP-2) [OBS].
-- Implement as a pure function for later TTS: `<0x10` gives `b`, `<0x30` gives `f`,
-  `<0x50` gives `e`, `<0x70` gives `ɑ`, otherwise `ɜ`; silence gives `m`.
-- Not driven in v1.
+- A pure function: `<0x10` gives `b`, `<0x30` gives `f`, `<0x50` gives `e`, `<0x70`
+  gives `ɑ`, otherwise `ɜ`; silence gives `m`.
+- Only for an engine that reports amplitude but no phonemes. espeak-ng reports phonemes
+  (B-TTS-6), so it is not driven.
 
 **B-LIP-2 Text-only Speak moves no mouth.** (Closes agent-runtime U-1 and R-LIP-3 [INF].)
 **bentwire decision.**
-- During text-only Speak the character holds its speaking frame without a mouth overlay.
-- Reason: no mouth-setting call exists on the server's text pacer path. The project's
-  decisions (not published) limit the table to optional TTS, and faithfulness to the
-  original comes before features.
+- During text-only Speak (the R-BAL-8 pacer: speech off, no engine, sounds off) the
+  character holds its speaking frame without a mouth overlay. With speech output the
+  mouth follows the phonemes (R-LIP-1); this rule does not apply there.
+- Reason: no mouth-setting call exists on the server's text pacer path, and faithfulness
+  to the original comes before features.
 
 ### 3.9 `ask`: Ask and the Office balloon
 
@@ -1230,7 +1349,9 @@ belongs to the original menu.
 - `SecondaryActivate` (middle click) emits `Click(4, 0, x, y, true)`.
 - The context menu is supplied as dbusmenu:
   - when visible, the items of B-MENU-1; Size is a dbusmenu submenu whose factors form
-    one radio group;
+    one radio group; last, a check item `S&peech` (German `&Sprachausgabe`, bentwire
+    strings) that shows and toggles speech output (B-TTS-1). It is not in the
+    character's own menu, which keeps the original items;
   - when hidden, only `&Show` ([DOC] `pop-up-menu-support`).
 - SNI hosts show the menu themselves, so a right click on the tray emits no `Click`, and
   tray double-click is not available. These are documented deviations.
@@ -1517,6 +1638,7 @@ the acs-format parser:
 | `idle` | `true` | initial IdleOn |
 | `double_click_ms` | `500` | B-UI-1 |
 | `scale` | `1` | B-SCALE-1 (1 to 4) |
+| `speech` | `false` | B-TTS-1; Agent "Play spoken audio" |
 
 The daemon reads the config file at start and when it receives SIGHUP (which also reads
 the add-ons again, B-ADDON-3).
@@ -1528,6 +1650,8 @@ the add-ons again, B-ADDON-3).
 - `install_hint_shown`: B-CHAR-6 was shown (default false);
 - `scale`, the size factor `left` and `top` were saved at, and `scale_chosen`, the user
   chose it (B-SCALE-1); a file without them counts as 1, not chosen;
+- `speech`: speech output as the user set it (B-TTS-1), written only once set; without it
+  the config key applies;
 - written at most once per second after a change, and at exit.
 
 **B-CFG-3 First run.** **bentwire decision.**
@@ -1847,7 +1971,8 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   (configure acked, margins, buffer attached, keyboard interactivity, balloons, menu).
   The character surface has `opaque`, the bounding box of the drawn picture's alpha
   shape, and the snapshot has `rest_opaque`, that box for the rest picture (B-SHOW-3) at
-  the current position and size factor (B-CHAR-5), both in global coordinates or null.
+  the current position and size factor (B-CHAR-5), both in global coordinates or null,
+  and `picture`, the drawn frame as `animation`, `frame` and `mouth` (R-LIP-1), or null.
   It also has `scale` (B-SCALE-1), and `menu` and `submenu` list their items with
   `checked` (null for a plain item) or `submenu: true`; `Pointer` hits the submenu first.
   Reason: the spec names the members but not their arguments.
@@ -1856,6 +1981,8 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   "buffer" | "subsurface" | "popup" | "destroy" | "unmap", ...}` (buffers and input
   regions as SHA-256 prefixes), `{"type": "signal", "member", "args", "dest"}` (`dest`
   null = broadcast), `{"type": "sound_start", "sound", "duration_ms"}`, `sound_stop`,
+  `{"type": "speech_start", "serial", "text", "voice"}`, `speech_stop`, `{"type":
+  "speech_failed", "serial"}` (B-TTS-2),
   `output_added`, `output_removed`, and `{"type": "call", "method", "args", "sender"}` for
 every Agent1/Character1 call the core answered, with `id` (request id) or `error`.
 The submenu is a `popup` with `"surface": "submenu"` and `"parent": "menu"`, with the
@@ -1951,7 +2078,7 @@ the menu. `--dump-frames DIR` writes
 | 7 | Mouth pixels outside the frame shape: character-format 14 item 3 (50 of 291 ACS overlays, 1,080 pixels) | SDK: the overlay is clipped to the base frame outline unless the replace flag is set [DOC]; agentdp2 builds the region from frame images only when replace = 0 [OBS]. | Clip (B-PIX-2), as presentation, so the round-trip hashes are unchanged. |
 | 8 | Exit branches after Stop: agent-runtime R-ANIM-7, U-3 | Stop cuts [OBS]; the provider keeps the previous animation [OBS]; the SDK says exits play before the next animation [DOC]. | B-ANIM-1: the exit plays at the next animation-playing request; requests without an animation do not consume it (bentwire decision). |
 | 9 | RequestStart/Complete for MoveTo/Speak/Ask: agent-runtime U-13 | Unread enqueue path. | B-Q-3: start at the first phase, complete after the last, status of the first failure (bentwire decision). |
-| 10 | Mouth movement in Speak without TTS: agent-runtime R-LIP-3, U-1 | No mouth call on the pacer path [INF]. | No mouth overlay (B-LIP-2, bentwire decision). |
+| 10 | Mouth movement in Speak without TTS: agent-runtime R-LIP-3, U-1 | No mouth call on the pacer path [INF]. | No mouth overlay on the text-only path (B-LIP-2, bentwire decision); with speech output the phonemes drive it (R-LIP-1, B-TTS-2). |
 | 11 | Branch draw: acs-format 5.2 (r in 1..100, r <= p) vs acf-aaf-format 8.2 (p >= r) vs character-format 7.2 (r in [0,100), r < p) | Equivalent under the constraints of character-format 7.2. | B-SEQ-A. |
 | 12 | Exit semantics in ACF 2.0 (acf-aaf-format 8.2: "exit not -1 enters exiting") vs acs-format 5.2 (extra conditions: not at end, or transition 1, or queued) | The ACF wording is a summary; the ACS conditions are [OBS] in the shared logic. | B-SW-A uses the acs-format conditions for every agent-family character. |
 | 13 | Agent server vs MSO97 engine (act-format 5.4 to 5.6: one-slot queue, immediate idle, pose transitions, 14 ms coalescing) | Two runtimes with different event models. | B-FAM-1 table (bentwire decisions). |
@@ -1992,6 +2119,7 @@ the menu. `--dump-frames DIR` writes
 | property `Character` | `s`, read | current id, `""` if none |
 | property `Version` | `s`, read | daemon version |
 | property `Scale` | `u`, read and write | size factor 1 to 4 (B-SCALE-1); a write is the user's choice and is persisted; other values: `InvalidArgs` |
+| property `Speech` | `b`, read and write | speech output on (B-TTS-1); a write is the user's choice and is persisted |
 
 ### 5.3 `org.bentwire.Character1`
 
@@ -2003,6 +2131,7 @@ Methods. Every `u` return value is a request id (B-Q-1).
 | `Hide` | `(b fast) -> u` | R-SHOW-2, cause 3 |
 | `Play` | `(s name) -> u` | B-FB-1 at call time; error `UnknownAnimation` |
 | `Speak` | `(s text) -> u` | R-SPEAK-*, R-BAL-*, B-SPEAK-* |
+| `SpeakWith` | `(s text, a{sv} options) -> u` | as `Speak`; key `speech` (`b`) speaks or does not speak this text whatever the setting (B-TTS-1); other keys and types: `InvalidArgs` |
 | `Ask` | `(a{sv} spec) -> u` | B-ASK-*, B-OB-*; errors `InvalidBalloon`, `NotSupported` |
 | `MoveTo` | `(i x, i y, u speed_ms) -> u` | R-MOVE-*, B-MOVE-1 |
 | `GestureAt` | `(i x, i y) -> u` | R-GEST-1 |
@@ -2060,7 +2189,7 @@ Method errors (the call fails, no request is created):
 | `org.bentwire.Error.UnknownAnimation` | B-FB-1 step 5 |
 | `org.bentwire.Error.InvalidBalloon` | B-ASK-5 |
 | `org.bentwire.Error.NotSupported` | `mode = modeless` |
-| `org.freedesktop.DBus.Error.InvalidArgs` | wrong types, unknown `StopAll` types, reserved bookmark numbers |
+| `org.freedesktop.DBus.Error.InvalidArgs` | wrong types, unknown `StopAll` types, reserved bookmark numbers, unknown `SpeakWith` options |
 
 Request reasons (in `RequestComplete`):
 
@@ -2082,7 +2211,7 @@ activation. If that also fails, it prints `bentwired is not running` and exits 1
 | Command | Maps to | Output |
 |---|---|---|
 | `play <name> [--wait]` | `Play` | request id |
-| `say <text> [--wait]` | `Speak` | request id |
+| `say <text> [--speak \| --no-speak] [--wait]` | `Speak`; with a flag `SpeakWith` with `speech` true or false | request id |
 | `ask [<text>] [--heading H] [--icon I] [--buttons SET \| --button CAPTION ...] [--label L ...] [--label-type T] [--checkbox C ...] [--mode M] [--animation NAME]` | `Ask`, always waits | line 1: result name (B-L10N-2), `button:<n>` (custom, 1-based), `label:<n>` or `none`; line 2, if there are check boxes: `checked:` followed by comma-separated 0 or 1 values |
 | `moveto <x> <y> [--speed MS] [--wait]` | `MoveTo`, default speed 1000 | request id |
 | `gestureat <x> <y> [--wait]` | `GestureAt` | request id |
@@ -2097,6 +2226,7 @@ activation. If that also fails, it prints `bentwired is not running` and exits 1
 | `select <id>` | `Select` | nothing; for `NoSuchCharacter`, hint lines on stderr |
 | `animations` | `AnimationNames` | one per line |
 | `scale [<n>]` | `Scale` (read; write with `n`, 1 to 4) | without `n`: the factor; with `n`: nothing |
+| `speech [on \| off]` | `Speech` (read; write with `on` or `off`) | without an argument: `on` or `off`; with one: nothing |
 | `status` | properties | `character`, `visible`, `left`, `top`, `idle` as `key=value` lines |
 | `quit` | `Quit` | nothing |
 | `convert <source> <dest>` | local, no daemon | per character-format 10 |
@@ -2299,7 +2429,7 @@ with a fake clock and scripted draws. In particular:
 - R-DIR-1, R-MOVE-1, B-MOVE-1, R-GEST-1;
 - B-IDLE-T, R-IDLE-5;
 - R-BAL-8, B-BAL-3, R-BAL-6;
-- R-LIP-1, B-LIP-1;
+- R-LIP-1, B-LIP-1, B-TTS-2 (a fake engine's timelines);
 - B-FB-1/B-FB-2 (synthetic characters with the same name sets);
 - B-ASK-2, B-ASK-5, B-ASK-7;
 - B-Q-2..5, B-PIX-2.

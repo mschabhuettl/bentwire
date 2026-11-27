@@ -99,6 +99,8 @@ pub struct Config {
     pub double_click_ms: u32,
     /// Size factor of the character, 1 to 4 (B-SCALE-1).
     pub scale: u32,
+    /// Speech output (B-TTS-1).
+    pub speech: bool,
 }
 
 /// B-SCALE-1: the size factors offered.
@@ -116,6 +118,7 @@ impl Default for Config {
             idle: true,
             double_click_ms: 500,
             scale: 1,
+            speech: false,
         }
     }
 }
@@ -133,6 +136,8 @@ pub struct StateFile {
     pub scale: u32,
     /// The user chose `scale` (menu, tray, `Scale` property). If not, the config's applies.
     pub scale_chosen: bool,
+    /// Speech output as the user set it (tray, `Speech` property); `None`: the config's.
+    pub speech: Option<bool>,
 }
 
 impl Default for StateFile {
@@ -145,6 +150,7 @@ impl Default for StateFile {
             chosen: false,
             scale: 1,
             scale_chosen: false,
+            speech: None,
         }
     }
 }
@@ -319,6 +325,11 @@ pub enum Call {
     },
     Play(String),
     Speak(String),
+    /// `SpeakWith`: `speech` overrides the speech setting for this Speak (B-TTS-1).
+    SpeakWith {
+        text: String,
+        speech: Option<bool>,
+    },
     Ask(AskSpec),
     MoveTo {
         x: i32,
@@ -334,6 +345,31 @@ pub enum Call {
     SetIdleOn(bool),
     /// Agent1 `Scale` property write (B-SCALE-1).
     SetScale(u32),
+    /// Agent1 `Speech` property write (B-TTS-1).
+    SetSpeech(bool),
+}
+
+/// A mark of an utterance's timeline (B-TTS-2).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SpeechMark {
+    /// A word starts at this character offset (0-based) of the spoken text.
+    Word(usize),
+    /// An IPA phoneme: one or more code points; `_` is a pause.
+    Phoneme(String),
+    /// The end of the audio; the last mark.
+    End,
+}
+
+/// The voice of an utterance (B-TTS-3).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct VoiceSpec {
+    /// BCP 47 tag.
+    pub language: String,
+    /// SAPI 4 numbering: 1 female, 2 male.
+    pub gender: Option<u32>,
+    /// Base pitch in Hz.
+    pub pitch: Option<u32>,
+    pub words_per_minute: u32,
 }
 
 /// Inputs of the core.
@@ -367,6 +403,16 @@ pub enum Event {
     /// The audio device failed to play the current sound: completion does not wait for
     /// it (R-ANIM-8).
     SoundFailed,
+    /// The engine's timeline of utterance `serial`; times in ms after this event, when
+    /// its audio starts (B-TTS-2).
+    Speech {
+        serial: u64,
+        marks: Vec<(Ms, SpeechMark)>,
+    },
+    /// Utterance `serial` cannot be spoken (B-TTS-2).
+    SpeechFailed {
+        serial: u64,
+    },
 }
 
 /// Successful method results.
@@ -464,6 +510,14 @@ pub enum Output {
         sound: String,
     },
     SoundStop,
+    /// Speak `text` (B-TTS-2); answered by [`Event::Speech`] or [`Event::SpeechFailed`].
+    SpeechStart {
+        serial: u64,
+        text: String,
+        voice: VoiceSpec,
+    },
+    /// Stop the current utterance's audio (B-TTS-5).
+    SpeechStop,
     /// Write the state file (already throttled to once per second, B-CFG-2).
     PersistState(StateFile),
     /// B-MENU-3: write a default config file if none exists, then `xdg-open` it.
@@ -478,7 +532,8 @@ pub enum Picture {
     /// Fully transparent (blank frame, or nothing to show yet).
     Empty,
     /// A frame of an animation of the current model (agent: its layers, office97: its
-    /// pose). `mouth` is a mouth type to overlay (never set in v1, B-LIP-2).
+    /// pose). `mouth` is a mouth type of the frame to overlay (only with speech output,
+    /// R-LIP-1, B-LIP-2).
     Frame {
         animation: String,
         frame: usize,
@@ -661,6 +716,8 @@ pub enum MenuAction {
     Animate,
     /// A factor of the Size submenu (B-SCALE-1).
     Scale(u32),
+    /// The tray's speech output check item (B-TRAY-1, B-TTS-1).
+    Speech,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -734,6 +791,8 @@ pub struct Properties {
     pub animation_names: Vec<String>,
     /// Agent1 `Scale` (B-SCALE-1).
     pub scale: u32,
+    /// Agent1 `Speech` (B-TTS-1).
+    pub speech: bool,
 }
 
 /// Error names (5.4).

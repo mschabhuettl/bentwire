@@ -17,7 +17,7 @@ and the spec differ, the spec wins.
 |---|---|
 | Bus | session bus |
 | Name | `org.bentwire.Agent` |
-| `/org/bentwire/Agent` | `org.bentwire.Agent1`: characters, scale, quit |
+| `/org/bentwire/Agent` | `org.bentwire.Agent1`: characters, scale, speech, quit |
 | `/org/bentwire/Character` | `org.bentwire.Character1`: the current character (one at a time) |
 
 Both objects also implement `org.freedesktop.DBus.Introspectable`, `Peer` and
@@ -76,6 +76,7 @@ signals.
 | `Character` | `s` | read | current character id, `""` if none |
 | `Version` | `s` | read | daemon version |
 | `Scale` | `u` | read, write | size factor 1 to 4 (B-SCALE-1); a write is persisted; other values give `InvalidArgs` |
+| `Speech` | `b` | read, write | speech output with espeak-ng (B-TTS-1); a write is persisted and wins over the config key `speech` |
 
 ## `org.bentwire.Character1` at `/org/bentwire/Character`
 
@@ -88,7 +89,8 @@ Every `u` return value is a request id.
 | `Show` | `(b fast) -> u` | show, animated unless `fast` (R-SHOW-1, B-SHOW-3); `Shown` cause 4 | `NoCharacter` |
 | `Hide` | `(b fast) -> u` | hide (R-SHOW-2); `Hidden` cause 3 | `NoCharacter` |
 | `Play` | `(s name) -> u` | play an animation or state; a missing name falls back by B-FB-1 | `NoCharacter`, `UnknownAnimation` |
-| `Speak` | `(s text) -> u` | say `text` in the word balloon; `a\|b` picks one alternative, `\Mrk=n\` sends `Bookmark(n)` (R-SPEAK-*, B-SPEAK-1) | `NoCharacter`, `InvalidArgs` (reserved bookmark number) |
+| `Speak` | `(s text) -> u` | say `text` in the word balloon; `a\|b` picks one alternative, `\Mrk=n\` sends `Bookmark(n)` (R-SPEAK-*, B-SPEAK-1); spoken aloud when `Speech` is on (B-TTS-1) | `NoCharacter`, `InvalidArgs` (reserved bookmark number) |
+| `SpeakWith` | `(s text, a{sv} options) -> u` | as `Speak`; option `speech` (`b`) speaks the text aloud or not, whatever `Speech` says (B-TTS-1) | as `Speak`; `InvalidArgs` for an unknown option or a wrong type |
 | `Ask` | `(a{sv} spec) -> u` | Office balloon with buttons, labels, check boxes; answer in `AskComplete` (B-ASK-*) | `NoCharacter`, `InvalidBalloon`, `NotSupported`, `InvalidArgs` |
 | `MoveTo` | `(i x, i y, u speed_ms) -> u` | slide the top-left corner to (x, y) in `speed_ms` (R-MOVE-*, B-MOVE-1) | `NoCharacter` |
 | `GestureAt` | `(i x, i y) -> u` | gesture towards a point (R-GEST-1) | `NoCharacter` |
@@ -180,7 +182,7 @@ Method errors (the call fails; spec 5.4):
 | `org.bentwire.Error.UnknownAnimation` | `Play` of a name that has no fallback (B-FB-1 step 5) |
 | `org.bentwire.Error.InvalidBalloon` | `Ask` that breaks B-ASK-5; the message names the Office error (`TooManyControls`, `ButtonlessModal`, `CheckboxesNeedButton`) |
 | `org.bentwire.Error.NotSupported` | `Ask` with `mode = modeless` |
-| `org.freedesktop.DBus.Error.InvalidArgs` | wrong argument types, unknown `Ask` keys, unknown `StopAll` types, reserved bookmark numbers, `Scale` outside 1 to 4 |
+| `org.freedesktop.DBus.Error.InvalidArgs` | wrong argument types, unknown `Ask` keys and `SpeakWith` options, unknown `StopAll` types, reserved bookmark numbers, `Scale` outside 1 to 4 |
 
 Standard errors: `org.freedesktop.DBus.Error.UnknownMethod` and `UnknownObject` for
 unknown members and paths, `UnknownProperty` for `Get` of an unknown property, and

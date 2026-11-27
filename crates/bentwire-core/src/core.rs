@@ -8,6 +8,7 @@ use crate::balloon;
 use crate::fallback::{self, Resolved};
 use crate::geometry::{self, Slide};
 use crate::l10n::{self, MenuString};
+use crate::lipsync;
 use crate::model::{CharacterModel, Family};
 use crate::office::{self, AskModel, ButtonDef, Control, Interaction, LabelType, Mode};
 use crate::player::{self, Env, Pic, Player};
@@ -45,12 +46,13 @@ const ANIMATE_NAMES: [&str; 23] = [
     "EmptyTrash",
 ];
 
+/// A request. `Speak` has the alternatives and the `SpeakWith` speech override (B-TTS-1).
 #[derive(Clone, Debug)]
 enum Kind {
     Show { fast: bool, cause: u32 },
     Hide { fast: bool, cause: u32 },
     Play(Resolved),
-    Speak(Vec<SpeakText>),
+    Speak(Vec<SpeakText>, Option<bool>),
     Ask(Box<AskModel>),
     MoveTo { x: i32, y: i32, speed: u32 },
     GestureAt { x: i32, y: i32 },
@@ -63,7 +65,7 @@ impl Kind {
             Kind::Show { .. } | Kind::Hide { .. } => "showhide",
             Kind::Play(_) | Kind::GestureAt { .. } => "play",
             Kind::MoveTo { .. } => "move",
-            Kind::Speak(_) => "speak",
+            Kind::Speak(..) => "speak",
             Kind::Ask(_) => "ask",
         }
     }
@@ -142,6 +144,20 @@ struct Speech {
     first_line: usize,
     scroll: Option<(Ms, Ms, i32)>,
     active: bool,
+    auto_pace: bool,
+    /// B-TTS-4: per word, where its spoken text starts, and the words spoken so far.
+    spoken_starts: Vec<usize>,
+    spoken: usize,
+}
+
+/// An utterance of speech output (B-TTS-2).
+struct Utterance {
+    serial: u64,
+    /// The Speak balloon follows it; false for an ask's text.
+    say: bool,
+    /// The engine's marks at core times, in order; empty until it answered.
+    marks: VecDeque<(Ms, SpeechMark)>,
+    mouth: Option<u8>,
 }
 
 struct OpenAsk {
@@ -222,6 +238,12 @@ pub struct Core {
     idle_started: bool,
     idle_begin: Option<Ms>,
     speech: Option<Speech>,
+    /// B-TTS-1: speech output on, and whether the user set it (it then wins over the
+    /// config key).
+    speech_on: bool,
+    speech_chosen: bool,
+    utterance: Option<Utterance>,
+    last_serial: u64,
     press: Option<Press>,
     dragging: bool,
     last_press: Option<Ms>,
@@ -245,6 +267,7 @@ enum Timer {
     AutoHide,
     Scroll,
     Persist,
+    Utterance,
 }
 
 fn err(name: &str, message: impl Into<String>) -> MethodError {
@@ -265,9 +288,14 @@ impl Core {
             Some(s) if s.scale_chosen => s.scale,
             _ => init.config.scale,
         });
+        let speech_chosen = init.state.as_ref().and_then(|s| s.speech);
         Core {
             scale,
             scale_chosen,
+            speech_on: speech_chosen.unwrap_or(init.config.speech),
+            speech_chosen: speech_chosen.is_some(),
+            utterance: None,
+            last_serial: 0,
             now: 0,
             idle_on: init.config.idle,
             config: init.config,
@@ -385,7 +413,14 @@ impl Core {
             Event::Config(c) => {
                 self.lang = l10n::resolve_language(c.language, &self.locale);
                 let scale = clamp_scale(c.scale);
+                let was = (self.speech_on, self.config.sound_effects);
+                if !self.speech_chosen {
+                    self.speech_on = c.speech;
+                }
                 self.config = c;
+                if (was.0 && !self.speech_on) || (was.1 && !self.config.sound_effects) {
+                    self.speech_switched_off();
+                }
                 self.refresh_gallery_size();
                 if !self.scale_chosen {
                     self.set_scale(scale);
@@ -399,6 +434,22 @@ impl Core {
                     && c.player.sound_failed()
                 {
                     self.anim_done();
+                }
+            }
+            Event::Speech { serial, marks } => {
+                let now = self.now;
+                if let Some(u) = &mut self.utterance
+                    && u.serial == serial
+                {
+                    u.marks = marks.into_iter().map(|(t, m)| (now + t, m)).collect();
+                }
+            }
+            Event::SpeechFailed { serial } => {
+                if self.utterance.as_ref().is_some_and(|u| u.serial == serial) {
+                    let u = self.utterance.take().expect("utterance");
+                    if u.say {
+                        self.pace_text();
+                    }
                 }
             }
         }
@@ -484,6 +535,9 @@ impl Core {
                 ));
             }
         }
+        if let Some(t) = self.utterance.as_ref().and_then(|u| u.marks.front()) {
+            v.push((t.0, Timer::Utterance));
+        }
         if self.persist_dirty {
             let t = self
                 .last_persist
@@ -514,6 +568,7 @@ impl Core {
                 }
             }
             Timer::Persist => self.persist_now(),
+            Timer::Utterance => self.utterance_mark(),
         }
     }
 
@@ -573,6 +628,7 @@ impl Core {
             chosen: self.chosen,
             scale: self.scale,
             scale_chosen: self.scale_chosen,
+            speech: self.speech_chosen.then_some(self.speech_on),
         })
     }
 
@@ -724,6 +780,10 @@ impl Core {
                 self.reply(token, Ok(ReplyValue::Unit));
                 self.choose_scale(n);
             }
+            Call::SetSpeech(on) => {
+                self.reply(token, Ok(ReplyValue::Unit));
+                self.choose_speech(on);
+            }
             Call::SetIdleOn(on) => {
                 self.reply(token, Ok(ReplyValue::Unit));
                 if !on {
@@ -764,7 +824,12 @@ impl Core {
                             return self.reply(token, Err(err(errors::UNKNOWN_ANIMATION, e)));
                         }
                     },
-                    Call::Speak(text) => {
+                    Call::Speak(_) | Call::SpeakWith { .. } => {
+                        let (text, speech) = match c {
+                            Call::SpeakWith { text, speech } => (text, speech),
+                            Call::Speak(text) => (text, None),
+                            _ => unreachable!(),
+                        };
                         let mut alts = Vec::new();
                         for a in speak::alternatives(&text) {
                             match speak::parse(a) {
@@ -774,7 +839,7 @@ impl Core {
                                 }
                             }
                         }
-                        Kind::Speak(alts)
+                        Kind::Speak(alts, speech)
                     }
                     Call::Ask(spec) => match office::validate(&spec, self.lang) {
                         Ok(a) => Kind::Ask(Box::new(a)),
@@ -906,7 +971,7 @@ impl Core {
                 .as_ref()
                 .is_some_and(|a| a.model.mode == Mode::Modal)
                 || self.gallery.is_some();
-            if blocking && matches!(head.kind, Kind::Speak(_) | Kind::Ask(_)) {
+            if blocking && matches!(head.kind, Kind::Speak(..) | Kind::Ask(_)) {
                 break;
             }
             let req = self.queue.pop_front().expect("head");
@@ -1079,7 +1144,7 @@ impl Core {
                     Some(false) => {}
                 }
             }
-            Kind::Speak(alts) => {
+            Kind::Speak(alts, _) => {
                 let i = if alts.len() > 1 {
                     self.draws.draw(alts.len() as u32) as usize
                 } else {
@@ -1184,7 +1249,7 @@ impl Core {
                 self.hide_now(cause);
                 self.finish();
             }
-            Kind::Speak(_) => self.speak_output(),
+            Kind::Speak(..) => self.speak_output(),
             Kind::Ask(_) => {
                 if !self.visible() {
                     return self.finish();
@@ -1414,9 +1479,15 @@ impl Core {
         // B-CHAR-6: the install hint, the only internal Speak (id 0), stays until clicked.
         let auto_hide = st.auto_hide && r.req.id != 0;
         let (fg, bg, border, auto_pace) = (st.fg, st.bg, st.border, st.auto_pace);
+        let words = t.words.len();
+        // B-TTS-1: spoken with speech output on (or asked for), sounds on and a word.
+        let spoken = match &r.req.kind {
+            Kind::Speak(_, o) => o.unwrap_or(self.speech_on),
+            _ => false,
+        } && self.config.sound_effects
+            && words > 0;
         // R-BAL-10: the next Speak hides an old balloon.
         self.hide_speech_balloon();
-        let words = t.words.len();
         let shown = enabled && !self.dragging;
         let mut sp = Speech {
             style_lines: lines,
@@ -1434,13 +1505,16 @@ impl Core {
             sender,
             interval,
             next_word: None,
-            end_at: Some(self.now + words as Ms * interval),
+            end_at: None,
             auto_hide,
             hide_at: None,
             shown: false,
             first_line: 0,
             scroll: None,
             active: true,
+            auto_pace,
+            spoken_starts: t.spoken_starts,
+            spoken: 0,
         };
         if shown {
             sp.shown = true;
@@ -1451,16 +1525,135 @@ impl Core {
             // B-BAL-1: paced without a balloon.
             self.speech.as_mut().unwrap().shown = false;
         }
-        if auto_pace {
-            self.reveal(1);
-            if words > 1 {
-                self.speech.as_mut().unwrap().next_word = Some(self.now + interval);
-            }
-        } else {
+        if !auto_pace {
             self.reveal(words);
+        }
+        if spoken {
+            self.start_utterance(t.spoken, true);
+        } else {
+            self.pace_text();
         }
         if words == 0 {
             self.speech_end();
+        }
+    }
+
+    /// R-BAL-8 text-only pacer from the words spoken so far (B-TTS-4): the next word at
+    /// once, then one per interval, the end `remaining x interval` from now.
+    fn pace_text(&mut self) {
+        let now = self.now;
+        let Some(s) = &mut self.speech else { return };
+        if !s.active {
+            return;
+        }
+        let from = s.spoken;
+        s.end_at = Some(now + (s.words - from) as Ms * s.interval);
+        if s.auto_pace && from < s.words {
+            if from + 1 < s.words {
+                s.next_word = Some(now + s.interval);
+            }
+            self.reveal(from + 1);
+        }
+    }
+
+    // ----- speech output (B-TTS) -----
+
+    /// B-TTS-2: ask the engine for `text`; `say` = the Speak balloon follows it.
+    fn start_utterance(&mut self, text: String, say: bool) {
+        self.stop_speech();
+        let c = self.ch.as_ref().expect("character");
+        let v = &c.model.voice;
+        let range = |x: Option<i64>| x.filter(|x| (1..=1000).contains(x)).map(|x| x as u32);
+        let voice = VoiceSpec {
+            // A tag of letters, digits and `-`, at most 16 long (B-TTS-3).
+            language: v
+                .language
+                .clone()
+                .filter(|l| {
+                    (1..=16).contains(&l.len())
+                        && l.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+                })
+                .unwrap_or_else(|| {
+                    match self.lang {
+                        Lang::De => "de",
+                        Lang::En => "en",
+                    }
+                    .into()
+                }),
+            gender: v.gender.filter(|g| [1, 2].contains(g)).map(|g| g as u32),
+            pitch: range(v.pitch),
+            words_per_minute: speak::effective_speed(
+                range(v.speed).unwrap_or(170),
+                self.config.speaking_speed,
+            ),
+        };
+        self.last_serial += 1;
+        let serial = self.last_serial;
+        self.utterance = Some(Utterance {
+            serial,
+            say,
+            marks: VecDeque::new(),
+            mouth: None,
+        });
+        self.out.push(Output::SpeechStart {
+            serial,
+            text,
+            voice,
+        });
+    }
+
+    /// B-TTS-5: stop the current utterance's audio.
+    fn stop_speech(&mut self) {
+        if self.utterance.take().is_some() {
+            self.out.push(Output::SpeechStop);
+        }
+    }
+
+    /// B-TTS-1: speech turned off: the audio stops, a Speak goes on with the pacer.
+    fn speech_switched_off(&mut self) {
+        let say = self.utterance.as_ref().is_some_and(|u| u.say);
+        self.stop_speech();
+        if say {
+            self.pace_text();
+        }
+    }
+
+    /// The user set speech output (tray, `Speech` property): persisted, wins over config.
+    fn choose_speech(&mut self, on: bool) {
+        self.speech_on = on;
+        self.speech_chosen = true;
+        self.mark_dirty();
+        if !on {
+            self.speech_switched_off();
+        }
+    }
+
+    /// The next mark of the utterance is due (B-TTS-4, R-LIP-1).
+    fn utterance_mark(&mut self) {
+        let Some(u) = &mut self.utterance else { return };
+        let Some((_, m)) = u.marks.pop_front() else {
+            return;
+        };
+        let say = u.say;
+        match m {
+            SpeechMark::Phoneme(p) => u.mouth = lipsync::mouth_for_ipa(&p).or(u.mouth),
+            SpeechMark::End => {
+                self.utterance = None;
+                if say {
+                    self.speech_end();
+                }
+            }
+            SpeechMark::Word(o) => {
+                let Some(s) = self.speech.as_mut().filter(|_| say) else {
+                    return;
+                };
+                let n = s.spoken_starts.partition_point(|&x| x <= o).max(1);
+                s.spoken = s.spoken.max(n);
+                let n = s.spoken;
+                if s.auto_pace {
+                    self.reveal(n);
+                }
+            }
         }
     }
 
@@ -1586,8 +1779,18 @@ impl Core {
                 self.finish();
             }
             Ok(p) => {
+                // B-TTS-1: the heading and the text, without markup.
+                let mut text = a.model.heading.clone();
+                let body: String = a.model.text.iter().map(|p| p.text.as_str()).collect();
+                if !text.is_empty() && !body.is_empty() {
+                    text.push('\n');
+                }
+                text.push_str(&body);
                 self.ask = Some(a);
                 self.apply_placement(p);
+                if self.speech_on && self.config.sound_effects && !text.trim().is_empty() {
+                    self.start_utterance(text, false);
+                }
             }
         }
     }
@@ -1703,6 +1906,9 @@ impl Core {
     /// Close a client ask: AskComplete then RequestComplete.
     fn close_ask(&mut self, result: i32, status: u32, reason: &str) {
         let Some(a) = self.ask.take() else { return };
+        if self.utterance.as_ref().is_some_and(|u| !u.say) {
+            self.stop_speech();
+        }
         if a.scene.is_some() {
             self.emit(Signal::BalloonHidden);
         }
@@ -2085,7 +2291,7 @@ impl Core {
             return;
         }
         if let Ok(t) = speak::parse(l10n::install_hint(self.lang)) {
-            self.enqueue_internal(Kind::Speak(vec![t]));
+            self.enqueue_internal(Kind::Speak(vec![t], Some(false)));
         }
     }
 
@@ -2098,6 +2304,7 @@ impl Core {
             self.close_ask(0, 3, errors::CHARACTER_CHANGED);
         }
         self.idle_reset();
+        self.stop_speech();
         self.hide_speech_balloon();
         self.speech = None;
         let m = self.output_rect();
@@ -2146,6 +2353,7 @@ impl Core {
             self.owner = Owner::None;
         }
         if matches!(r.stage, Stage::Output) {
+            self.stop_speech();
             if let Some(s) = &mut self.speech {
                 s.active = false;
                 s.next_word = None;
@@ -2545,6 +2753,14 @@ impl Core {
                 })
                 .collect(),
         });
+        // B-TRAY-1: the speech output check item, in the tray only.
+        if tray {
+            v.push(MenuEntry::Item {
+                label: l10n::menu_string(self.lang, MenuString::Speech).into(),
+                action: MenuAction::Speech,
+                checked: Some(self.speech_on),
+            });
+        }
         v
     }
 
@@ -2702,6 +2918,7 @@ impl Core {
                     self.choose_scale(n);
                 }
             }
+            MenuAction::Speech => self.choose_speech(!self.speech_on),
         }
     }
 
@@ -2814,7 +3031,13 @@ impl Core {
                 Pic::Frame(a, f) => Picture::Frame {
                     animation: c.model.animations[a].name.clone(),
                     frame: f,
-                    mouth: None,
+                    // R-LIP-1: the utterance's mouth, if this frame has one of that type.
+                    mouth: self.utterance.as_ref().and_then(|u| u.mouth).filter(|&k| {
+                        c.model.animations[a].frames[f]
+                            .mouths
+                            .iter()
+                            .any(|m| m.kind == k)
+                    }),
                 },
             },
             output: c.output,
@@ -2963,6 +3186,7 @@ impl Core {
                 .map(|c| c.model.animation_names())
                 .unwrap_or_default(),
             scale: self.scale,
+            speech: self.speech_on,
         }
     }
 }

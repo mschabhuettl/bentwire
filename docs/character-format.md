@@ -100,7 +100,7 @@ cannot express. All 63 converted manifests validate.
 | `character.standard_animation_set` | bool | Agent flag 0x100000. |
 | `[[character.info]]` | table array | `lang` (BCP 47), `name`, `description`, `extra`; source order kept. `extra` is the Agent ExtraData, by convention `Intro1~~Intro2^^Reminder1~~Reminder2`; the daemon shows an intro phrase in the gallery (B-GAL-1). |
 | `[balloon]` | table | `enabled`, `lines`, `chars_per_line`, `fg`, `bg`, `border` (`#RRGGBB`), `font`, `font_height`, `font_weight`, `italic`, `font_flag2`, `size_to_text`, `auto_hide`, `auto_pace`. |
-| `[voice]` | table | `engine`, `mode` (GUIDs), `speed`, `pitch`, optional `language`, `dialect`, `gender`, `age`, `style`. |
+| `[voice]` | table | `engine`, `mode` (GUIDs), `speed`, `pitch`, optional `language`, `dialect`, `gender`, `age`, `style`. Speech output uses `language`, `gender`, `pitch` and `speed` (spec B-TTS-3). |
 | `[icon]` | table | `file`. |
 | `[[sheets]]` | table array | `id`, `file`, `cell` = [w, h], `count`, optional `sizes`, `scale`, `hidpi` (section 5). |
 | `[sounds]` | table | sound id = file path. |

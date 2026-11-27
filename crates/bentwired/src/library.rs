@@ -214,27 +214,44 @@ pub fn density(c: &Character, k: u32, scale: u32) -> u32 {
     }
 }
 
-/// The composed character picture at `density` times the display size, straight RGBA.
-/// Mouth overlays are never requested in v1 (B-LIP-2), so they are not drawn.
+/// The composed character picture at `density` times the display size, straight RGBA,
+/// with its mouth (speech output only, R-LIP-1) clipped to the frame (B-PIX-2).
 pub fn picture(c: &Character, p: &Picture, density: u32) -> RgbaImage {
+    let rgba = |i: bentwire_character::Rgba| RgbaImage {
+        width: i.width,
+        height: i.height,
+        data: i.data,
+    };
     let img = match p {
         Picture::Empty => None,
         Picture::Frame {
-            animation, frame, ..
+            animation,
+            frame,
+            mouth,
         } => c
             .manifest
             .animation(animation)
             .and_then(|a| a.frames.get(*frame))
-            .map(|f| c.compose_frame(f, None, density)),
-        Picture::Pose(id) => c.manifest.poses.get(id).map(|l| c.compose(l, density)),
+            .map(|f| {
+                let i = mouth.and_then(|k| f.mouths.iter().position(|m| m.kind == k));
+                match i.map(|i| &f.mouths[i]) {
+                    // A mouth with `base` replaces the frame and is not clipped.
+                    Some(m) if m.base.is_none() => bentwire_render::picture::clip_mouth(
+                        &rgba(c.compose_frame(f, None, density)),
+                        &rgba(c.compose(std::slice::from_ref(&m.layer), density)),
+                    ),
+                    _ => rgba(c.compose_frame(f, i, density)),
+                }
+            }),
+        Picture::Pose(id) => c
+            .manifest
+            .poses
+            .get(id)
+            .map(|l| rgba(c.compose(l, density))),
     };
     // A-CHAR-4: compose returns 0x0 for oversized output; draw nothing then.
     match img.filter(|i| i.width > 0 && i.height > 0) {
-        Some(i) => RgbaImage {
-            width: i.width,
-            height: i.height,
-            data: i.data,
-        },
+        Some(i) => i,
         None => {
             let [w, h] = c.manifest.display();
             RgbaImage::new(w * density.max(1), h * density.max(1))
@@ -388,6 +405,57 @@ mod tests {
         let (n, failures) = load_and_play_all(&root);
         assert!(n >= 1, "no characters in {}", root.display());
         assert!(failures.is_empty(), "{failures:#?}");
+    }
+
+    /// R-LIP-1, B-PIX-2: a mouth is drawn over the frame, only where the frame is opaque.
+    #[test]
+    fn r_lip_1_b_pix_2_mouth_drawn_clipped_to_the_frame() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../characters/builtin");
+        let c = load_character(&root.join("bentwire-placeholder"), None).unwrap();
+        let pic = |mouth| {
+            picture(
+                &c,
+                &Picture::Frame {
+                    animation: "Speak".into(),
+                    frame: 0,
+                    mouth,
+                },
+                1,
+            )
+        };
+        let base = pic(None);
+        for k in 0..7 {
+            let m = pic(Some(k));
+            assert_eq!((m.width, m.height), (base.width, base.height));
+            let changed: Vec<usize> = (0..base.data.len() / 4)
+                .filter(|&i| base.data[i * 4..i * 4 + 4] != m.data[i * 4..i * 4 + 4])
+                .collect();
+            assert!(!changed.is_empty(), "mouth {k} drawn");
+            assert!(
+                changed.iter().all(|&i| base.data[i * 4 + 3] > 0),
+                "mouth {k}"
+            );
+        }
+        // A mouth type the frame does not have draws the plain frame.
+        let last = picture(
+            &c,
+            &Picture::Frame {
+                animation: "Speak".into(),
+                frame: 4,
+                mouth: Some(3),
+            },
+            1,
+        );
+        let plain = picture(
+            &c,
+            &Picture::Frame {
+                animation: "Speak".into(),
+                frame: 4,
+                mouth: None,
+            },
+            1,
+        );
+        assert_eq!(last, plain);
     }
 
     /// B-CHAR-1: the daemon writes its discovery cache and the next start uses it.

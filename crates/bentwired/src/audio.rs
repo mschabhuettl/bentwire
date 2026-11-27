@@ -328,10 +328,10 @@ impl Chooser {
 
 /// A shared library loaded at run time. It is never unloaded: sound server client
 /// libraries do not support that.
-struct Dl(*mut c_void);
+pub(crate) struct Dl(*mut c_void);
 
 impl Dl {
-    fn open(name: &CStr) -> Result<Dl, String> {
+    pub(crate) fn open(name: &CStr) -> Result<Dl, String> {
         // SAFETY: dlopen with a NUL-terminated name.
         let h = unsafe { libc::dlopen(name.as_ptr(), libc::RTLD_NOW | libc::RTLD_LOCAL) };
         if h.is_null() {
@@ -351,7 +351,7 @@ impl Dl {
     ///
     /// # Safety
     /// `T` must be the function pointer type of that C function.
-    unsafe fn sym<T: Copy>(&self, name: &CStr) -> Result<T, String> {
+    pub(crate) unsafe fn sym<T: Copy>(&self, name: &CStr) -> Result<T, String> {
         assert_eq!(size_of::<T>(), size_of::<*mut c_void>());
         // SAFETY: a live handle and a NUL-terminated name.
         let p = unsafe { libc::dlsym(self.0, name.as_ptr()) };

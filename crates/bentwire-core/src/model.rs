@@ -63,6 +63,15 @@ impl Default for BalloonStyle {
     }
 }
 
+/// `[voice]` values speech output uses (B-TTS-3), raw as in the manifest.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Voice {
+    pub language: Option<String>,
+    pub gender: Option<i64>,
+    pub pitch: Option<i64>,
+    pub speed: Option<i64>,
+}
+
 /// Animation-level `transition` key (agent family).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum Transition {
@@ -163,6 +172,7 @@ pub struct CharacterModel {
     pub display: (u32, u32),
     pub info: Vec<InfoEntry>,
     pub balloon: BalloonStyle,
+    pub voice: Voice,
     /// `[states]` in manifest order.
     pub states: Vec<(String, Vec<String>)>,
     /// `[[animations]]` in manifest order. Animations in `source.missing_animations`
@@ -186,6 +196,7 @@ impl CharacterModel {
             display: size,
             info: Vec::new(),
             balloon: BalloonStyle::default(),
+            voice: Voice::default(),
             states: Vec::new(),
             animations: Vec::new(),
             sounds: Vec::new(),

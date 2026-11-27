@@ -3,7 +3,7 @@
 
 use bentwire_core::api::{MenuAction, MenuEntry, TrayInput, TrayScene};
 use ksni::blocking::{Handle, TrayMethods};
-use ksni::menu::{RadioGroup, RadioItem, StandardItem, SubMenu};
+use ksni::menu::{CheckmarkItem, RadioGroup, RadioItem, StandardItem, SubMenu};
 
 pub struct BwTray {
     tx: calloop::channel::Sender<TrayInput>,
@@ -101,7 +101,8 @@ impl ksni::Tray for BwTray {
     }
 }
 
-/// dbusmenu items; a run of choice items (`checked: Some`) becomes one radio group.
+/// dbusmenu items; a run of choice items (`checked: Some`) becomes one radio group, the
+/// speech output item a check item (B-TRAY-1).
 fn menu_items(entries: &[MenuEntry]) -> Vec<ksni::MenuItem<BwTray>> {
     let label = |l: &str| dbusmenu_label(&l.replace('\0', ""));
     let mut out = Vec::new();
@@ -113,6 +114,21 @@ fn menu_items(entries: &[MenuEntry]) -> Vec<ksni::MenuItem<BwTray>> {
                 SubMenu {
                     label: label(l),
                     submenu: menu_items(entries),
+                    ..Default::default()
+                }
+                .into(),
+            ),
+            MenuEntry::Item {
+                label: l,
+                action: MenuAction::Speech,
+                checked,
+            } => out.push(
+                CheckmarkItem {
+                    label: label(l),
+                    checked: checked.unwrap_or(false),
+                    activate: Box::new(|t: &mut BwTray| {
+                        let _ = t.tx.send(TrayInput::Menu(MenuAction::Speech));
+                    }),
                     ..Default::default()
                 }
                 .into(),

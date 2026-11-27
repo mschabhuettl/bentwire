@@ -2262,3 +2262,80 @@ fn spec_5_1_introspection_matches_docs_dbus_xml() {
         file.display()
     );
 }
+
+/// B-TTS-1, B-TTS-6: the `Speech` property and the CLI; headless mode has no engine, so a
+/// spoken Speak falls back to the text-only pacer and completes as one.
+#[test]
+fn b_tts_1_speech_property_cli_say_speak_and_fallback() {
+    let mut e = Env::new("speech");
+    let trace = e.dir.join("trace.jsonl");
+    e.start(&["--trace", trace.to_str().unwrap()]);
+    e.advance(1000);
+    // A-DESK-3: the drawn frame; no mouth without speech.
+    let p = &e.snapshot()["picture"];
+    assert!(p["animation"].is_string() && p["frame"].is_u64(), "{p}");
+    assert!(p["mouth"].is_null());
+    assert_eq!(out(&e.cli(&["speech"])), (0, "off\n".into(), String::new()));
+    assert_eq!(out(&e.cli(&["speech", "on"])).0, 0);
+    assert_eq!(out(&e.cli(&["speech"])).1, "on\n");
+    assert!(bool::try_from(e.prop(AGENT, AGENT_IF, "Speech")).unwrap());
+    assert_eq!(out(&e.cli(&["speech", "maybe"])).0, 1);
+    let bad = e.conn.call_method(
+        Some("org.bentwire.Agent"),
+        AGENT,
+        Some("org.freedesktop.DBus.Properties"),
+        "Set",
+        &(AGENT_IF, "Speech", Value::from(1u32)),
+    );
+    assert!(
+        matches!(&bad, Err(zbus::Error::MethodError(n, _, _)) if n.as_str() == "org.freedesktop.DBus.Error.InvalidArgs"),
+        "{bad:?}"
+    );
+    assert_eq!(out(&e.cli(&["say", "--speak", "--no-speak", "x"])).0, 1);
+    // SpeakWith over D-Bus: unknown keys are InvalidArgs.
+    let c = e.client();
+    let opts = std::collections::HashMap::from([("voice", Value::from(true))]);
+    assert_eq!(
+        c.call_id("SpeakWith", &("x", opts)),
+        Err("org.freedesktop.DBus.Error.InvalidArgs".into())
+    );
+    let mut c = e.client();
+    let opts = std::collections::HashMap::from([("speech", Value::from(true))]);
+    let id = c.call_id("SpeakWith", &("hi there", opts)).unwrap();
+    e.advance(5000);
+    assert_eq!(c.complete(id), (0, String::new()));
+    let lines: Vec<serde_json::Value> = std::fs::read_to_string(&trace)
+        .unwrap()
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect();
+    let start = lines
+        .iter()
+        .find(|l| l["type"] == "speech_start")
+        .expect("speech_start");
+    assert_eq!(start["text"], "hi there");
+    assert_eq!(start["voice"]["words_per_minute"], 170);
+    assert!(
+        lines
+            .iter()
+            .any(|l| l["type"] == "speech_failed" && l["serial"] == start["serial"])
+    );
+    // `say --no-speak` is plain text even with speech on.
+    let n = lines.iter().filter(|l| l["type"] == "speech_start").count();
+    assert_eq!(out(&e.cli(&["say", "--no-speak", "quiet"])).0, 0);
+    e.advance(5000);
+    let starts = std::fs::read_to_string(&trace)
+        .unwrap()
+        .matches("\"speech_start\"")
+        .count();
+    assert_eq!(starts, n);
+    // Persisted (B-CFG-2): it wins over the config key after a restart.
+    e.client().call_unit(AGENT, AGENT_IF, "Quit", &()).unwrap();
+    assert_eq!(e.wait_exit(10), Some(0));
+    assert!(e.state().contains("speech = true"), "{}", e.state());
+    std::fs::create_dir_all(e.dir.join("cfg/bentwire")).unwrap();
+    std::fs::write(e.dir.join("cfg/bentwire/config.toml"), "speech = false\n").unwrap();
+    e.start(&[]);
+    e.advance(1000);
+    assert!(bool::try_from(e.prop(AGENT, AGENT_IF, "Speech")).unwrap());
+}

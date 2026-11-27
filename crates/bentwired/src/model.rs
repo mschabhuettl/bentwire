@@ -188,6 +188,16 @@ pub fn model_from(id: &str, c: &Character) -> CharacterModel {
             })
             .collect(),
         balloon: balloon(m.balloon.as_ref()),
+        voice: m
+            .voice
+            .as_ref()
+            .map(|v| cm::Voice {
+                language: v.language.clone(),
+                gender: v.gender,
+                pitch: v.pitch,
+                speed: v.speed,
+            })
+            .unwrap_or_default(),
         // A missing animation is dropped from its states like from `animations`, and a state
         // it leaves empty is dropped: the core sees the character as if it never had them.
         states: m

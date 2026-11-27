@@ -31,6 +31,8 @@ pub enum MenuString {
     Animate,
     /// B-SCALE-1.
     Size,
+    /// B-TRAY-1 speech output item (B-TTS-1).
+    Speech,
 }
 
 pub fn menu_string(lang: Lang, s: MenuString) -> &'static str {
@@ -48,6 +50,8 @@ pub fn menu_string(lang: Lang, s: MenuString) -> &'static str {
         (Lang::De, Animate) => "A&nimation!",
         (Lang::En, Size) => "&Size",
         (Lang::De, Size) => "&Größe",
+        (Lang::En, Speech) => "S&peech",
+        (Lang::De, Speech) => "&Sprachausgabe",
     }
 }
 
