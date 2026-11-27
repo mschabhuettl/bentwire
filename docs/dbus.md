@@ -17,7 +17,7 @@ and the spec differ, the spec wins.
 |---|---|
 | Bus | session bus |
 | Name | `org.bentwire.Agent` |
-| `/org/bentwire/Agent` | `org.bentwire.Agent1`: characters, scale, speech, quit |
+| `/org/bentwire/Agent` | `org.bentwire.Agent1`: characters, scale, speech, smooth edges, quit |
 | `/org/bentwire/Character` | `org.bentwire.Character1`: the current character (one at a time) |
 
 Both objects also implement `org.freedesktop.DBus.Introspectable`, `Peer` and
@@ -78,6 +78,7 @@ signals.
 | `Version` | `s` | read | daemon version |
 | `Scale` | `u` | read, write | size factor 1 to 4 (B-SCALE-1); a write is persisted; other values give `InvalidArgs` |
 | `Speech` | `b` | read, write | speech output with espeak-ng (B-TTS-1); a write is persisted and wins over the config key `speech` |
+| `Smooth` | `b` | read, write | smooth edges of vector characters (B-SMOOTH-1); a write is persisted and wins over the config key `smooth` |
 
 ## `org.bentwire.Character1` at `/org/bentwire/Character`
 

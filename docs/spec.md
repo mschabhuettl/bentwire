@@ -1361,9 +1361,10 @@ belongs to the original menu.
 - `SecondaryActivate` (middle click) emits `Click(4, 0, x, y, true)`.
 - The context menu is supplied as dbusmenu:
   - when visible, the items of B-MENU-1; Size is a dbusmenu submenu whose factors form
-    one radio group; last, a check item `S&peech` (German `&Sprachausgabe`, bentwire
-    strings) that shows and toggles speech output (B-TTS-1). It is not in the
-    character's own menu, which keeps the original items;
+    one radio group; then a check item `S&mooth Edges` (German `&Kanten glätten`) that
+    shows and toggles smooth edges (B-SMOOTH-1); last, a check item `S&peech` (German
+    `&Sprachausgabe`), bentwire strings, that shows and toggles speech output (B-TTS-1).
+    They are not in the character's own menu, which keeps the original items;
   - when hidden, only `&Show` ([DOC] `pop-up-menu-support`).
 - SNI hosts show the menu themselves, so a right click on the tray emits no `Click`, and
   tray double-click is not available. These are documented deviations.
@@ -1436,7 +1437,7 @@ Nothing else in v1 needs the global pointer.
   neighbour, exact). A character with `hidpi` sheets (the vector actors, `wire`)
   is composed at the buffer scale times the factor, so A-CHAR-3 takes its 2x sheet; above
   2x the densest sheet is scaled by nearest neighbour (at 3x, 1.5 pixels per 2x pixel).
-  No fractional factors and no smoothing.
+  No fractional factors; smoothing only by B-SMOOTH-1.
 - Everything that depends on the character's size uses the scaled frame: the input
   region (B-PIX-3, B-REN-4), the B-CHAR-5 anchor (the rest picture's opaque box times the
   factor), the first-run position (B-CFG-3), MoveTo and GestureAt directions (R-MOVE-1,
@@ -1459,6 +1460,41 @@ Nothing else in v1 needs the global pointer.
   factor keeps the bottom centre of that position.
 - Reason: the characters are small on today's screens; integer factors keep the pixel art
   exact, and the vector actors' 2x sheets give real detail.
+
+**B-SMOOTH-1 Smooth edges.** **bentwire decision.**
+- A switch, off by default; off draws exactly as without it (byte-identical pictures).
+- On, a picture that B-SCALE-1 composes at density `d` (buffer scale times the factor for
+  a character with `hidpi` sheets) is composed instead at the densest `hidpi` key `k` of
+  the character's sheets, when `k > d` and `k` is a multiple of `d`, and reduced by
+  `n = k / d` with a box filter: each pixel is the average of its `n x n` block,
+  premultiplied (alpha = round(sum a / n^2), colour = round(sum c a / sum a), halves
+  up), fully transparent blocks transparent black. Then it goes on as before (B-WL-6,
+  B-PIX-2 clipping of the mouth happens at the composing density).
+- In effect: the converted vector actors (2x sheets, A-CONV-1) are anti-aliased with 2 x 2
+  supersampling at size factor 1 on a 1x output. At density 2 or more (factor 2 to 4, or
+  a HiDPI output) there is no denser sheet and the setting changes nothing; bitmap
+  characters (no `hidpi` sheets) never change. `wire` is drawn from its 2x sheet,
+  filtered, instead of its own anti-aliased 1x sheet. Lines of cosmetic one-pixel pens
+  (W-RAST-1) are one pixel wide in the 2x sheet, so they come out lighter (half
+  coverage) than in the aliased 1x picture.
+- The input region (B-PIX-3, B-REN-4) is the alpha > 0 shape of the filtered picture, so
+  it includes the partly transparent edge pixels.
+- Global, not per character. Set by the config key `smooth` (B-CFG-1), the tray's check
+  item (B-TRAY-1), `bentwire smooth on|off` and the Agent1 property `Smooth` (5.2). The
+  tray, the CLI and `Smooth` are the user's choice: it is persisted (B-CFG-2) and from then
+  on wins over the config key, as for `speech` (B-TTS-1). A change applies at once to the
+  displayed frame; it emits no other signal than `PropertiesChanged`.
+- Reason: Office 97 drew its actors aliased, and the packs store only rasterised sheets
+  (D2), so anti-aliasing needs either denser pictures or the vector data. The 2x sheets
+  already in every converted vector actor are an exact 2x rendering, and averaging them is
+  real coverage anti-aliasing (5 levels per pixel), not a blur of the 1x picture; it needs
+  no new format key, no new pack and no converter change. Rejected: smoothed sheets
+  emitted by the converter (an extra RGBA set per actor: measured for `clippit-97` about
+  1.0 MB for the 1x set from 2 x 2 supersampling against 0.36 MB for the indexed one, so
+  roughly +3x the 37 MB of vector sheets in `classics` for 1x and 2x, a pack of about 88 MB
+  growing past 200 MB) and vector data rasterised in the daemon (a new format part, the
+  WMF rasteriser in the daemon and per-density caches). Both would also smooth at density
+  2; that is the cost of the chosen design.
 
 **B-WL-7 Drag implementation.**
 - Drags use the implicit grab of the pressed button.
@@ -1651,6 +1687,7 @@ the acs-format parser:
 | `double_click_ms` | `500` | B-UI-1 |
 | `scale` | `1` | B-SCALE-1 (1 to 4) |
 | `speech` | `false` | B-TTS-1; Agent "Play spoken audio" |
+| `smooth` | `false` | B-SMOOTH-1 |
 
 The daemon reads the config file at start and when it receives SIGHUP or the D-Bus call
 `Reload` (which also read the add-ons again, B-ADDON-3).
@@ -1666,6 +1703,7 @@ The daemon reads the config file at start and when it receives SIGHUP or the D-B
   chose it (B-SCALE-1); a file without them counts as 1, not chosen;
 - `speech`: speech output as the user set it (B-TTS-1), written only once set; without it
   the config key applies;
+- `smooth`: smooth edges as the user set them (B-SMOOTH-1), the same way;
 - written at most once per second after a change, and at exit.
 
 **B-CFG-3 First run.** **bentwire decision.**
@@ -1745,8 +1783,9 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   7 x 7 tick at x = 7, a submenu item a 4 x 7 arrow 13 px from the right edge (B-SCALE-1).
   Reason: B-WL-9 says "XP style" without metrics.
 - **B-REN-4 HiDPI shape.** For a picture above 1x, a logical pixel belongs to the input
-  region when any buffer pixel it covers has alpha > 0. Reason: B-WL-6 keeps logical
-  sizes; for 1x pictures this equals B-PIX-3.
+  region when any buffer pixel it covers has alpha > 0 (also a partly transparent edge
+  pixel of a smoothed picture, B-SMOOTH-1). Reason: B-WL-6 keeps logical sizes; for 1x
+  pictures this equals B-PIX-3.
 - **B-REN-5 Headless frames** (T-4 `--dump-frames`): one RGBA PNG per output at
   ceil(output scale), transparent background, z-order character, Agent balloon, Office
   balloon, menu. Reason: the dump shows what bentwire draws, not a desktop.
@@ -1868,7 +1907,8 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   file must not crash or exhaust the daemon; the largest real character is 2880 logical
   units wide.
 - **A-CONV-1 Vector actor pictures (D2).** Each used pose is rasterised by the bentwire
-  WMF rasteriser at the display size (1x) and at 2x (`hidpi = { 2 = ... }`), aliased,
+  WMF rasteriser at the display size (1x) and at 2x (`hidpi = { 2 = ... }`), aliased
+  (the daemon can smooth them from the 2x sheet, B-SMOOTH-1),
   indexed. Palette: index 0 is a transparent key colour not painted by the actor, then the
   exact distinct colours the metafiles paint, in first-use order (not quantised to the
   Office palette). Reason: D2 asks for the exact WMF colours; act-format 4.6 accepts the
@@ -2143,6 +2183,7 @@ the menu. `--dump-frames DIR` writes
 | property `Version` | `s`, read | daemon version |
 | property `Scale` | `u`, read and write | size factor 1 to 4 (B-SCALE-1); a write is the user's choice and is persisted; other values: `InvalidArgs` |
 | property `Speech` | `b`, read and write | speech output on (B-TTS-1); a write is the user's choice and is persisted |
+| property `Smooth` | `b`, read and write | smooth edges on (B-SMOOTH-1); a write is the user's choice and is persisted |
 
 ### 5.3 `org.bentwire.Character1`
 
@@ -2250,6 +2291,7 @@ activation. If that also fails, it prints `bentwired is not running` and exits 1
 | `animations` | `AnimationNames` | one per line |
 | `scale [<n>]` | `Scale` (read; write with `n`, 1 to 4) | without `n`: the factor; with `n`: nothing |
 | `speech [on \| off]` | `Speech` (read; write with `on` or `off`) | without an argument: `on` or `off`; with one: nothing |
+| `smooth [on \| off]` | `Smooth` (read; write with `on` or `off`) | as `speech` |
 | `status` | properties | `character`, `visible`, `left`, `top`, `idle` as `key=value` lines |
 | `quit` | `Quit` | nothing |
 | `convert <source> <dest>` | local, no daemon | per character-format 10 |

@@ -35,6 +35,7 @@ writing the spec itself are marked **bentwire decision** in its sections 3.1 to 
 | A-CHAR-3 | HiDPI sheet choice per layer from the destination rectangle |
 | A-CHAR-4 | Character sanity limits; oversized output composes to an empty picture |
 | A-CONV-1 | Vector actors rasterised at 1x and 2x with their exact metafile colours |
+| B-SMOOTH-1 | Smooth edges (off by default): the daemon composes from the 2x sheet and box-filters it (2 x 2 supersampling at density 1); no converter or pack change (spec 3.11) |
 | A-CONV-2 | Sounds deduplicated by PCM, ids `sNN` |
 | A-CONV-3 | ACT language, codepage and Office palette are converter options |
 | A-CONV-4 | Agent 1.5 files record no animation set version |
