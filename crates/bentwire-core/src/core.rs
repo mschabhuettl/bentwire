@@ -1565,13 +1565,21 @@ impl Core {
         let v = &c.model.voice;
         let range = |x: Option<i64>| x.filter(|x| (1..=1000).contains(x)).map(|x| x as u32);
         let voice = VoiceSpec {
-            language: v.language.clone().unwrap_or_else(|| {
-                match self.lang {
-                    Lang::De => "de",
-                    Lang::En => "en",
-                }
-                .into()
-            }),
+            // A tag of letters, digits and `-`, at most 16 long (B-TTS-3).
+            language: v
+                .language
+                .clone()
+                .filter(|l| {
+                    (1..=16).contains(&l.len())
+                        && l.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+                })
+                .unwrap_or_else(|| {
+                    match self.lang {
+                        Lang::De => "de",
+                        Lang::En => "en",
+                    }
+                    .into()
+                }),
             gender: v.gender.filter(|g| [1, 2].contains(g)).map(|g| g as u32),
             pitch: range(v.pitch),
             words_per_minute: speak::effective_speed(

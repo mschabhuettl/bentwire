@@ -4113,10 +4113,11 @@ fn b_tts_3_voice_from_the_manifest() {
             words_per_minute: 234,
         }
     );
-    // Agent 1.5's "default" values and unknown genders count as absent.
+    // Agent 1.5's "default" values, unknown genders and a tag no voice can have count as
+    // absent.
     let mut m = talker("c");
     m.voice = Voice {
-        language: None,
+        language: Some(format!("en-{}", "x".repeat(30))),
         gender: Some(0),
         pitch: Some(65535),
         speed: Some(4294967295),

@@ -237,6 +237,10 @@ impl Engine {
     }
 
     fn set_voice(&self, lang: &str, gender: u8) -> c_int {
+        // espeak-ng 1.52 copies the language into a 20-byte buffer unchecked.
+        if lang.len() >= 20 {
+            return -1;
+        }
         let l = CString::new(lang).unwrap_or_default();
         let mut v = Voice {
             name: std::ptr::null(),

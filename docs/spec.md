@@ -891,7 +891,7 @@ where they go beyond R-BAL-11 and R-LIP-1.
 - Sound off with speech on gives the text-only pacer and no speech. Reason: sounds off
   means a silent character; speech is sound.
 - When the setting is turned off (menu, property, SIGHUP) or `sound_effects` goes off
-  while an utterance runs, its audio stops (B-TTS-5) and a Speak goes on with the
+  while an utterance runs (also one `SpeakWith` asked for), its audio stops (B-TTS-5) and a Speak goes on with the
   text-only pacer (B-TTS-4). Turning it on applies from the next Speak or Ask.
 
 **B-TTS-2 Engine boundary** (B-CORE-1).
@@ -913,7 +913,8 @@ where they go beyond R-BAL-11 and R-LIP-1.
 
 **B-TTS-3 Voice.** From the character's `[voice]` (character-format 4); each value is
 used only when present and in range, otherwise its default:
-- `language`: `[voice].language` (a BCP 47 tag), else the UI language (B-L10N-1).
+- `language`: `[voice].language` (a BCP 47 tag: 1 to 16 ASCII letters, digits and `-`),
+  else the UI language (B-L10N-1).
 - `gender`: `[voice].gender` (earl 1, merlin 2, acs-format 3.2.2), read in SAPI 4
   numbering, 1 female, 2 male [INF], else none.
 - `pitch`: `[voice].pitch`, read as the base pitch in Hz, the unit of Agent's `\Pit\`
@@ -954,10 +955,11 @@ used only when present and in range, otherwise its default:
   (a number is several spoken words).
 
 **B-TTS-5 Stopping.** The current utterance ends with `SpeechStop` when its Speak is
-interrupted (Stop, StopAll, user Hide, a character switch, the gallery opening, a
-client request ending an Animate! play, B-MENU-4), when its Ask balloon closes for any
-reason, and when speech is turned off (B-TTS-1). A new utterance first stops the current
-one. `End` ends it without `SpeechStop`.
+interrupted (Stop, StopAll, user Hide, a character switch, also by the gallery's Back
+and Next, a client request ending an Animate! play, B-MENU-4), when its Ask balloon
+closes for any reason (also when the gallery opens), and when speech is turned off
+(B-TTS-1). The gallery opening alone does not end a running Speak, as without speech.
+A new utterance first stops the current one. `End` ends it without `SpeechStop`.
 
 **B-TTS-6 espeak-ng in the daemon.**
 - `libespeak-ng.so.1` is loaded at run time with the first utterance; it is not a package
