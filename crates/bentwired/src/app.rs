@@ -499,19 +499,16 @@ impl App {
                         "text": text, "voice": {"language": voice.language,
                         "gender": voice.gender, "pitch": voice.pitch,
                         "words_per_minute": voice.words_per_minute}}));
-                    match &self.speech {
-                        Some((s, _)) => {
-                            self.speech_pending = Some(serial);
-                            s.say(crate::speech::Job {
-                                serial,
-                                text,
-                                voice,
-                            });
-                        }
-                        None => {
-                            let e = self.speech_failed(serial);
-                            self.deferred.push(e);
-                        }
+                    let job = crate::speech::Job {
+                        serial,
+                        text,
+                        voice,
+                    };
+                    if self.speech.as_ref().is_some_and(|(s, _)| s.say(job)) {
+                        self.speech_pending = Some(serial);
+                    } else {
+                        let e = self.speech_failed(serial);
+                        self.deferred.push(e);
                     }
                 }
                 Output::SpeechStop => {

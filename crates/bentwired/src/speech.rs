@@ -71,9 +71,10 @@ impl Speech {
         Speech { tx, wanted }
     }
 
-    pub fn say(&self, job: Job) {
+    /// False when the speech thread is gone (no answer will come).
+    pub fn say(&self, job: Job) -> bool {
         self.wanted.store(job.serial, Ordering::SeqCst);
-        let _ = self.tx.send(job);
+        self.tx.send(job).is_ok()
     }
 
     /// The current utterance is no longer wanted.

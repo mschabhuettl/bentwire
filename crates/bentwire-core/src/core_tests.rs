@@ -4174,6 +4174,15 @@ fn b_tts_5_stop_hide_switch_gallery_and_ask_close_stop_speech() {
     t.call(Call::Select("d".into())).unwrap();
     assert_eq!(speech_stops(&t), 4);
     t.advance(t.now + 1000);
+    // Browsing the gallery during a spoken say (Back from d to c).
+    started(&mut t, "a b");
+    open_gallery(&mut t);
+    assert_eq!(speech_stops(&t), 4);
+    key(&mut t, Key::Char('b'));
+    assert_eq!(t.core.properties().character, "c");
+    assert_eq!(speech_stops(&t), 5);
+    key(&mut t, Key::Escape);
+    t.advance(t.now + 1000);
 
     // A spoken ask: heading and text without markup; closing it stops the speech.
     let ask = |t: &mut T| {
@@ -4213,6 +4222,13 @@ fn b_tts_5_stop_hide_switch_gallery_and_ask_close_stop_speech() {
     });
     assert!(t.core.scene().office_balloon.is_none());
     assert_eq!(speech_stops(&t), 3);
+    // A program Hide closes a spoken ask.
+    ask(&mut t);
+    t.advance(t.now + 10);
+    assert_eq!(speech_starts(&t).len(), 4);
+    t.req(Call::Hide { fast: true });
+    assert!(t.core.scene().office_balloon.is_none());
+    assert_eq!(speech_stops(&t), 4);
 }
 
 /// B-MENU-4, B-TTS-5: a client Speak that ends an Animate! play is spoken itself, and

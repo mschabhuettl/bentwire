@@ -15,7 +15,10 @@
 #   alsa            no sound server; ALSA default is a file device
 #   speech          PulseAudio with espeak-ng: `bentwire speech on`, then a `say` (B-TTS-6)
 #                   is recorded on its own and the mouths drawn meanwhile (Test1 Snapshot)
-#                   are counted
+#                   are counted. The placeholder holds a Speak frame without mouths, so it
+#                   shows none; for lip sync set BENTWIRE_AUDIO_CHARS to a search root with
+#                   a character whose Speaking frame has them (classics merlin: a directory
+#                   with characters/merlin.bwc).
 # Downloaded packages are kept in $BENTWIRE_PACMAN_CACHE (default ~/.cache/bentwire/pacman).
 set -euo pipefail
 
@@ -169,7 +172,7 @@ case ${1:-} in
     for s in "${setups[@]}"; do
         echo "== $s"
         mkdir -p "$out/$s"
-        podman run --rm -v "$bindir:/b:ro" -v "$here/characters/builtin:/chars:ro" \
+        podman run --rm -v "$bindir:/b:ro" -v "${BENTWIRE_AUDIO_CHARS:-$here/characters/builtin}:/chars:ro" \
             -v "$here/scripts/audio-backends.sh:/run.sh:ro" -v "$out/$s:/out" \
             -v "$cache:/var/cache/pacman/pkg" docker.io/library/archlinux:latest bash /run.sh --root "$s" ||
             echo "  container failed"

@@ -914,10 +914,11 @@ where they go beyond R-BAL-11 and R-LIP-1.
 **B-TTS-3 Voice.** From the character's `[voice]` (character-format 4); each value is
 used only when present and in range, otherwise its default:
 - `language`: `[voice].language` (a BCP 47 tag), else the UI language (B-L10N-1).
-- `gender`: `[voice].gender` in SAPI 4 numbering (1 female, 2 male; earl 1, merlin 2),
-  else none.
-- `pitch`: `[voice].pitch`, the base pitch in Hz as Agent's `\Pit\` tag takes it [DOC],
-  if 1 to 1000 (Agent 1.5 files store 65535 for "default").
+- `gender`: `[voice].gender` (earl 1, merlin 2, acs-format 3.2.2), read in SAPI 4
+  numbering, 1 female, 2 male [INF], else none.
+- `pitch`: `[voice].pitch`, read as the base pitch in Hz, the unit of Agent's `\Pit\`
+  tag [INF], if 1 to 1000 (Agent 1.5 files store 65535, probably "default",
+  agent15-format).
 - Words per minute: R-BAL-8's effectiveSpeed with defaultSpeed = `[voice].speed` if 1 to
   1000 (4294967295 means "default"), else 170: `clamp(defaultSpeed x f, 50, 250)`, f =
   config `speaking_speed`.
@@ -926,7 +927,11 @@ used only when present and in range, otherwise its default:
   0 to 100 scale with 50 at 100 Hz (200 Hz for a female voice), `clamp(50 x Hz / base,
   0, 100)`, and the rate is clamped to espeak-ng's minimum of 80.
 - Reason: the manifest keeps Agent's raw voice data; espeak-ng has no Agent voices, so
-  language, gender, pitch and speed are what carries over.
+  language, gender, pitch and speed are what carries over. The research does not trace
+  the meaning of gender and pitch; the numbering and unit above are the SAPI 4
+  conventions Agent's engines used, unverified. A language without an espeak-ng voice
+  falls back to its primary subtag (`de-at` to `de`); a text in another language than
+  the voice's is read with the voice's rules (a German text with merlin's `en-US`).
 
 **B-TTS-4 Pacing with speech** (adapts agent-runtime R-BAL-11).
 - The balloon appears empty (R-BAL-7) and stays empty until the first `Word` mark.
@@ -2180,7 +2185,7 @@ Method errors (the call fails, no request is created):
 | `org.bentwire.Error.UnknownAnimation` | B-FB-1 step 5 |
 | `org.bentwire.Error.InvalidBalloon` | B-ASK-5 |
 | `org.bentwire.Error.NotSupported` | `mode = modeless` |
-| `org.freedesktop.DBus.Error.InvalidArgs` | wrong types, unknown `StopAll` types, reserved bookmark numbers |
+| `org.freedesktop.DBus.Error.InvalidArgs` | wrong types, unknown `StopAll` types, reserved bookmark numbers, unknown `SpeakWith` options |
 
 Request reasons (in `RequestComplete`):
 

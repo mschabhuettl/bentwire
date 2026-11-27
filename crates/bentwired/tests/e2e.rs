@@ -2271,6 +2271,10 @@ fn b_tts_1_speech_property_cli_say_speak_and_fallback() {
     let trace = e.dir.join("trace.jsonl");
     e.start(&["--trace", trace.to_str().unwrap()]);
     e.advance(1000);
+    // A-DESK-3: the drawn frame; no mouth without speech.
+    let p = &e.snapshot()["picture"];
+    assert!(p["animation"].is_string() && p["frame"].is_u64(), "{p}");
+    assert!(p["mouth"].is_null());
     assert_eq!(out(&e.cli(&["speech"])), (0, "off\n".into(), String::new()));
     assert_eq!(out(&e.cli(&["speech", "on"])).0, 0);
     assert_eq!(out(&e.cli(&["speech"])).1, "on\n");
