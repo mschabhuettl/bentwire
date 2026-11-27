@@ -46,6 +46,7 @@ usage: bentwire <command> [args]
   animations
   scale [<1-4>]
   speech [on | off]
+  smooth [on | off]
   status
   quit
   convert <source> <dest> [--palette OFFICE.ACS|MSO97.DLL] [--lang TAG] [--codepage LABEL]
@@ -529,13 +530,14 @@ fn run(args: &[String]) -> Result<(), Fail> {
                 _ => Err(Fail::Usage("expected [<1-4>]".into())),
             }
         }
-        "speech" => {
+        // B-TTS-1, B-SMOOTH-1: the Agent1 `Speech` and `Smooth` switches.
+        "speech" | "smooth" => {
+            let prop = if cmd == "speech" { "Speech" } else { "Smooth" };
             let o = Opts::parse(rest, &[], &[])?;
             let c = Client::new(false)?;
             let on = match o.positional.as_slice() {
                 [] => {
-                    let v =
-                        bool::try_from(c.prop(AGENT_PATH, AGENT_IFACE, "Speech")?).unwrap_or(false);
+                    let v = bool::try_from(c.prop(AGENT_PATH, AGENT_IFACE, prop)?).unwrap_or(false);
                     outln!("{}", if v { "on" } else { "off" });
                     return Ok(());
                 }
@@ -547,7 +549,7 @@ fn run(args: &[String]) -> Result<(), Fail> {
                 AGENT_PATH,
                 "org.freedesktop.DBus.Properties",
                 "Set",
-                &(AGENT_IFACE, "Speech", Value::from(on)),
+                &(AGENT_IFACE, prop, Value::from(on)),
             )
         }
         "status" => {
