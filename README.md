@@ -110,14 +110,31 @@ D-Bus activation file, so `bentwire say hello` starts the daemon on demand. The 
 installed but not enabled. The classics pack is not packaged, because its repository grants
 no licence for Microsoft's files; install it as described [below](#the-classics-pack).
 
-To build from source without a package, install the build dependencies and follow the next
-section:
+To build from source without a package, install the build dependencies and follow
+[From source](#from-source):
 
 ```sh
 sudo pacman -S --needed rust base-devel pkgconf wayland libxkbcommon alsa-lib git
 ```
 
 (`rustup` works instead of `rust`.)
+
+### Debian, Ubuntu and Fedora
+
+Each [GitHub release](https://github.com/mschabhuettl/bentwire/releases) has a .deb (Debian
+13 trixie, Ubuntu 24.04 and newer) and an .rpm (Fedora 41 and newer) for x86_64. Download
+it and install it with the package manager, which pulls in the dependencies:
+
+```sh
+sudo apt install ./bentwire_0.7.0-1_amd64.deb     # Debian, Ubuntu
+sudo dnf install ./bentwire-0.7.0-1.x86_64.rpm    # Fedora
+```
+
+They install the same files as the Arch package (below `/usr`): `bentwire say hello` starts
+the daemon on demand, the systemd user units are installed but not enabled. espeak-ng for
+speech is a recommended dependency, which apt and dnf install by default. Remove the package
+with `sudo apt purge bentwire` or `sudo dnf remove bentwire`; your settings and characters in
+your home directory stay.
 
 ### From source
 
@@ -262,8 +279,8 @@ a hidden character. Every command and option is in [docs/usage.md](docs/usage.md
   Details in [clients/systemd/README.md](clients/systemd/README.md).
 
 All of them use only the `bentwire` CLI and never start the daemon themselves.
-The Arch packages install the clients to `/usr/share/bentwire/clients/` and the systemd
-template as `bentwire-failure@.service`.
+The Arch, Debian and Fedora packages install the clients to `/usr/share/bentwire/clients/`
+and the systemd template as `bentwire-failure@.service`.
 
 - **Desktop notifications**: `bentwire-notify` makes the character say your
   notifications, with `--only APP` / `--ignore APP` filters or

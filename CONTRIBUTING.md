@@ -15,6 +15,7 @@ behaviour, with rule IDs) and [docs/character-format.md](docs/character-format.m
 - [Screenshots, GIFs and gallery](#screenshots-gifs-and-gallery)
 - [Generated files](#generated-files)
 - [Conventions](#conventions)
+- [Releasing](#releasing)
 
 ## Setup
 
@@ -215,3 +216,8 @@ scripts/gallery.sh
   The release workflow takes the release notes from the `## [x.y.z]` section.
 - **Licence.** Contributions are dual-licensed under MIT OR Apache-2.0, like the rest of the
   code ([LICENSE-MIT](LICENSE-MIT), [LICENSE-APACHE](LICENSE-APACHE)).
+
+## Releasing
+
+The checks before a tag, the version bump, the list of release assets and the steps after
+a release are in [docs/releasing.md](docs/releasing.md).
