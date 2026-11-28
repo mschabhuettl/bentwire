@@ -51,6 +51,9 @@ ships no Microsoft characters: they live in the separate
 <td align="center"><img src="https://raw.githubusercontent.com/mschabhuettl/bentwire-classics/main/screenshots/menu.gif" width="400" alt="Clippit's right-click menu with Hide, Options..., Choose Assistant... and Animate!, the pointer moving over its items"><br>The right-click menu</td>
 <td align="center"><img src="https://raw.githubusercontent.com/mschabhuettl/bentwire-classics/main/screenshots/tour.gif" width="400" alt="Clippit, Merlin, Genie, Peedy and Rover one after another: each appears, greets and leaves"><br>Some of the classic characters</td>
 </tr>
+<tr>
+<td align="center" colspan="2"><img src="docs/screenshots/tour.gif" width="400" alt="Wire, Quack and Hermit, each smooth and retro, one after another: each appears, greets and leaves"><br>The builtin characters</td>
+</tr>
 </table>
 
 On a real KDE Plasma 6 desktop. More screenshots and GIFs are in
