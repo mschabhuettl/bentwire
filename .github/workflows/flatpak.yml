@@ -1,0 +1,37 @@
+name: Flatpak
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+jobs:
+  files:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-aiohttp python3-tomlkit appstream desktop-file-utils
+      - name: cargo-sources.json matches Cargo.lock
+        run: scripts/flatpak-cargo-sources.sh --check
+      - name: AppStream metainfo and desktop file
+        run: |
+          appstreamcli validate --no-net packaging/flatpak/org.bentwire.Agent.metainfo.xml
+          desktop-file-validate packaging/flatpak/org.bentwire.Agent.desktop
+
+  bundle:
+    runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-26.08
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v7
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          manifest-path: packaging/flatpak/org.bentwire.Agent.yml
+          bundle: bentwire-x86_64.flatpak
+          artifact-name: flatpak-bundle
+          cache-key: flatpak-builder-${{ hashFiles('packaging/flatpak/*') }}
