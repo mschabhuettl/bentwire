@@ -51,8 +51,9 @@ trap 'echo "scenario aborted at line $LINENO: $BASH_COMMAND"' ERR
 
 daemon() { # daemon <bentwired args...>; exec, so that $! of `daemon ... &` is the daemon
     if [ -n "${BENTWIRE_SCENARIO_FLATPAK:-}" ]; then
+        # The scenario's XDG_DATA_DIRS hides the builtin characters in /app/share too.
         exec flatpak run --filesystem="$FIXTURES":ro --filesystem="$T/extra":ro \
-            --command=bentwired "$BENTWIRE_SCENARIO_FLATPAK" "$@"
+            --env=XDG_DATA_DIRS="$XDG_DATA_DIRS" --command=bentwired "$BENTWIRE_SCENARIO_FLATPAK" "$@"
     fi
     exec "$BIN/bentwired" "$@"
 }
