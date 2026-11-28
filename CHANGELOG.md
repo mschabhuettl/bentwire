@@ -7,6 +7,8 @@ D-Bus API (`org.bentwire.Agent1`) and the character format (`format = 1`) are fr
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-28
+
 ### Added
 
 - Flatpak (`org.bentwire.Agent`): a manifest built from source with offline cargo sources
@@ -362,7 +364,8 @@ First release.
 - Configuration file `~/.config/bentwire/config.toml`, reloaded on `SIGHUP`.
 - Documentation: behaviour spec, format research, sources, credits, decisions, roadmap.
 
-[Unreleased]: https://github.com/mschabhuettl/bentwire/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/mschabhuettl/bentwire/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/mschabhuettl/bentwire/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/mschabhuettl/bentwire/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/mschabhuettl/bentwire/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/mschabhuettl/bentwire/compare/v0.4.0...v0.5.0
