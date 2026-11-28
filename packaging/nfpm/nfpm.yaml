@@ -1,0 +1,55 @@
+# .deb and .rpm of the daemon and the CLIs, built by scripts/package-build.sh from a staged
+# root (the working directory, laid out like packaging/aur/bentwire/PKGBUILD package()). nfpm derives no
+# dependencies: they come from `objdump -p` of the release binaries (glibc 2.39 is the
+# newest symbol version, from the ubuntu-24.04 build).
+name: bentwire
+arch: amd64
+platform: linux
+version: ${VERSION}
+release: "1"
+section: x11
+priority: optional
+maintainer: Matthias Schabhüttl <matthias@matthiasschabhuettl.com>
+description: |-
+  Desktop characters (Microsoft Agent and Office Assistant formats) for Wayland
+  A daemon that shows animated desktop characters on Wayland compositors with
+  layer-shell, with a CLI, D-Bus activation, a notification bridge and an MQTT bridge.
+homepage: https://github.com/mschabhuettl/bentwire
+license: (MIT OR Apache-2.0) AND LGPL-2.1-or-later
+
+overrides:
+  deb:
+    depends:
+      - libc6 (>= 2.39)
+      - libgcc-s1
+      - libxkbcommon0
+      - libasound2t64 | libasound2
+    recommends:
+      - libespeak-ng1
+  rpm:
+    depends:
+      - glibc >= 2.39
+      - libgcc
+      - libxkbcommon
+      - alsa-lib
+    recommends:
+      - espeak-ng
+
+contents:
+  - src: usr/bin/
+    dst: /usr/bin/
+    type: tree
+  - src: usr/share/bentwire/
+    dst: /usr/share/bentwire/
+    type: tree
+  - src: usr/share/dbus-1/services/org.bentwire.Agent.service
+    dst: /usr/share/dbus-1/services/org.bentwire.Agent.service
+  - src: usr/lib/systemd/user/
+    dst: /usr/lib/systemd/user/
+    type: tree
+  - src: usr/share/doc/bentwire/
+    dst: /usr/share/doc/bentwire/
+    type: tree
+  - src: usr/share/licenses/bentwire/
+    dst: /usr/share/licenses/bentwire/
+    type: tree
