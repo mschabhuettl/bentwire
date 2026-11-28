@@ -9,6 +9,8 @@ usage: shot.py has SNAPSHOT.json KIND...           exit 0 if every surface kind 
        shot.py inside SNAPSHOT.json x y w h KIND...  exit 0 if those surfaces lie in the rect
        shot.py crop IN.ppm OUT.png SCALE x y w h   crop a logical rect (times SCALE)
        shot.py pixel IN.ppm RRGGBB                 exit 0 if pixel (0, 0) has the colour
+       shot.py light IN.ppm SCALE x y MIN          exit 0 if every channel of the pixel at the
+                                                   logical point is at least MIN
        shot.py opaque IN.ppm REF.ppm SCALE x y w h the pixel nearest the logical rect's
                                                    centre that differs from REF (the bare
                                                    desktop), in logical coordinates: x y
@@ -145,6 +147,10 @@ def main():
         return True
     if cmd == "pixel":
         return Image.open(args[0]).convert("RGB").getpixel((0, 0)) == tuple(bytes.fromhex(args[1]))
+    if cmd == "light":
+        k = int(args[1])
+        x, y, lo = (int(v) for v in args[2:5])
+        return min(Image.open(args[0]).convert("RGB").getpixel((x * k, y * k))) >= lo
     if cmd == "opaque":
         im = Image.open(args[0]).convert("RGB")
         ref = Image.open(args[1]).convert("RGB")

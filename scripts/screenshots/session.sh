@@ -24,14 +24,15 @@ KWD=kw0
 frozen() { LD_PRELOAD=$FAKETIME_LIB FAKETIME="$FROZEN" FAKETIME_DONT_FAKE_MONOTONIC=1 "$@"; }
 sgrim() { WAYLAND_DISPLAY=$SWAYD grim "$@"; }
 
-desktop_settled() { # three identical full grabs in a row, 0.3 s apart, not black
+desktop_settled() { # three identical full grabs in a row, 0.3 s apart, not black, and
+    # the panel drawn (the empty middle of the light Breeze panel, not the blue wallpaper)
     sgrim -t ppm "$T/settle0.ppm" || return 1
     for _ in 1 2 3; do
         sleep 0.3
         sgrim -t ppm "$T/settle.ppm" || return 1
         cmp -s "$T/settle0.ppm" "$T/settle.ppm" || return 1
     done
-    ! $PY pixel "$T/settle.ppm" 000000
+    ! $PY pixel "$T/settle.ppm" 000000 && $PY light "$T/settle.ppm" "$SCALE" $((W / 2)) $((H - 30)) 215
 }
 
 start_session() { # start_session <scale>: outer sway, vptr, KWin, Plasma
