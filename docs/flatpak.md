@@ -17,7 +17,7 @@ no wlr-layer-shell". See [sway](#sway).
 
 ```sh
 flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-flatpak install --user bentwire-0.6.0-x86_64.flatpak     # pulls the runtime from Flathub
+flatpak install --user bentwire-0.7.0-x86_64.flatpak     # pulls the runtime from Flathub
 flatpak run --command=bentwire org.bentwire.Agent say hello
 flatpak run --command=bentwire org.bentwire.Agent characters install classics
 ```

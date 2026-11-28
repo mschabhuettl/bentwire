@@ -155,7 +155,7 @@ espeak-ng). The runtime comes from Flathub:
 
 ```sh
 flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-flatpak install --user bentwire-0.6.0-x86_64.flatpak
+flatpak install --user bentwire-0.7.0-x86_64.flatpak
 flatpak run --command=bentwire org.bentwire.Agent say hello   # starts the daemon on demand
 flatpak run --command=bentwire org.bentwire.Agent characters install classics
 ```
