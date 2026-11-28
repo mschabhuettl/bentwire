@@ -180,18 +180,22 @@ EOF
     esac
 }
 
+# KWin's resourceClass of the daemon's windows; empty for a Flatpak client here.
+KWCLASS=bentwired
+[ -n "${BENTWIRE_SCENARIO_FLATPAK:-}" ] && KWCLASS="(bentwired|$BENTWIRE_SCENARIO_FLATPAK|)"
+
 # Character pixels: the fixture's frames are opaque squares inset 4 px in a 32 px cell.
 # shown_at <x> <y>: the character's square is on screen at top-left (x, y).
 shown_at() {
     case "$COMP" in
     sway) python3 -I "$REPO/scripts/desktop/bbox.py" "$T/$SHOT-"*.ppm --expect "$(( $1 + 4 )),$(( $2 + 4 )),$(( $1 + 28 )),$(( $2 + 28 ))" ;;
-    kwin) grep -Eq "^bentwired $1 $2 32 32 false$" "$T/$SHOT-"*.geom ;;
+    kwin) grep -Eq "^$KWCLASS $1 $2 32 32 false$" "$T/$SHOT-"*.geom ;;
     esac
 }
 absent() {
     case "$COMP" in
     sway) python3 -I "$REPO/scripts/desktop/bbox.py" "$T/$SHOT-"*.ppm --expect none ;;
-    kwin) ! grep -Eq '^bentwired ' "$T/$SHOT-"*.geom ;;
+    kwin) ! grep -Eq "^$KWCLASS " "$T/$SHOT-"*.geom ;;
     esac
 }
 balloon_on_screen() { # balloon_on_screen agent|office
@@ -388,7 +392,7 @@ sleep 0.5
 shot size3
 case "$COMP" in
 sway) check "3x square on screen (B-SCALE-1)" python3 -I "$REPO/scripts/desktop/bbox.py" "$T/$SHOT-size3.ppm" --expect 280,156,352,228 ;;
-kwin) check "3x surface at (268,144) (B-SCALE-1)" grep -Eq "^bentwired 268 144 96 96 false$" "$T/$SHOT-size3.geom" ;;
+kwin) check "3x surface at (268,144) (B-SCALE-1)" grep -Eq "^$KWCLASS 268 144 96 96 false$" "$T/$SHOT-size3.geom" ;;
 esac
 check "bentwire scale 1" "$BIN/bentwire" scale 1
 check "back at (300,200) in 1x" wait_for 5 snap 's["backend"]["character"]["size"] == [32, 32] and (s["left"], s["top"]) == (300, 200)'
