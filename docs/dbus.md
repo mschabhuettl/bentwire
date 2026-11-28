@@ -60,6 +60,11 @@ for clients:
 Unicast signals reach their destination without a match rule; a match rule such as
 `type='signal',interface='org.bentwire.Character1'` is needed for the broadcast ones.
 
+Exception: a daemon in a Flatpak sandbox sends these four as broadcasts, because the
+Flatpak D-Bus proxy drops signals addressed to a unique name. A client that should also
+work with the Flatpak adds a match rule for them (`bentwire` and `bentwire-mqtt` do) and
+filters by request id ([flatpak.md](flatpak.md)).
+
 A method **error** (the call fails, see [Errors](#errors)) creates no request and no
 signals.
 
