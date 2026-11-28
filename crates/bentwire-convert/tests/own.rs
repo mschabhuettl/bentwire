@@ -1,10 +1,11 @@
-//! The builtin characters Wire and Quack (A-CHAR-1): reproducible, complete in both
+//! The builtin characters Wire, Quack and Hermit (A-CHAR-1): reproducible, complete in both
 //! renderings, every animation ends (or is an idle loop), mouths on the frames speech holds,
 //! and the committed copy in characters/builtin is what the generator writes.
 
 use bentwire_character::model::{Branch, Exit, Manifest};
 use bentwire_character::write::PackageData;
 use bentwire_character::{AGENT_STATES, Character};
+use bentwire_convert::hermit::HERMIT;
 use bentwire_convert::own::{Design, LICENCE, Style};
 use bentwire_convert::quack::QUACK;
 use bentwire_convert::wire::WIRE;
@@ -31,7 +32,7 @@ impl Ch {
     }
 }
 
-const CHARS: [Ch; 4] = [
+const CHARS: [Ch; 6] = [
     Ch {
         design: &WIRE,
         style: Style::Modern,
@@ -52,16 +53,26 @@ const CHARS: [Ch; 4] = [
         style: Style::Retro,
         n: 3,
     },
+    Ch {
+        design: &HERMIT,
+        style: Style::Modern,
+        n: 4,
+    },
+    Ch {
+        design: &HERMIT,
+        style: Style::Retro,
+        n: 5,
+    },
 ];
 
 /// Each character built once per test binary (a build takes seconds in debug mode).
 fn built(c: Ch) -> &'static PackageData {
-    static CELLS: [OnceLock<PackageData>; 4] = [const { OnceLock::new() }; 4];
+    static CELLS: [OnceLock<PackageData>; 6] = [const { OnceLock::new() }; 6];
     CELLS[c.n].get_or_init(|| c.design.build(c.style).unwrap())
 }
 
 fn loaded(c: Ch) -> &'static Character {
-    static CELLS: [OnceLock<Character>; 4] = [const { OnceLock::new() }; 4];
+    static CELLS: [OnceLock<Character>; 6] = [const { OnceLock::new() }; 6];
     CELLS[c.n].get_or_init(|| built(c).load().unwrap())
 }
 
@@ -400,7 +411,14 @@ fn a_char_1_committed_builtin_matches_generator() {
     ids.sort();
     assert_eq!(
         ids,
-        ["quack", "quack-retro", "wire", "wire-retro"],
+        [
+            "hermit",
+            "hermit-retro",
+            "quack",
+            "quack-retro",
+            "wire",
+            "wire-retro"
+        ],
         "stale folders in characters/builtin"
     );
     for style in CHARS {
@@ -430,16 +448,21 @@ fn assert_manifest_ids(m: &Manifest, name: &str) {
 }
 
 /// Quack's own touches within the shared table: Alert and GetAttention squeak (Wire's are
-/// silent), and Idle1_3 rocks the whole duck one way and then the other.
+/// silent, Hermit's clack), and Idle1_3 rocks the whole duck one way and then the other.
 #[test]
 fn a_char_1_quack_squeaks_and_wobbles() {
     for ch in CHARS {
         let c = loaded(ch);
         let m = &c.manifest;
         let quack = ch.design.id == "quack";
+        let own = match ch.design.id {
+            "quack" => Some("squeak"),
+            "hermit" => Some("clack"),
+            _ => None,
+        };
         for a in ["Alert", "GetAttention"] {
             let s = m.animation(a).unwrap().frames[0].sound.as_deref();
-            assert_eq!(s, quack.then_some("squeak"), "{ch:?} {a}");
+            assert_eq!(s, own, "{ch:?} {a}");
         }
         assert_eq!(m.sounds.iter().any(|(id, _)| id == "squeak"), quack);
         if !quack {
@@ -465,5 +488,49 @@ fn a_char_1_quack_squeaks_and_wobbles() {
             left < rest - 0.5 && right > rest + 0.5,
             "{ch:?}: {left} {rest} {right}"
         );
+    }
+}
+
+/// Pixels of a picture in the crab's red (Role::Crab), so the crab outside its shell.
+fn red(p: &bentwire_character::Rgba) -> usize {
+    p.data
+        .chunks(4)
+        .filter(|c| *c == [0xec, 0x5c, 0x40, 0xff])
+        .count()
+}
+
+/// Hermit's own touches within the shared table: Show starts in the closed shell and peeks
+/// out, Hide pulls the crab into the shell before the shell sinks, Idle1_3 ducks into the
+/// shell and comes out, it sleeps half inside, and Alert and GetAttention clack.
+#[test]
+fn a_char_1_hermit_hides_in_its_shell() {
+    for ch in CHARS.into_iter().filter(|c| c.design.id == "hermit") {
+        let c = loaded(ch);
+        let m = &c.manifest;
+        assert!(m.sounds.iter().any(|(id, _)| id == "clack"), "{ch:?}");
+        let counts = |name: &str| -> Vec<usize> {
+            m.animation(name)
+                .unwrap()
+                .frames
+                .iter()
+                .map(|f| red(&c.compose_frame(f, None, 1)))
+                .collect()
+        };
+        let rest = counts("RestPose")[0];
+        assert!(rest > 300, "{ch:?}: {rest}");
+        // Show: the shell at full size with the crab all inside, then a peek, then out.
+        let show = counts("Show");
+        assert_eq!(show[3], 0, "{ch:?}");
+        assert!(show[5] > 0 && show[5] < rest / 2, "{ch:?}: {show:?}");
+        assert_eq!(*show.last().unwrap(), rest);
+        let hide = counts("Hide");
+        assert_eq!(hide[0], rest);
+        assert_eq!(hide[3..], vec![0; hide.len() - 3], "{ch:?}");
+        let duck = counts("Idle1_3");
+        assert!(duck.contains(&0), "{ch:?}: {duck:?}");
+        assert_eq!(*duck.last().unwrap(), rest);
+        let sleep = counts("Idle3_1");
+        let half = sleep.iter().filter(|&&n| n > 0 && n < rest / 2).count();
+        assert!(half >= 4, "{ch:?}: asleep half inside: {sleep:?}");
     }
 }

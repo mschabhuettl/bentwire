@@ -5,6 +5,7 @@ pub mod acs;
 pub mod act;
 pub mod build;
 pub mod classics;
+pub mod hermit;
 mod lcid_table;
 pub mod own;
 pub mod quack;
