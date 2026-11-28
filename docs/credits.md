@@ -56,6 +56,16 @@ generator, no traced or copied artwork and no third-party data. It is dedicated 
 public domain under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/), with the
 same `LICENSE` files as Wire.
 
+## Hermit
+
+Hermit (`characters/builtin/hermit`, `hermit-retro`) is bentwire's third own character, a
+hermit crab in a spiral shell, made the same way as Wire and Quack: the vector rig in
+`crates/bentwire-convert/src/hermit/`, the shared rasteriser and animation table in
+`crates/bentwire-convert/src/own/` and its clicks synthesized by code, with no image
+generator, no traced or copied artwork and no third-party data. It is dedicated to the
+public domain under [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/), with the
+same `LICENSE` files as Wire.
+
 ## Tahoma replacement (Wine)
 
 `assets/fonts/tahoma.ttf` and `tahomabd.ttf` are Wine's metric-compatible Tahoma
