@@ -389,7 +389,7 @@ pub fn mouth_shapes(t: u8, retro: bool) -> Vec<Shape> {
 /// unit.
 pub fn icon_view() -> (P, f64) {
     let r = Rig::new(&REST);
-    let c = r.t((CX, 90.0));
-    let side = 46.0 * ZOOM;
+    let c = r.t((CX + 1.0, 81.0));
+    let side = 60.0 * ZOOM;
     ((c.0 - side / 2.0, c.1 - side / 2.0), 32.0 / side)
 }
