@@ -1253,7 +1253,7 @@ fn spec_5_5_characters_install_classics() {
     assert_eq!(
         so,
         format!(
-            "installed bentwire-classics 9.9.1 in {}\nbentwired now has 5 characters\n",
+            "installed bentwire-classics 9.9.1 in {}\nbentwired now has 7 characters\n",
             dest.display()
         )
     );
