@@ -8,8 +8,8 @@ The Flatpak contains the daemon `bentwired`, the CLI `bentwire`, the builtin cha
 (Wire and Quack, in `/app/share/bentwire/characters/builtin`, found through `XDG_DATA_DIRS`)
 and espeak-ng 1.52 with its data for speech output.
 
-**Compositors.** KDE Plasma (KWin) works from the sandbox. sway (1.10 and later, and other
-wlroots compositors with the same policy) hides `zwlr_layer_shell_v1` from sandboxed
+**Compositors.** KDE Plasma (KWin) works from the sandbox. sway (tested: 1.11; other wlroots
+compositors may have the same policy) hides `zwlr_layer_shell_v1` from sandboxed
 clients: Flatpak connects the app through `wp_security_context_v1`, and sway offers
 privileged protocols only to unsandboxed clients. The daemon then exits with "the compositor
 has no wlr-layer-shell". See [sway](#sway) for the override that works around it, or use a
@@ -73,6 +73,7 @@ Inside the sandbox the XDG directories are the app's own:
 |---|---|
 | Config (`config.toml`) | `~/.var/app/org.bentwire.Agent/config/bentwire/` |
 | State | `~/.var/app/org.bentwire.Agent/.local/state/bentwire/` |
+| Cache (converted sheets) | `~/.var/app/org.bentwire.Agent/cache/bentwire/` |
 | Installed packs (`characters install`) | `~/.var/app/org.bentwire.Agent/data/bentwire/characters/` |
 | Add-ons | `~/.var/app/org.bentwire.Agent/data/bentwire/addons/` |
 
@@ -137,7 +138,7 @@ with it from sway's config (`exec ...`) instead.
 ## Building
 
 ```sh
-scripts/flatpak-build.sh                  # bentwire-VERSION-x86_64.flatpak in the repository root
+scripts/flatpak-build.sh                  # target/flatpak/bentwire-VERSION-x86_64.flatpak
 scripts/flatpak-cargo-sources.sh          # regenerate cargo-sources.json after Cargo.lock changes
 scripts/flatpak-cargo-sources.sh --check  # CI: fails when cargo-sources.json is stale
 scripts/flatpak-check.sh BUNDLE.flatpak   # install and run the bundle in a fresh podman container
@@ -160,13 +161,18 @@ release workflow builds it again and attaches it to the release.
   and dbusmenu through the watcher) and the session bus loss.
 - sway 1.11: the sandboxed daemon sees no `zwlr_layer_shell_v1` (the scenario stops at
   startup); with the [override](#sway) the character is mapped and on screen.
-- D-Bus activation from a host `bentwire say --wait` under KWin starts the sandboxed daemon.
+- D-Bus activation under KWin: a host `bentwire say --wait` and a sandboxed `flatpak run
+  --command=bentwire ... say --wait` each start the sandboxed daemon and complete.
+- Sound and speech under KWin with a private PipeWire and pipewire-pulse (null sink): the
+  sandboxed daemon logs `audio: pulse` for its sound and its speech output, and its stream
+  (`application.process.binary = "bentwired"`) appears on the server while it speaks.
 - `scripts/flatpak-check.sh` in a fresh Debian container: install of the bundle,
   `bentwired --headless`, `show --wait`, `say`, espeak-ng initialisation and
   `characters install classics`.
-- Not tested here: sound through a real PulseAudio or PipeWire server (the test machines
-  have none; the daemon tries libpulse-simple first, then the runtime's alsa-lib, whose
-  pulse plugin uses the same socket) and the tray in a real Plasma panel.
+- The host scenarios (sway and KWin, without the Flatpak) still pass.
+- Not tested here: the tray in a real Plasma panel (the scenario uses a minimal watcher),
+  a real PulseAudio server (only pipewire-pulse), and "Edit configuration" from the menu,
+  which runs `xdg-open` inside the sandbox (the runtime's xdg-open goes through the portal).
 
 The container check runs rootless `podman run --security-opt unmask=ALL`: bubblewrap mounts
 a new `/proc`, which podman's masked `/proc` paths forbid (`bwrap: Can't mount proc on

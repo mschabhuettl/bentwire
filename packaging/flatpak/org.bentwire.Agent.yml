@@ -80,4 +80,8 @@ modules:
         skip:
           - .git
           - target
+          # flatpak-github-actions builds inside the checkout.
+          - .flatpak-builder
+          - flatpak_app
+          - repo
       - cargo-sources.json

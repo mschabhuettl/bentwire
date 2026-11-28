@@ -2,14 +2,15 @@
 # Builds the Flatpak (packaging/flatpak/org.bentwire.Agent.yml) and exports a single-file
 # bundle. Needs flatpak, flatpak-builder and the flathub remote in the user installation
 # (the runtime, SDK and Rust extension are installed from it).
-# usage: scripts/flatpak-build.sh [OUT.flatpak]   (default bentwire-VERSION-x86_64.flatpak)
-# BENTWIRE_FLATPAK_WORK: build, repo and builder state (default target/flatpak).
+# usage: scripts/flatpak-build.sh [OUT.flatpak]
+# BENTWIRE_FLATPAK_WORK: build, repo and builder state (default target/flatpak); the bundle
+# defaults to WORK/bentwire-VERSION-x86_64.flatpak.
 set -euo pipefail
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 APP=org.bentwire.Agent
 VERSION=$(sed -n 's/^version = "\(.*\)"$/\1/p' "$REPO/Cargo.toml" | head -1)
-OUT=${1:-$REPO/bentwire-$VERSION-x86_64.flatpak}
 WORK=${BENTWIRE_FLATPAK_WORK:-$REPO/target/flatpak}
+OUT=${1:-$WORK/bentwire-$VERSION-x86_64.flatpak}
 mkdir -p "$WORK"
 
 flatpak-builder --user --install-deps-from=flathub --force-clean --disable-rofiles-fuse \
