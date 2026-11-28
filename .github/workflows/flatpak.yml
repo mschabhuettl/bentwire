@@ -16,7 +16,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y appstream desktop-file-utils
           # tomlkit 0.12 (Ubuntu) writes an extra "[source]" line into the cargo config
-          pip install --break-system-packages tomlkit==0.13.3 aiohttp==3.13.3
+          sudo pip install --break-system-packages tomlkit==0.13.3 aiohttp==3.13.3
       - name: cargo-sources.json matches Cargo.lock
         run: scripts/flatpak-cargo-sources.sh --check
       - name: AppStream metainfo and desktop file
