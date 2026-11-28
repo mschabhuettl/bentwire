@@ -148,6 +148,106 @@ fn flac_is_bit_exact() {
     );
 }
 
+/// CRC-8 (polynomial 0x07) of a FLAC frame header.
+fn crc8(b: &[u8]) -> u8 {
+    b.iter().fold(0u8, |mut c, &x| {
+        c ^= x;
+        for _ in 0..8 {
+            c = if c & 0x80 != 0 {
+                (c << 1) ^ 0x07
+            } else {
+                c << 1
+            };
+        }
+        c
+    })
+}
+
+/// Frame number and block size of every frame header (sync code and CRC-8 checked) in a
+/// FLAC stream with a single STREAMINFO block, in order.
+fn frame_headers(f: &[u8]) -> Vec<(u64, u64)> {
+    let mut out = Vec::new();
+    let mut p = 4 + 4 + 34;
+    while p + 6 <= f.len() {
+        if f[p] != 0xFF || f[p + 1] != 0xF8 {
+            p += 1;
+            continue;
+        }
+        let bs = f[p + 2] >> 4;
+        let sr = f[p + 2] & 15;
+        // UTF-8-like coded frame number.
+        let mut q = p + 4;
+        let lead = f[q];
+        let extra = lead.leading_ones() as usize;
+        let extra = extra.saturating_sub(1);
+        let mut num = u64::from(lead & (0x7F >> extra.min(6)));
+        for i in 1..=extra {
+            num = (num << 6) | u64::from(f[q + i] & 0x3F);
+        }
+        q += 1 + extra;
+        let size = match bs {
+            1 => 192,
+            2..=5 => 576 << (bs - 2),
+            6 => {
+                q += 1;
+                u64::from(f[q - 1]) + 1
+            }
+            7 => {
+                q += 2;
+                u64::from(u16::from_be_bytes([f[q - 2], f[q - 1]])) + 1
+            }
+            8..=15 => 256 << (bs - 8),
+            _ => 0,
+        };
+        q += match sr {
+            12 => 1,
+            13 | 14 => 2,
+            _ => 0,
+        };
+        if q < f.len() && crc8(&f[p..q]) == f[q] && size > 0 {
+            out.push((num, size));
+            p = q + 1;
+        } else {
+            p += 1;
+        }
+    }
+    out
+}
+
+/// libFLAC's rule for a fixed-blocksize stream: STREAMINFO min block size == max block
+/// size (the last block may be shorter), frame n starts at sample n * block size; else
+/// `flac -t` warns "sample or frame number does not increase correctly".
+#[test]
+fn flac_frame_numbers_increase_with_fixed_block_size() {
+    for frames in [1u32, 4096, 4096 * 2 + 100, 7300] {
+        let pcm = Pcm {
+            channels: 1,
+            rate: 22050,
+            bits: 16,
+            data: (0..frames)
+                .flat_map(|i| ((i * 37 % 5000) as i16 - 2500).to_le_bytes())
+                .collect(),
+        };
+        let f = encode_flac(&pcm).unwrap();
+        let min = u64::from(u16::from_be_bytes([f[8], f[9]]));
+        let max = u64::from(u16::from_be_bytes([f[10], f[11]]));
+        let h = frame_headers(&f);
+        assert_eq!(
+            h.iter().map(|x| x.1).sum::<u64>(),
+            u64::from(frames),
+            "{frames}: {h:?}"
+        );
+        let mut at = 0;
+        for (i, &(num, size)) in h.iter().enumerate() {
+            assert_eq!(num, i as u64, "{frames}: {h:?}");
+            assert_eq!(min, max, "{frames}: STREAMINFO {min}..{max}, frames {h:?}");
+            assert_eq!(num * max, at, "{frames}: {h:?}");
+            at += size;
+        }
+        assert_eq!(audio::decode_sound(&f).unwrap().data, pcm.data, "{frames}");
+    }
+}
+
 /// spec R-ANIM-4 test vector: branches [[5, 30], [7, 50]].
 #[test]
 fn r_anim_4_cumulative_branch_walk() {

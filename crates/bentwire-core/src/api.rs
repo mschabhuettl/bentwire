@@ -565,7 +565,7 @@ pub struct CharacterScene {
     pub height: u32,
     /// Size factor (B-SCALE-1): the picture is drawn `scale` times its display size.
     pub scale: u32,
-    /// Smooth edges (B-SMOOTH-1): the picture is drawn from denser sheets, box-filtered.
+    /// Smooth edges (B-SMOOTH-1): the picture is drawn from denser sheets, thin lines fitted, box-filtered.
     pub smooth: bool,
     pub picture: Picture,
     /// Output the surface lives on (B-WL-2); only changes outside drags.

@@ -455,7 +455,14 @@ pub fn encode_flac(pcm: &Pcm) -> Result<Vec<u8>, Error> {
         pcm.bits as usize,
         pcm.rate as usize,
     );
-    let stream = flacenc::encode_with_fixed_block_size(&config, src, block)
+    let mut stream = flacenc::encode_with_fixed_block_size(&config, src, block)
+        .map_err(|e| Error::Sound(format!("FLAC: {e:?}")))?;
+    // flacenc counts the shorter last block in STREAMINFO's minimum block size; a fixed
+    // block size stream needs min = max (the last block excluded), or libFLAC finds the
+    // frame numbers not increasing.
+    stream
+        .stream_info_mut()
+        .set_block_sizes(block, block)
         .map_err(|e| Error::Sound(format!("FLAC: {e:?}")))?;
     let mut sink = flacenc::bitsink::ByteSink::new();
     stream
