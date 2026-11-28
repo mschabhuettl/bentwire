@@ -2,7 +2,8 @@
 //! Per character one line: the hash of every decoded sheet file (indices, PLTE, tRNS or RGBA),
 //! and the hash of every picture the daemon can draw (each frame, each mouth variant as
 //! `library::picture` builds it, each pose) at densities 1 to 4, plus the smoothed picture
-//! (B-SMOOTH-1) at density 1 when the character has denser sheets.
+//! (B-SMOOTH-1) at density 1 when the character has denser sheets, hashed on its own
+//! (`smooth=`) so a change of the filter shows apart from the unsmoothed pictures.
 //! usage: framehash FILE...
 
 use bentwire_character::image::Pixels;
@@ -85,20 +86,23 @@ fn main() {
             .flat_map(|s| s.hidpi.keys())
             .copied()
             .max();
+        let mut smooth = Sha256::new();
+        let mut ns = 0u64;
         if let Some(k) = k.filter(|&k| k > 1) {
             pictures(&c, k, &mut |p| {
-                feed(&mut frames, &downsample(&p, k));
-                n += 1;
+                feed(&mut smooth, &downsample(&p, k));
+                ns += 1;
             });
         }
         println!(
-            "{} sheets={:x} pictures={n} frames={:x}",
+            "{} sheets={:x} pictures={n} frames={:x} smoothed={ns} smooth={:x}",
             std::path::Path::new(&path)
                 .file_name()
                 .unwrap()
                 .to_string_lossy(),
             sheets.finalize(),
-            frames.finalize()
+            frames.finalize(),
+            smooth.finalize()
         );
     }
 }
