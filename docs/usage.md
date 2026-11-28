@@ -158,3 +158,14 @@ bentwire addons remove door-bell
   for it; a daemon that does not answer in time gets a note on stderr (exit status 0),
   and it applies the change once it handles the call, or on its next start. After
   changing the files by hand, run `pkill -HUP -x bentwired` or restart the daemon.
+
+## Flatpak
+
+The Flatpak (`org.bentwire.Agent`) ships the daemon, the CLI and the builtin characters;
+`bentwire-notify` and `bentwire-mqtt` stay host-only. Run the CLI as
+`flatpak run --command=bentwire org.bentwire.Agent ...`; the client hooks (shell, Claude
+Code, git) need that command instead of `bentwire`. A host `bentwire` 0.7 or later also
+talks to the sandboxed daemon over the session bus, but `characters install` and `addons`
+of a host CLI write to the host's data directory, which the Flatpak does not read. Its
+permissions and limits (sway needs an override for layer-shell) are in
+[flatpak.md](flatpak.md).

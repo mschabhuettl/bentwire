@@ -9,6 +9,14 @@ D-Bus API (`org.bentwire.Agent1`) and the character format (`format = 1`) are fr
 
 ### Added
 
+- Flatpak (`org.bentwire.Agent`): a manifest built from source with offline cargo sources
+  (`packaging/flatpak/`), and `bentwire-VERSION-x86_64.flatpak` on every GitHub release.
+  It holds the daemon, the CLI, the builtin characters and espeak-ng, and needs only
+  Wayland, PulseAudio, the tray watcher and the network (for `characters install` and
+  add-ons); docs/flatpak.md lists each permission with its reason. KWin works fully; sway
+  offers no layer-shell to sandboxed clients, so the Flatpak needs an override there.
+  AppStream metainfo, desktop file and icon are ready for a later Flathub submission.
+
 - Hermit, a hermit crab in a spiral shell, bentwire's third own character (CC0-1.0),
   drawn by code like Wire and Quack: `hermit` (smooth, 1x and 2x) and `hermit-retro`
   (15 colours, hard edges). Same animation set; it comes out of its shell for Show, pulls
@@ -17,6 +25,11 @@ D-Bus API (`org.bentwire.Agent1`) and the character format (`format = 1`) are fr
 
 ### Changed
 
+- Inside a Flatpak the daemon broadcasts `RequestStart`, `RequestComplete`, `AskComplete`
+  and `Bookmark`, because the Flatpak bus proxy drops signals addressed to one client
+  (B-Q-2a); the CLI adds a match rule while it waits, so `--wait` and `ask` need a 0.7
+  CLI against a sandboxed daemon. Outside Flatpak they stay unicast. In the sandbox the
+  tray item registers under its unique bus name.
 - Smooth edges: thin runs of an aliased 2x picture are fitted to the pixel grid before
   averaging, so 1 px lines along rows and columns keep their full colour instead of
   turning into two half-covered pixels (B-SMOOTH-1). Unsmoothed pictures are unchanged.
