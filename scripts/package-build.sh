@@ -8,8 +8,9 @@ set -euo pipefail
 VERSION=${1:?usage: package-build.sh VERSION BINDIR OUTDIR}
 BINDIR=$(realpath "${2:?usage: package-build.sh VERSION BINDIR OUTDIR}")
 OUTDIR=${3:?usage: package-build.sh VERSION BINDIR OUTDIR}
-cd "$(dirname "$0")/.."
 mkdir -p "$OUTDIR"
+OUTDIR=$(realpath "$OUTDIR")
+cd "$(dirname "$0")/.."
 STAGE=$(mktemp -d)
 trap 'rm -rf "${STAGE:?}"' EXIT
 
@@ -35,7 +36,6 @@ install -Dm644 LICENSE-MIT LICENSE-APACHE assets/fonts/LICENSE-LGPL-2.1.txt \
 chmod -R u=rwX,go=rX "$STAGE"
 # nfpm reads the contents relative to the working directory.
 CONFIG=$PWD/packaging/nfpm/nfpm.yaml
-OUTDIR=$(realpath "$OUTDIR")
 export VERSION
 for p in deb rpm; do
     (cd "$STAGE" && nfpm package --config "$CONFIG" --packager "$p" --target "$OUTDIR/")

@@ -26,14 +26,13 @@ set -euo pipefail
 FAILS=0
 check() { if "${@:2}"; then echo "  ok   $1"; else echo "  FAIL $1"; FAILS=$((FAILS + 1)); fi; }
 # Every path on the root file system except package manager state, caches, logs and
-# per-user or runtime data. /lib.usr-is-merged is Ubuntu's /usr-merge marker of the base
-# image, which maintainer scripts of base packages (libc6, ...) remove and recreate.
+# per-user or runtime data.
 snapshot() {
     find / -xdev \( -path /proc -o -path /sys -o -path /dev -o -path /run -o -path /tmp \
         -o -path /home -o -path /root -o -path /var/cache -o -path /var/log \
         -o -path /var/lib/apt -o -path /var/lib/dpkg -o -path /var/lib/dnf \
         -o -path /var/lib/rpm -o -path /usr/lib/sysimage -o -path /etc/ld.so.cache \
-        -o -path /lib.usr-is-merged -o -path /pkg.deb -o -path /pkg.rpm \) -prune -o -print | sort
+        -o -path /pkg.deb -o -path /pkg.rpm \) -prune -o -print | sort
 }
 if [ "$KIND" = deb ]; then
     export DEBIAN_FRONTEND=noninteractive
@@ -133,7 +132,7 @@ fi
 snapshot >/tmp/after
 comm -13 /tmp/before /tmp/after >/tmp/deps
 check "nothing named bentwire left after removing the dependencies too" \
-    sh -c "! grep -i bentwire /tmp/deps"
+    sh -c "! grep -qi bentwire /tmp/deps"
 sed 's/^/    left by the removed dependencies (not package paths): /' /tmp/deps
 [ "$FAILS" -eq 0 ]
 EOF
