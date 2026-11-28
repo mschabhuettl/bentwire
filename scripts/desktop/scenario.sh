@@ -14,6 +14,8 @@
 # (the `vptr` and `kwptr` examples drive a real pointer under sway and KWin).
 # Exit status 0 = all checks passed. Artefacts (logs, screenshots, signal log) are kept
 # in the printed directory on failure or with BENTWIRE_SCENARIO_KEEP=1.
+# BENTWIRE_SCENARIO_FLATPAK=APP_ID starts the daemon through `flatpak run` of that installed
+# app instead of BIN_DIR/bentwired (docs/flatpak.md); the CLI stays BIN_DIR/bentwire.
 set -euo pipefail
 
 COMP=${1:?usage: scenario.sh sway|kwin [BIN_DIR]}
@@ -25,6 +27,7 @@ if [ -z "${BENTWIRE_SCENARIO_INNER:-}" ]; then
     T=$(mktemp -d)
     echo "scenario $COMP: artefacts in $T"
     mkdir -m 0700 "$T/run"
+    export FLATPAK_USER_DIR=${FLATPAK_USER_DIR:-$HOME/.local/share/flatpak}
     export XDG_RUNTIME_DIR=$T/run HOME=$T/home XDG_CONFIG_HOME=$T/home/cfg
     export XDG_STATE_HOME=$T/home/state XDG_DATA_HOME=$T/home/data XDG_CACHE_HOME=$T/home/cache
     export XDG_DATA_DIRS=$T/nonexistent BENTWIRE_SCENARIO_INNER=1 SCEN_DIR=$T
@@ -45,6 +48,14 @@ cleanup() {
 }
 trap cleanup EXIT
 trap 'echo "scenario aborted at line $LINENO: $BASH_COMMAND"' ERR
+
+daemon() { # daemon <bentwired args...>; exec, so that $! of `daemon ... &` is the daemon
+    if [ -n "${BENTWIRE_SCENARIO_FLATPAK:-}" ]; then
+        exec flatpak run --filesystem="$FIXTURES":ro --filesystem="$T/extra":ro \
+            --command=bentwired "$BENTWIRE_SCENARIO_FLATPAK" "$@"
+    fi
+    exec "$BIN/bentwired" "$@"
+}
 
 FAILS=0
 check() { # check <description> <command...>
@@ -126,7 +137,7 @@ PIDS+=($!)
 mkdir -p "$T/extra/characters"
 cp -r "$FIXTURES/pebble" "$T/extra/characters/pebble-big"
 sed -i 's/^canvas = \[32, 32\]$/canvas = [32, 32]\ndisplay = [128, 128]/' "$T/extra/characters/pebble-big/character.toml"
-"$BIN/bentwired" --test-interface $TRAYARG --no-audio --characters "$FIXTURES" \
+daemon --test-interface $TRAYARG --no-audio --characters "$FIXTURES" \
     --characters "$T/extra" >"$T/bentwired.log" 2>&1 &
 BW=$!
 PIDS+=($BW)
@@ -529,7 +540,7 @@ check "signal order" python3 -I "$REPO/scripts/desktop/signals.py" "$T/signals.l
 echo "8. session bus loss (a second daemon with a tray on its own bus)"
 dbus-daemon --session --fork --print-address=3 --print-pid=4 3>"$T/bus2.addr" 4>"$T/bus2.pid"
 BUS2=$(cat "$T/bus2.addr")
-DBUS_SESSION_BUS_ADDRESS=$BUS2 XDG_STATE_HOME=$T/home/state2 "$BIN/bentwired" --no-audio \
+DBUS_SESSION_BUS_ADDRESS=$BUS2 XDG_STATE_HOME=$T/home/state2 daemon --no-audio \
     --characters "$FIXTURES" >"$T/bentwired2.log" 2>&1 &
 BW2=$!
 PIDS+=($BW2)
