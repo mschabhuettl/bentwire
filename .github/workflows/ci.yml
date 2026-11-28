@@ -29,3 +29,56 @@ jobs:
         run: cargo fmt --check
       - name: Test
         run: cargo test --workspace --locked
+
+  # The .deb and .rpm as the release builds them, installed and removed in fresh
+  # containers, so a broken package config fails before a tag.
+  packages:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: System packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwayland-dev libxkbcommon-dev libasound2-dev pkg-config
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.99.1"
+      - uses: Swatinem/rust-cache@v2
+      - name: Release binaries
+        run: |
+          cargo build --release --locked \
+            -p bentwired -p bentwire -p bentwire-convert -p bentwire-notify -p bentwire-mqtt \
+            --bin bentwired --bin bentwire --bin bentwire-convert \
+            --bin bentwire-notify --bin bentwire-mqtt
+      - name: .deb and .rpm
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n1)
+          scripts/nfpm-install.sh "$RUNNER_TEMP/bin"
+          PATH="$RUNNER_TEMP/bin:$PATH" scripts/package-build.sh "$version" target/release dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: packages
+          path: |
+            dist/*.deb
+            dist/*.rpm
+          if-no-files-found: error
+
+  packages-check:
+    needs: packages
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        include:
+          - { ext: deb, image: "docker.io/library/debian:trixie" }
+          - { ext: deb, image: "docker.io/library/ubuntu:24.04" }
+          - { ext: rpm, image: "docker.io/library/fedora:43" }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: packages
+          path: dist
+      - name: Install, run and remove in a fresh container
+        env:
+          CONTAINER: docker
+        run: scripts/package-check.sh dist/*.${{ matrix.ext }} "${{ matrix.image }}"

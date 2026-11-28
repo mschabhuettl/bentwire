@@ -12,7 +12,8 @@ env:
   TARGET: x86_64-unknown-linux-gnu
 
 jobs:
-  release:
+  # Binaries, the tarball and the .deb and .rpm made from the same binaries.
+  build:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -30,7 +31,7 @@ jobs:
             -p bentwired -p bentwire -p bentwire-convert -p bentwire-notify -p bentwire-mqtt \
             --bin bentwired --bin bentwire --bin bentwire-convert \
             --bin bentwire-notify --bin bentwire-mqtt
-      - name: Package
+      - name: Tarball
         run: |
           version=${GITHUB_REF_NAME#v}
           name="bentwire-$version-$TARGET"
@@ -45,7 +46,71 @@ jobs:
           cp -a clients "dist/$name/"
           cp assets/fonts/LICENSE-LGPL-2.1.txt assets/fonts/README.md "dist/$name/fonts/"
           tar -C dist -czf "dist/$name.tar.gz" "$name"
-          (cd dist && sha256sum "$name.tar.gz" > sha256sums.txt)
+      - name: .deb and .rpm
+        run: |
+          scripts/nfpm-install.sh "$RUNNER_TEMP/bin"
+          PATH="$RUNNER_TEMP/bin:$PATH" scripts/package-build.sh "${GITHUB_REF_NAME#v}" \
+            "target/$TARGET/release" dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: |
+            dist/*.tar.gz
+            dist/*.deb
+            dist/*.rpm
+          if-no-files-found: error
+
+  packages-check:
+    needs: build
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        include:
+          - { ext: deb, image: "docker.io/library/debian:trixie" }
+          - { ext: deb, image: "docker.io/library/ubuntu:24.04" }
+          - { ext: rpm, image: "docker.io/library/fedora:43" }
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist
+      - name: Install, run and remove in a fresh container
+        env:
+          CONTAINER: docker
+        run: scripts/package-check.sh dist/*.${{ matrix.ext }} "${{ matrix.image }}"
+
+  flatpak:
+    uses: ./.github/workflows/flatpak.yml
+
+  # The only job that creates the release: all assets, one sha256sums.txt over all of them.
+  publish:
+    needs: [build, packages-check, flatpak]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          path: assets
+          merge-multiple: true
+      - name: Assets and sha256sums.txt
+        run: |
+          version=${GITHUB_REF_NAME#v}
+          cd assets
+          mv bentwire-x86_64.flatpak "bentwire-$version-x86_64.flatpak"
+          # Exactly these; only the tarball's name may contain "tar.gz" (the AUR scripts
+          # grep for it in sha256sums.txt).
+          expected=$(printf '%s\n' "bentwire-$version-$TARGET.tar.gz" \
+            "bentwire-$version-x86_64.flatpak" "bentwire_$version-1_amd64.deb" \
+            "bentwire-$version-1.x86_64.rpm" | sort)
+          actual=$(find . -maxdepth 1 -type f -printf '%f\n' | sort)
+          if [ "$actual" != "$expected" ]; then
+            printf 'unexpected release assets:\n%s\nexpected:\n%s\n' "$actual" "$expected"
+            exit 1
+          fi
+          # shellcheck disable=SC2086 # the names have no spaces
+          sha256sum $expected > sha256sums.txt
+          cat sha256sums.txt
       - name: Release notes from CHANGELOG.md
         run: scripts/changelog-notes.sh "${GITHUB_REF_NAME#v}" CHANGELOG.md > notes.md
       - name: GitHub release
@@ -53,22 +118,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" --title "bentwire $GITHUB_REF_NAME" \
-            --notes-file notes.md dist/*.tar.gz dist/sha256sums.txt
-
-  flatpak:
-    uses: ./.github/workflows/flatpak.yml
-
-  flatpak-upload:
-    needs: [release, flatpak]
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/download-artifact@v8
-        with:
-          name: flatpak-bundle
-      - name: Attach the Flatpak bundle
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          bundle="bentwire-${GITHUB_REF_NAME#v}-x86_64.flatpak"
-          mv bentwire-x86_64.flatpak "$bundle"
-          gh release upload "$GITHUB_REF_NAME" "$bundle" --repo "$GITHUB_REPOSITORY"
+            --notes-file notes.md assets/*
