@@ -458,6 +458,52 @@ fn b_wl_4_output_removal_pulls_the_frame_back() {
     assert!((0..=1920 - 32).contains(&left), "{s}");
 }
 
+/// B-CFG-3: a position saved on an output that is gone (to the right, with another
+/// layout, negative, partly overlapping) starts inside an existing output, also when the
+/// output goes away while the character is hidden.
+#[test]
+fn b_cfg_3_start_pulls_a_position_from_a_gone_output() {
+    let cases = [
+        // (saved position, outputs now, expected position of the 32 x 32 frame)
+        ((2500, 300), "1920x1080+0+0", (1888, 300)),
+        ((2500, 800), "1280x720+0+0@1.5", (1248, 688)),
+        ((-1500, -300), "1920x1080+0+0", (0, 0)),
+        ((1900, 1070), "1920x1080+0+0", (1888, 1048)),
+        ((100, 100), "1920x1080+1440+470", (1440, 470)),
+        ((1900, 300), "1920x1080+1440+470", (1900, 470)),
+    ];
+    for ((x, y), outs, want) in cases {
+        let mut e = Env::new("cfg3");
+        e.seed_state(&format!(
+            "character = \"pebble\"\nchosen = true\nleft = {x}\ntop = {y}\n"
+        ));
+        e.start(&["--outputs", outs]);
+        e.advance(1000);
+        let c = surface(&e.snapshot(), "character");
+        assert_eq!(
+            (int(&c["x"]), int(&c["y"])),
+            (want.0 as i64, want.1 as i64),
+            "{x},{y} on {outs}"
+        );
+        assert_eq!(c["output"], 0, "{c}");
+    }
+    let mut e = Env::new("cfg3h");
+    e.seed_state(
+        "character = \"pebble\"\nchosen = true\nleft = 2500\ntop = 300\nvisible = false\n",
+    );
+    e.start(&["--outputs", "1920x1080+0+0,1920x1080+1920+0"]);
+    e.advance(500);
+    e.test("RemoveOutput", &(1u32,));
+    e.advance(500);
+    e.cli(&["show"]);
+    e.advance(2000);
+    let c = surface(&e.snapshot(), "character");
+    assert_eq!(
+        (int(&c["x"]), int(&c["y"]), &c["output"]),
+        (1888, 300, &json!(0))
+    );
+}
+
 #[test]
 fn t_4_trace_and_dump_frames() {
     let mut e = Env::new("trace");
