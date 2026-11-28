@@ -8,7 +8,7 @@ use bentwire_render::balloon::{self, agent_balloon_region, office_balloon_region
 use bentwire_render::canvas::{Rect, Region, RgbaImage};
 use bentwire_render::font::Fonts;
 use bentwire_render::menu::{MenuGeometry, draw_menu, menu_layout, submenu_scene};
-use bentwire_render::picture::{downsample, picture_buffer};
+use bentwire_render::picture::{picture_buffer, smooth};
 use bentwire_render::theme::Theme;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -82,7 +82,8 @@ pub fn scale_of(outputs: &[OutputInfo], id: Option<u32>) -> (u32, bool) {
 
 /// The character picture at buffer scale `k` and the scene's size factor (B-SCALE-1):
 /// at `k` or at `k` times the factor, see [`library::density`]. With smooth edges
-/// (B-SMOOTH-1) it is composed at [`library::smooth_density`] and box-filtered down to that.
+/// (B-SMOOTH-1) it is composed at [`library::smooth_density`] and reduced to that by
+/// [`smooth`] (thin lines fitted to the grid, then a box filter).
 /// The buffer maps it to the surface (logical size times `k`) by nearest neighbour.
 pub fn character_picture(scene: &Scene, lib: &Library, k: u32) -> Option<RgbaImage> {
     let ch = scene.character.as_ref()?;
@@ -90,7 +91,7 @@ pub fn character_picture(scene: &Scene, lib: &Library, k: u32) -> Option<RgbaIma
     let d = library::density(c, k, ch.scale);
     Some(
         match ch.smooth.then(|| library::smooth_density(c, d)).flatten() {
-            Some(s) => downsample(&library::picture(c, &ch.picture, s), s / d),
+            Some(s) => smooth(&library::picture(c, &ch.picture, s), s / d),
             None => library::picture(c, &ch.picture, d),
         },
     )
@@ -526,7 +527,7 @@ mod tests {
     /// B-SMOOTH-1 snapshots: the synthetic vector actor of `agent-fixtures`, converted,
     /// pose 2 at size factor 1 on a 1x output. Off is the converter's 1x raster
     /// (byte-identical to 0.4, the golden of `wmf_golden.rs`); on is its 2x raster
-    /// box-filtered 2:1, kept as `tests/golden/smooth_wmf_actor_pose2.png`
+    /// reduced 2:1 by `smooth`, kept as `tests/golden/smooth_wmf_actor_pose2.png`
     /// (`BENTWIRE_BLESS=1` rewrites it). At density 2 there is no denser sheet: on = off.
     #[test]
     fn b_smooth_1_vector_actor_snapshots_off_and_on() {
@@ -549,7 +550,7 @@ mod tests {
         assert_eq!(off, png_rgba(&golden.join("wmf_actor_pose2_x1.png")));
         let on = picture_with(&l, &scene, true, 1);
         let x2 = png_rgba(&golden.join("wmf_actor_pose2_x2.png"));
-        assert_eq!(on, downsample(&x2, 2));
+        assert_eq!(on, smooth(&x2, 2));
         assert_ne!(on, off);
         // Real anti-aliasing: partial alpha and mixed colours on the edges only.
         assert!(on.data.chunks(4).any(|p| p[3] > 0 && p[3] < 255));

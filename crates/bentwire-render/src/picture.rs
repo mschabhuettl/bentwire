@@ -99,6 +99,93 @@ pub fn downsample(pic: &RgbaImage, n: u32) -> RgbaImage {
     out
 }
 
+/// B-SMOOTH-1: `pic` reduced by `n` for smooth edges. An aliased picture (every pixel fully
+/// opaque or fully transparent) first gets its thin lines fitted to the `n x n` grid
+/// ([`fit_thin_lines`]), so a line one output pixel wide keeps full coverage; then
+/// [`downsample`].
+pub fn smooth(pic: &RgbaImage, n: u32) -> RgbaImage {
+    if n > 1 && pic.data.chunks(4).all(|p| p[3] == 0 || p[3] == 255) {
+        downsample(&fit_thin_lines(pic, n), n)
+    } else {
+        downsample(pic, n)
+    }
+}
+
+/// B-SMOOTH-1 line fitting: along each column, then along each row of the result, every
+/// thin run (B-SMOOTH-1 states the conditions) is moved onto the `n` grid.
+pub fn fit_thin_lines(pic: &RgbaImage, n: u32) -> RgbaImage {
+    fit_axis(&fit_axis(pic, n, true), n, false)
+}
+
+/// One pass of [`fit_thin_lines`] along columns (`vertical`) or rows. Runs are maximal
+/// stretches of equal pixels in one line. A run is thin when it is not transparent, at most
+/// `n` long, not exactly one block of the grid, bounded on both sides by runs at least `n`
+/// long, and its colour touches it in both neighbouring lines (within one pixel of its
+/// ends). It is moved into the block that holds most of it (on a tie, the lower one) and
+/// fills that block; the pixels it leaves take the colour of the run beyond them.
+fn fit_axis(pic: &RgbaImage, n: u32, vertical: bool) -> RgbaImage {
+    let (w, h, n) = (pic.width as usize, pic.height as usize, n as usize);
+    let (lines, len) = if vertical { (w, h) } else { (h, w) };
+    let at = |l: usize, i: usize| {
+        let o = if vertical { i * w + l } else { l * w + i } * 4;
+        <[u8; 4]>::try_from(&pic.data[o..o + 4]).unwrap()
+    };
+    let mut out = pic.clone();
+    for l in 0..lines {
+        let mut runs = Vec::new();
+        let mut s = 0;
+        while s < len {
+            let mut e = s;
+            while e + 1 < len && at(l, e + 1) == at(l, s) {
+                e += 1;
+            }
+            runs.push((s, e));
+            s = e + 1;
+        }
+        for k in 1..runs.len().saturating_sub(1) {
+            let ((s, e), c) = (runs[k], at(l, runs[k].0));
+            let rl = e - s + 1;
+            let long = |r: (usize, usize)| r.1 - r.0 + 1 >= n;
+            if c[3] == 0
+                || rl > n
+                || (s % n == 0 && rl == n)
+                || !long(runs[k - 1])
+                || !long(runs[k + 1])
+            {
+                continue;
+            }
+            let goes_on =
+                |m: usize| (s.saturating_sub(1)..=(e + 1).min(len - 1)).any(|i| at(m, i) == c);
+            if l == 0 || l + 1 == lines || !goes_on(l - 1) || !goes_on(l + 1) {
+                continue;
+            }
+            let b = s / n;
+            let first = (b + 1) * n - s;
+            let b = if e / n == b || first >= rl - first {
+                b
+            } else {
+                b + 1
+            };
+            let (t0, t1) = (b * n, (b * n + n).min(len) - 1);
+            let (before, after) = (at(l, s - 1), at(l, e + 1));
+            let mut set = |i: usize, c: [u8; 4]| {
+                let o = if vertical { i * w + l } else { l * w + i } * 4;
+                out.data[o..o + 4].copy_from_slice(&c);
+            };
+            for i in s..t0 {
+                set(i, before);
+            }
+            for i in t1 + 1..=e {
+                set(i, after);
+            }
+            for i in t0..=t1 {
+                set(i, c);
+            }
+        }
+    }
+    out
+}
+
 /// Straight-alpha source-over blend of character-format 5.3 step 4.
 fn blend_straight(d: &mut [u8], s: &[u8]) {
     let a = s[3] as u32;
@@ -244,6 +331,118 @@ mod tests {
         }
         assert_eq!(downsample(&flat, 3).data, vec![10, 20, 30, 255]);
         assert_eq!(downsample(&flat, 1), flat);
+    }
+
+    const PAPER: [u8; 4] = [255, 255, 204, 255];
+    const INK: [u8; 4] = [0, 0, 128, 255];
+
+    /// A `w x h` picture of PAPER with INK on rows `rows` (all columns), or on those
+    /// columns when `vertical`.
+    fn ruled(w: u32, h: u32, rows: std::ops::Range<u32>, vertical: bool) -> RgbaImage {
+        let mut img = RgbaImage::new(w, h);
+        for y in 0..h {
+            for x in 0..w {
+                let on = rows.contains(if vertical { &x } else { &y });
+                let o = ((y * w + x) * 4) as usize;
+                img.data[o..o + 4].copy_from_slice(if on { &INK } else { &PAPER });
+            }
+        }
+        img
+    }
+
+    /// The pixels of row `y` (or column, when `vertical`) of `img`, without the two at the
+    /// ends (lines at the picture edge have no neighbour on one side and are not fitted).
+    fn inner(img: &RgbaImage, y: u32, vertical: bool) -> Vec<[u8; 4]> {
+        let n = if vertical { img.height } else { img.width };
+        (1..n - 1)
+            .map(|i| {
+                let (x, y) = if vertical { (y, i) } else { (i, y) };
+                let o = ((y * img.width + x) * 4) as usize;
+                img.data[o..o + 4].try_into().unwrap()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn b_smooth_1_misaligned_2px_line_keeps_full_coverage() {
+        for vertical in [false, true] {
+            // 2 px at 2x on rows 3 and 4: across the 2 x 2 blocks of rows 1 and 2.
+            let pic = ruled(12, 12, 3..5, vertical);
+            // The box filter alone: two half-covered rows, lighter than the ink.
+            let half = downsample(&pic, 2);
+            assert!(
+                inner(&half, 1, vertical)
+                    .iter()
+                    .all(|p| *p != INK && *p != PAPER)
+            );
+            // Fitted: the lower block (the tie) holds the whole line, the other is paper.
+            let s = smooth(&pic, 2);
+            assert_eq!((s.width, s.height), (6, 6));
+            assert!(
+                inner(&s, 1, vertical).iter().all(|p| *p == INK),
+                "{vertical}"
+            );
+            assert!(
+                inner(&s, 2, vertical).iter().all(|p| *p == PAPER),
+                "{vertical}"
+            );
+            assert!(
+                inner(&s, 0, vertical).iter().all(|p| *p == PAPER),
+                "{vertical}"
+            );
+        }
+    }
+
+    #[test]
+    fn b_smooth_1_one_pixel_line_at_2x_keeps_full_coverage() {
+        for vertical in [false, true] {
+            // A cosmetic one-pixel pen at 2x (row 3): half coverage with the box filter.
+            let pic = ruled(12, 12, 3..4, vertical);
+            assert!(
+                inner(&downsample(&pic, 2), 1, vertical)
+                    .iter()
+                    .all(|p| *p != INK)
+            );
+            let s = smooth(&pic, 2);
+            assert!(
+                inner(&s, 1, vertical).iter().all(|p| *p == INK),
+                "{vertical}"
+            );
+            assert!(
+                inner(&s, 2, vertical).iter().all(|p| *p == PAPER),
+                "{vertical}"
+            );
+        }
+    }
+
+    #[test]
+    fn b_smooth_1_three_pixel_line_at_3x_goes_to_the_block_holding_most() {
+        // Rows 4 to 6 at 3x: two rows in block 1 (rows 3 to 5), one in block 2.
+        let s = smooth(&ruled(18, 18, 4..7, false), 3);
+        assert!(inner(&s, 1, false).iter().all(|p| *p == INK));
+        assert!(inner(&s, 2, false).iter().all(|p| *p == PAPER));
+    }
+
+    #[test]
+    fn b_smooth_1_fitting_leaves_other_pictures_to_the_box_filter() {
+        // Aligned lines and wide bands are already on the grid.
+        for pic in [ruled(12, 12, 2..4, false), ruled(12, 12, 3..9, true)] {
+            assert_eq!(smooth(&pic, 2), downsample(&pic, 2));
+        }
+        // An isolated misaligned dot is no line (its colour does not go on).
+        let mut dot = ruled(12, 12, 0..0, false);
+        for (x, y) in [(5, 5), (6, 5), (5, 6), (6, 6)] {
+            let o = ((y * 12 + x) * 4) as usize;
+            dot.data[o..o + 4].copy_from_slice(&INK);
+        }
+        assert_eq!(smooth(&dot, 2), downsample(&dot, 2));
+        // A picture with partial alpha (anti-aliased already) is not fitted.
+        let mut aa = ruled(12, 12, 3..5, false);
+        aa.data[3] = 128;
+        assert_eq!(smooth(&aa, 2), downsample(&aa, 2));
+        // Factor 1 is the identity.
+        let pic = ruled(6, 6, 3..4, false);
+        assert_eq!(smooth(&pic, 1), pic);
     }
 
     #[test]

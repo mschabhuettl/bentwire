@@ -9,7 +9,7 @@
 use bentwire_character::image::Pixels;
 use bentwire_character::{Character, Layer, Rgba};
 use bentwire_render::canvas::RgbaImage;
-use bentwire_render::picture::{clip_mouth, downsample};
+use bentwire_render::picture::{clip_mouth, smooth};
 use sha2::{Digest, Sha256};
 
 fn img(i: Rgba) -> RgbaImage {
@@ -86,11 +86,11 @@ fn main() {
             .flat_map(|s| s.hidpi.keys())
             .copied()
             .max();
-        let mut smooth = Sha256::new();
+        let mut smoothed = Sha256::new();
         let mut ns = 0u64;
         if let Some(k) = k.filter(|&k| k > 1) {
             pictures(&c, k, &mut |p| {
-                feed(&mut smooth, &downsample(&p, k));
+                feed(&mut smoothed, &smooth(&p, k));
                 ns += 1;
             });
         }
@@ -102,7 +102,7 @@ fn main() {
                 .to_string_lossy(),
             sheets.finalize(),
             frames.finalize(),
-            smooth.finalize()
+            smoothed.finalize()
         );
     }
 }

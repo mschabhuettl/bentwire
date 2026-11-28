@@ -1484,17 +1484,37 @@ Nothing else in v1 needs the global pointer.
 - On, a picture that B-SCALE-1 composes at density `d` (buffer scale times the factor for
   a character with `hidpi` sheets) is composed instead at the densest `hidpi` key `k` of
   the character's sheets, when `k > d` and `k` is a multiple of `d`, and reduced by
-  `n = k / d` with a box filter: each pixel is the average of its `n x n` block,
-  premultiplied (alpha = round(sum a / n^2), colour = round(sum c a / sum a), halves
-  up), fully transparent blocks transparent black. Then it goes on as before (B-WL-6,
-  B-PIX-2 clipping of the mouth happens at the composing density).
+  `n = k / d`:
+  1. Line fitting, only when every pixel of the picture is fully opaque or fully
+     transparent (an aliased rasterisation): first along each column, then along each row
+     of the result. A run is a maximal stretch of equal pixels in that line. A run is
+     thin when it is not transparent, at most `n` long, not exactly one `n` block of the
+     grid (starting at a multiple of `n`), bounded on both sides by runs at least `n`
+     long (so not at the picture edge), and its colour occurs in both neighbouring lines
+     within one pixel of its ends (the line goes on; an isolated dot does not). A thin
+     run moves into the block that holds most of it (on a tie the lower one) and fills
+     that block; the pixels it leaves take the colour of the run beyond them. Runs are
+     found on the input of the pass.
+  2. Box filter: each pixel is the average of its `n x n` block, premultiplied (alpha =
+     round(sum a / n^2), colour = round(sum c a / sum a), halves up), fully transparent
+     blocks transparent black.
+  Then it goes on as before (B-WL-6, B-PIX-2 clipping of the mouth happens at the
+  composing density).
 - In effect: the converted vector actors (2x sheets, A-CONV-1) are anti-aliased with 2 x 2
   supersampling at size factor 1 on a 1x output. At density 2 or more (factor 2 to 4, or
   a HiDPI output) there is no denser sheet and the setting changes nothing; bitmap
   characters (no `hidpi` sheets) never change. `wire` is drawn from its 2x sheet,
-  filtered, instead of its own anti-aliased 1x sheet. Lines of cosmetic one-pixel pens
-  (W-RAST-1) are one pixel wide in the 2x sheet, so they come out lighter (half
-  coverage) than in the aliased 1x picture.
+  filtered, instead of its own anti-aliased 1x sheet; its sheets have partial alpha, so
+  they are not fitted.
+- Line fitting reason: a line one 1x pixel wide is two pixels wide in the 2x sheet, often
+  one pixel off the 2 x 2 grid, and a one-pixel pen (W-RAST-1) is one pixel wide there;
+  the box filter alone spread such a line over two half-covered pixels (lighter and
+  wider than in the aliased 1x picture). Fitted, such a line keeps full coverage in one
+  pixel where it runs along a row or column; the steps of a sloped line stay blended (a
+  step covers half of two pixels), and edges of large areas keep their anti-aliasing.
+  Thin tips of areas (an acute corner between two outlines) count as thin runs and are
+  fitted too. A fitted line may sit half a 1x pixel off its exact place, as in the 1x
+  picture, and moves in whole pixels between frames.
 - The input region (B-PIX-3, B-REN-4) is the alpha > 0 shape of the filtered picture, so
   it includes the partly transparent edge pixels.
 - Global, not per character. Set by the config key `smooth` (B-CFG-1), the tray's check
