@@ -82,7 +82,10 @@ same drawing. Wire, a piece of bent wire: `wire`, smooth and sharp on HiDPI outp
 the daemon shows when no other character is chosen or installed, and `wire-retro`, 12
 colours and hard edges as in 1997 (`bentwire select wire-retro`). Quack, a rubber
 debugging duck: `quack` and `quack-retro` (`bentwire select quack`); it wobbles on the
-water when idle and squeaks on Alert and GetAttention. All have the Agent animation set
+water when idle and squeaks on Alert and GetAttention. Hermit, a hermit crab in a spiral
+shell: `hermit` and `hermit-retro` (`bentwire select hermit`); it peeks out of its shell,
+pulls into it to hide, when surprised and to sleep, and clacks its claws on Alert and
+GetAttention. All have the Agent animation set
 (`bentwire animations` lists it) and move their mouth with speech output.
 
 ## Smooth edges

@@ -102,8 +102,8 @@ yay -S bentwire
 
 The PKGBUILDs are kept in [`packaging/aur/`](packaging/aur/).
 
-The package installs the daemon, the CLI, the builtin characters Wire and Quack and the D-Bus
-activation file, so `bentwire say hello` starts the daemon on demand. The optional systemd user unit is
+The package installs the daemon, the CLI, the builtin characters Wire, Quack and Hermit and the
+D-Bus activation file, so `bentwire say hello` starts the daemon on demand. The optional systemd user unit is
 installed but not enabled. The classics pack is not packaged, because its repository grants
 no licence for Microsoft's files; install it as described [below](#the-classics-pack).
 
@@ -124,7 +124,7 @@ cd bentwire
 cargo build --release -p bentwired -p bentwire
 install -Dm755 target/release/bentwired target/release/bentwire -t ~/.local/bin/
 
-# The builtin characters, Wire and Quack.
+# The builtin characters, Wire, Quack and Hermit.
 mkdir -p ~/.local/share/bentwire/characters
 cp -r characters/builtin ~/.local/share/bentwire/characters/
 
@@ -162,6 +162,16 @@ Quack is the second builtin character: a rubber duck to explain your bugs to, dr
 the same way (`crates/bentwire-convert/src/quack/`, CC0), as `quack` and `quack-retro`
 (`bentwire select quack`). It has Wire's animations, wobbles on the water when idle and
 squeaks on Alert and GetAttention.
+
+### Hermit, the hermit crab
+
+<img src="docs/images/hermit.png" width="496" alt="Hermit, a red hermit crab with eyes on stalks looking out of a cream spiral shell, says hello in the Agent word balloon: on the left smooth, on the right the retro rendering with hard pixels">
+
+Hermit is the third builtin character: a hermit crab in a spiral shell, drawn by code the
+same way (`crates/bentwire-convert/src/hermit/`, CC0), as `hermit` and `hermit-retro`
+(`bentwire select hermit`). It has Wire's animations, peeks out of its shell when it
+appears, pulls into it to hide, when surprised and to sleep, snaps its claws as it waves
+and clacks them on Alert and GetAttention.
 
 ### The classics pack
 

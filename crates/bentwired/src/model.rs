@@ -245,6 +245,8 @@ mod tests {
             ("wire-retro", "Wire (retro)", "Wire"),
             ("quack", "Quack", "Quack"),
             ("quack-retro", "Quack (retro)", "Quack"),
+            ("hermit", "Hermit", "Hermit"),
+            ("hermit-retro", "Hermit (retro)", "Hermit"),
         ] {
             let m = model_from(id, &Character::load(root.join(id)).unwrap());
             for (lang, first) in [

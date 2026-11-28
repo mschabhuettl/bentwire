@@ -25,6 +25,14 @@ pub enum Role {
     DuckLight,
     Beak,
     BeakDark,
+    ShellDark,
+    ShellShade,
+    Shell,
+    ShellLight,
+    Hollow,
+    CrabDark,
+    Crab,
+    CrabLight,
 }
 
 pub fn rgb(r: Role) -> [u8; 3] {
@@ -45,6 +53,14 @@ pub fn rgb(r: Role) -> [u8; 3] {
         Role::DuckLight => [0xff, 0xf2, 0xa0],
         Role::Beak => [0xf8, 0x88, 0x20],
         Role::BeakDark => [0xc0, 0x54, 0x18],
+        Role::ShellDark => [0xa8, 0x6c, 0x54],
+        Role::ShellShade => [0xe4, 0xb8, 0x9c],
+        Role::Shell => [0xfa, 0xe0, 0xc8],
+        Role::ShellLight => [0xff, 0xf6, 0xec],
+        Role::Hollow => [0x4c, 0x26, 0x24],
+        Role::CrabDark => [0xb0, 0x34, 0x24],
+        Role::Crab => [0xec, 0x5c, 0x40],
+        Role::CrabLight => [0xff, 0xa0, 0x80],
     }
 }
 

@@ -202,7 +202,7 @@ Reason: installing the classics pack (5.5 `characters install`) should make `cli
 character without a restart, but never override a choice.
 
 **B-CHAR-6 Install hint.** **bentwire decision.** When only the builtin characters (`wire`,
-`wire-retro`, `quack`, `quack-retro`, A-CHAR-1) are installed and one of them starts visible, the daemon logs and the character says once
+`wire-retro`, `quack`, `quack-retro`, `hermit`, `hermit-retro`, A-CHAR-1) are installed and one of them starts visible, the daemon logs and the character says once
 (an internal Speak, no request signals) "Install more characters: bentwire characters
 install classics" (German: "Weitere Assistenten installieren: bentwire characters install
 classics", B-L10N-1). The state file records that it was shown (B-CFG-2). Its balloon
@@ -1779,8 +1779,12 @@ gap. Details and reasons are in `docs/architecture.md` section 2 where marked.
   Quack, a rubber debugging duck (`crates/bentwire-convert/src/quack/`), as `quack` and
   `quack-retro` (13 colours), made the same way from the same animation table with its
   own touches: Idle1_3 is a wobble on the water, it rocks while asleep, and Alert and
-  GetAttention start with a squeak. Quack sorts before `wire`, but B-CHAR-4 step 4 still
-  selects `wire`.
+  GetAttention start with a squeak. And Hermit, a hermit crab in a spiral shell
+  (`crates/bentwire-convert/src/hermit/`), as `hermit` and `hermit-retro` (16 colours),
+  made the same way with its own touches: Show peeks out of the shell, Hide pulls into it,
+  Idle1_3 ducks in and peeks out, Surprised ducks in first, it sleeps half inside, its
+  claws snap as they wave, and Alert and GetAttention start with a clack of the claws.
+  Hermit and Quack sort before `wire`, but B-CHAR-4 step 4 still selects `wire`.
 - **B-CHAR-7** Decoded sheets are cached in `$XDG_CACHE_HOME/bentwire/sheets/` and
   mapped on load; the startup character is loaded in a thread during the daemon start.
   Reason: a faster first frame (issue #15).

@@ -244,83 +244,11 @@ pub fn shapes(p: &Pose, retro: bool) -> Vec<Shape> {
 fn face(r: &Rig, out: &mut Vec<Shape>, retro: bool) {
     let p = &r.p;
     let ws = r.ws;
-    let ink = |w: f64| if retro { w.max(1.2) } else { w } * ws;
     parts::eyes(r, out, retro, Role::Face);
-    let m = |u: f64, v: f64| r.h(u, MOUTH_Y + v);
     match p.mouth {
         Mouth::Smile if p.upright() => {}
-        Mouth::Smile => out.push(Shape::Stroke(
-            smile().into_iter().map(|(u, v)| m(u, v)).collect(),
-            ink(1.3),
-            Role::Ink,
-        )),
-        Mouth::Grin => {
-            let g: Vec<P> = [(-5.0, -1.5)]
-                .into_iter()
-                .chain(arc((0.0, -1.5), 5.0, 0.0, 180.0, 12).into_iter().rev())
-                .map(|(u, v)| m(u, v))
-                .collect();
-            let mut closed = g.clone();
-            closed.push(g[0]);
-            out.push(Shape::Stroke(closed, ink(1.2), Role::Ink));
-            out.push(Shape::Polygon(g, Role::MouthDark));
-            out.push(Shape::Ellipse(
-                m(0.0, 2.0),
-                2.6 * ws,
-                1.2 * ws,
-                Role::Tongue,
-            ));
-        }
-        Mouth::Frown => out.push(Shape::Stroke(
-            smile().into_iter().map(|(u, v)| m(u, 1.0 - v)).collect(),
-            ink(1.3),
-            Role::Ink,
-        )),
-        Mouth::O | Mouth::Yawn => {
-            let (rx, ry) = if p.mouth == Mouth::O {
-                (2.4, 2.8)
-            } else {
-                (3.6, 4.4)
-            };
-            let c = m(0.0, 0.5);
-            out.push(Shape::Ellipse(
-                c,
-                (rx + EDGE) * ws,
-                (ry + EDGE) * ws,
-                Role::Ink,
-            ));
-            out.push(Shape::Ellipse(c, rx * ws, ry * ws, Role::MouthDark));
-        }
-        Mouth::Flat => out.push(Shape::Stroke(
-            vec![m(-3.5, 0.5), m(3.5, 0.5)],
-            ink(1.3),
-            Role::Ink,
-        )),
-        Mouth::Wavy => out.push(Shape::Stroke(
-            [
-                (-4.5, 0.5),
-                (-2.2, -0.6),
-                (0.0, 0.6),
-                (2.2, -0.6),
-                (4.5, 0.5),
-            ]
-            .into_iter()
-            .map(|(u, v)| m(u, v))
-            .collect(),
-            ink(1.3),
-            Role::Ink,
-        )),
+        m => parts::mouth(out, &|u, v| r.h(u, MOUTH_Y + v), m, ws, retro),
     }
-}
-
-/// The neutral closed smile around (0, 0).
-fn smile() -> Vec<P> {
-    (0..=8)
-        .map(|i| {
-            let t = -1.0 + i as f64 / 4.0;
-            (4.0 * t, -0.6 + 1.4 * (1.0 - t * t))
-        })
-        .collect()
 }
 
 /// Top-left of the mouth picture on an upright pose (canvas units, whole pixels).
@@ -333,67 +261,9 @@ pub fn mouth_at(p: &Pose) -> (i32, i32) {
     )
 }
 
-/// The mouth pictures in the cell: Agent mouth types 0..6 (acs-format 5.4: closed, f/n,
-/// t/d/s, e, a, sh, o/w), then 7 = the neutral smile. Each sits on a face-coloured patch
-/// that covers the smile below it.
+/// The mouth pictures in the cell: [`parts::mouth_picture`] on the face colour.
 pub fn mouth_shapes(t: u8, retro: bool) -> Vec<Shape> {
-    let centre = (MOUTH[0] as f64 / 2.0, MOUTH[1] as f64 / 2.0);
-    let c = (0.0, 0.0);
-    let mut out = vec![Shape::Ellipse(c, 6.6, 4.6, Role::Face)];
-    let ink = if retro { 1.3 } else { 1.2 };
-    match t {
-        7 => out.push(Shape::Stroke(
-            smile()
-                .into_iter()
-                .map(|(u, v)| (c.0 + u, c.1 + v))
-                .collect(),
-            1.3,
-            Role::Ink,
-        )),
-        0 => {
-            out.push(Shape::Stroke(
-                vec![(c.0 - 4.0, c.1 + 0.4), (c.0 + 4.0, c.1 + 0.4)],
-                2.2,
-                Role::Ink,
-            ));
-            out.push(Shape::Stroke(
-                vec![(c.0 - 3.0, c.1 + 0.4), (c.0 + 3.0, c.1 + 0.4)],
-                0.9,
-                Role::MouthDark,
-            ));
-        }
-        _ => {
-            let (rx, ry) = [
-                (0.0, 0.0),
-                (3.8, 1.3),
-                (4.2, 2.2),
-                (4.4, 2.9),
-                (4.6, 3.6),
-                (3.2, 2.8),
-                (2.2, 2.7),
-            ][t as usize];
-            out.push(Shape::Ellipse(c, rx + ink, ry + ink, Role::Ink));
-            out.push(Shape::Ellipse(c, rx, ry, Role::MouthDark));
-            if matches!(t, 2 | 5) {
-                // Upper teeth.
-                out.push(Shape::Ellipse(
-                    (c.0, c.1 - ry * 0.6),
-                    rx * 0.7,
-                    ry * 0.4,
-                    Role::White,
-                ));
-            }
-            if matches!(t, 3 | 4) {
-                out.push(Shape::Ellipse(
-                    (c.0, c.1 + ry * 0.5),
-                    rx * 0.6,
-                    ry * 0.4,
-                    Role::Tongue,
-                ));
-            }
-        }
-    }
-    out.iter().map(|s| s.scaled(c, ZOOM, centre)).collect()
+    parts::mouth_picture(t, retro, Role::Face, ZOOM, MOUTH)
 }
 
 /// The tray icon: the head, from `origin` at `k` pixels per unit.

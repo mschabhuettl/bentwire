@@ -1,7 +1,8 @@
 //! `cargo run -p bentwire-convert --bin gen-builtin [ROOT]`: regenerate `characters/builtin`
-//! (pack.toml, LICENSE and the folders of `wire`, `wire-retro`, `quack` and `quack-retro`)
-//! under ROOT (default: the repository root).
+//! (pack.toml, LICENSE and the folders of `wire`, `wire-retro`, `quack`, `quack-retro`,
+//! `hermit` and `hermit-retro`) under ROOT (default: the repository root).
 
+use bentwire_convert::hermit::HERMIT;
 use bentwire_convert::own::{BUILTIN_PACK_TOML, LICENCE, Style};
 use bentwire_convert::quack::QUACK;
 use bentwire_convert::wire::WIRE;
@@ -16,7 +17,7 @@ fn main() {
     std::fs::create_dir_all(&pack).expect("create pack folder");
     std::fs::write(pack.join("pack.toml"), BUILTIN_PACK_TOML).expect("write pack.toml");
     std::fs::write(pack.join("LICENSE"), LICENCE).expect("write LICENSE");
-    for (design, style) in [WIRE, QUACK]
+    for (design, style) in [WIRE, QUACK, HERMIT]
         .iter()
         .flat_map(|d| [(d, Style::Modern), (d, Style::Retro)])
     {

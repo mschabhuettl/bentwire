@@ -1253,7 +1253,7 @@ fn spec_5_5_characters_install_classics() {
     assert_eq!(
         so,
         format!(
-            "installed bentwire-classics 9.9.1 in {}\nbentwired now has 5 characters\n",
+            "installed bentwire-classics 9.9.1 in {}\nbentwired now has 7 characters\n",
             dest.display()
         )
     );
@@ -1750,7 +1750,7 @@ fn library_gallery_corner_walk_keeps_next_and_back_under_the_pointer() {
     assert!(all.is_empty(), "{all:#?}");
 }
 
-/// A-CHAR-1, B-GAL-1: with only `builtin`, the daemon lists Wire and Quack in both
+/// A-CHAR-1, B-GAL-1: with only `builtin`, the daemon lists Wire, Quack and Hermit in both
 /// renderings, starts with `wire`, and the gallery's Next previews `wire-retro` with Wave.
 #[test]
 fn a_char_1_b_gal_1_gallery_shows_wire() {
@@ -1781,6 +1781,8 @@ fn a_char_1_b_gal_1_gallery_shows_wire() {
     assert_eq!(
         names,
         [
+            ("hermit", "Hermit"),
+            ("hermit-retro", "Hermit (retro)"),
             ("quack", "Quack"),
             ("quack-retro", "Quack (retro)"),
             ("wire", "Wire"),

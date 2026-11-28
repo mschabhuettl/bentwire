@@ -9,7 +9,7 @@
 #
 # usage: scripts/screenshots.sh [--classics DIR] [--gifs | --all] [BIN_DIR]
 #   without --classics: only characters/builtin; writes to docs/screenshots/, and the
-#   README picture of Quack to docs/images/quack.png.
+#   README pictures of Quack and Hermit to docs/images/quack.png and hermit.png.
 #   --classics DIR: the classics pack in DIR; writes to DIR/screenshots/.
 #   default PNGs only, --gifs GIFs only (also scripts/gifs.sh), --all both.
 # Build first: cargo build -p bentwired -p bentwire && cargo build -p bentwired --examples
@@ -417,6 +417,8 @@ echo "output into $OUT"
 if [ "$MODE" != gifs ]; then
     [ -z "$CLASSICS" ] && readme_pair "$REPO/docs/images/quack.png" \
         "Hi, I'm Quack! Tell me about your bug." quack quack-retro
+    [ -z "$CLASSICS" ] && readme_pair "$REPO/docs/images/hermit.png" \
+        "Hi, I'm Hermit! Is the build green yet?" hermit hermit-retro
     start_session 1
     shoot_set "$MAIN"
     menu_shot "$MAIN" en "$OUT/menu-en.png"
