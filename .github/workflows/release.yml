@@ -3,6 +3,9 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  # Dry run from a branch: builds and checks every asset and sha256sums.txt with the version
+  # from Cargo.toml, but creates no release.
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -17,6 +20,11 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
+      - name: Version
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then v=${GITHUB_REF_NAME#v}
+          else v=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1); fi
+          echo "VERSION=$v" >> "$GITHUB_ENV"
       - name: System packages
         run: |
           sudo apt-get update
@@ -33,8 +41,7 @@ jobs:
             --bin bentwire-notify --bin bentwire-mqtt
       - name: Tarball
         run: |
-          version=${GITHUB_REF_NAME#v}
-          name="bentwire-$version-$TARGET"
+          name="bentwire-$VERSION-$TARGET"
           mkdir -p "dist/$name"
           cp "target/$TARGET/release/bentwired" "target/$TARGET/release/bentwire" \
             "target/$TARGET/release/bentwire-convert" "target/$TARGET/release/bentwire-notify" \
@@ -49,7 +56,7 @@ jobs:
       - name: .deb and .rpm
         run: |
           scripts/nfpm-install.sh "$RUNNER_TEMP/bin"
-          PATH="$RUNNER_TEMP/bin:$PATH" scripts/package-build.sh "${GITHUB_REF_NAME#v}" \
+          PATH="$RUNNER_TEMP/bin:$PATH" scripts/package-build.sh "$VERSION" \
             "target/$TARGET/release" dist
       - uses: actions/upload-artifact@v7
         with:
@@ -89,20 +96,24 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
+      - name: Version
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then v=${GITHUB_REF_NAME#v}
+          else v=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1); fi
+          echo "VERSION=$v" >> "$GITHUB_ENV"
       - uses: actions/download-artifact@v8
         with:
           path: release
           merge-multiple: true
       - name: Assets and sha256sums.txt
         run: |
-          version=${GITHUB_REF_NAME#v}
           cd release
-          mv bentwire-x86_64.flatpak "bentwire-$version-x86_64.flatpak"
+          mv bentwire-x86_64.flatpak "bentwire-$VERSION-x86_64.flatpak"
           # Exactly these; only the tarball's name may contain "tar.gz" (the AUR scripts
           # grep for it in sha256sums.txt).
-          expected=$(printf '%s\n' "bentwire-$version-$TARGET.tar.gz" \
-            "bentwire-$version-x86_64.flatpak" "bentwire_$version-1_amd64.deb" \
-            "bentwire-$version-1.x86_64.rpm" | sort)
+          expected=$(printf '%s\n' "bentwire-$VERSION-$TARGET.tar.gz" \
+            "bentwire-$VERSION-x86_64.flatpak" "bentwire_$VERSION-1_amd64.deb" \
+            "bentwire-$VERSION-1.x86_64.rpm" | sort)
           actual=$(find . -mindepth 1 -maxdepth 1 -printf '%f\n' | sort)
           if [ "$actual" != "$expected" ]; then
             printf 'unexpected release assets:\n%s\nexpected:\n%s\n' "$actual" "$expected"
@@ -112,8 +123,9 @@ jobs:
           sha256sum $expected > sha256sums.txt
           cat sha256sums.txt
       - name: Release notes from CHANGELOG.md
-        run: scripts/changelog-notes.sh "${GITHUB_REF_NAME#v}" CHANGELOG.md > notes.md
+        run: scripts/changelog-notes.sh "$VERSION" CHANGELOG.md > notes.md
       - name: GitHub release
+        if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
