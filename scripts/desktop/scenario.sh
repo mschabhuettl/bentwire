@@ -15,10 +15,15 @@
 # Exit status 0 = all checks passed. Artefacts (logs, screenshots, signal log) are kept
 # in the printed directory on failure or with BENTWIRE_SCENARIO_KEEP=1.
 # BENTWIRE_SCENARIO_FLATPAK=APP_ID starts the daemon through `flatpak run` of that installed
-# app instead of BIN_DIR/bentwired (docs/flatpak.md); the CLI stays BIN_DIR/bentwire.
+# app instead of BIN_DIR/bentwired (docs/flatpak.md); the CLI stays BIN_DIR/bentwire. KWin
+# only: sway hides wlr-layer-shell from sandboxed clients.
 set -euo pipefail
 
 COMP=${1:?usage: scenario.sh sway|kwin [BIN_DIR]}
+if [ -n "${BENTWIRE_SCENARIO_FLATPAK:-}" ] && [ "$COMP" = sway ]; then
+    echo "NOT RUN: sway offers no wlr-layer-shell to Flatpak clients (docs/flatpak.md, sway)"
+    exit 1
+fi
 REPO=$(cd "$(dirname "$0")/../.." && pwd)
 BIN=${2:-$REPO/target/debug}
 FIXTURES=${BENTWIRE_SCENARIO_CHARACTERS:-$REPO/crates/bentwired/tests/fixtures/characters}
@@ -209,7 +214,7 @@ balloon_on_screen() { # balloon_on_screen agent|office
 status() { "$BIN/bentwire" status | sed -n "s/^$1=//p"; }
 
 echo "1. startup and show"
-check "show --wait succeeds" "$BIN/bentwire" show --wait
+check "show --wait succeeds" timeout 60 "$BIN/bentwire" show --wait
 check "surface configured and buffer attached" wait_for 5 mapped
 X=$(status left)
 Y=$(status top)
@@ -244,7 +249,7 @@ sys.exit(0 if re.search(r"member=Click\n\s*uint32 1\n\s*uint32 0\n\s*int32 " + s
     check "drag of (-50, -30) moves the character 1:1 (R-UI-2, B-WL-7, K6)" wait_for 5 sh -c "\"$BIN/bentwire\" status | grep -qx 'left=$((X - 50))' && \"$BIN/bentwire\" status | grep -qx 'top=$((Y - 30))'"
     # Relative drag into the layout edge, where the frame that reaches it moves the cursor 6
     # of 13 px, to x 0, and back to x 115 near the start (B-WL-7).
-    "$BIN/bentwire" moveto 107 "$Y" --speed 0 --wait >/dev/null
+    timeout 60 "$BIN/bentwire" moveto 107 "$Y" --speed 0 --wait >/dev/null
     sleep 0.6
     STEPS=("move 123 $CY" "press 1")
     for _ in $(seq 12); do STEPS+=("rel -13 0" "sleep 8"); done
@@ -252,7 +257,7 @@ sys.exit(0 if re.search(r"member=Click\n\s*uint32 1\n\s*uint32 0\n\s*int32 " + s
     STEPS+=("release 1")
     vp "${STEPS[@]}"
     check "relative drag into the layout edge and back keeps the character under the cursor (B-WL-7)" wait_for 5 sh -c "\"$BIN/bentwire\" status | grep -qx 'left=99'"
-    "$BIN/bentwire" moveto "$X" "$Y" --speed 0 --wait >/dev/null
+    timeout 60 "$BIN/bentwire" moveto "$X" "$Y" --speed 0 --wait >/dev/null
     sleep 0.6
     vp "move $CX $CY" "press 2" "release 2"
     check "right click opens the menu with a grab (B-WL-9)" wait_for 5 snap 's["backend"]["menu"] is not None and s["backend"]["menu"]["buffer_attached"]'
@@ -275,7 +280,7 @@ elif [ "$COMP" = kwin ] && [ -x "$BIN/examples/kwptr" ]; then
     # kw_drag <x> <steps> <dx> <dy> <ms>: drag from (x + 16, Y + 16) by steps times (dx, dy),
     # ms apart; sets CUX and CUY to the cursor before the release.
     kw_drag() {
-        "$BIN/bentwire" moveto "$1" "$Y" --speed 0 --wait >/dev/null
+        timeout 60 "$BIN/bentwire" moveto "$1" "$Y" --speed 0 --wait >/dev/null
         sleep 0.6
         printf '%s\n' "move $(($1 + 16)) $((Y + 16))" "sleep 200" "press 1" "sleep 100" \
             "burst $2 $3 $4 $5" "sleep 200" "mark dragged$1$5" >&8
@@ -317,7 +322,7 @@ elif [ "$COMP" = kwin ] && [ -x "$BIN/examples/kwptr" ]; then
     X=100
     "$BIN/bentwire" select pebble-big >/dev/null
     "$BIN/bentwire" scale 3 >/dev/null
-    "$BIN/bentwire" moveto "$X" 100 --speed 0 --wait >/dev/null
+    timeout 60 "$BIN/bentwire" moveto "$X" 100 --speed 0 --wait >/dev/null
     sleep 0.6
     check "buffer scale 2 with a viewport on the left output (B-WL-6)" wait_for 5 snap 's["backend"]["character"]["buffer_scale"] == 2 and s["backend"]["character"]["viewport"]'
     {
@@ -333,7 +338,7 @@ elif [ "$COMP" = kwin ] && [ -x "$BIN/examples/kwptr" ]; then
     "$BIN/bentwire" scale 1 >/dev/null
     "$BIN/bentwire" select pebble >/dev/null
     X=200
-    "$BIN/bentwire" moveto "$X" "$Y" --speed 0 --wait >/dev/null
+    timeout 60 "$BIN/bentwire" moveto "$X" "$Y" --speed 0 --wait >/dev/null
     sleep 0.6
 else
     echo "  NOT RUN real pointer checks (build with: cargo build -p bentwired --examples)"
@@ -352,7 +357,7 @@ $TEST Key s Escape >/dev/null
 check "Esc closes the menu" wait_for 5 snap 's["backend"]["menu"] is None'
 
 echo "1c. Size submenu (B-SCALE-1): a popup of the menu; 3x keeps the bottom centre"
-"$BIN/bentwire" moveto 300 200 --speed 0 --wait >/dev/null
+timeout 60 "$BIN/bentwire" moveto 300 200 --speed 0 --wait >/dev/null
 sleep 0.6
 # ptr <kind> <button> <x> <y>: the real pointer where there is one (the menu then has a
 # grab, which the submenu popup must live with), else Test1.
@@ -408,10 +413,10 @@ check "a click elsewhere closes both (popup_done or Test1)" wait_for 5 snap 's["
 check "the daemon still draws the character" snap 's["backend"]["character"]["buffer_attached"]'
 
 echo "2. play"
-check "play Wave --wait" "$BIN/bentwire" play Wave --wait
+check "play Wave --wait" timeout 60 "$BIN/bentwire" play Wave --wait
 
 echo "3. say"
-"$BIN/bentwire" say "It looks like your build failed." --wait >"$T/say.out" 2>&1 &
+timeout 60 "$BIN/bentwire" say "It looks like your build failed." --wait >"$T/say.out" 2>&1 &
 SAY=$!
 check "agent balloon shown" wait_for 5 snap 'any(not b["office"] and b["buffer_attached"] for b in s["backend"]["balloons"])'
 sleep 0.3
@@ -439,9 +444,9 @@ check "ask prints button:2" grep -qx 'button:2' "$T/ask.out"
 check "keyboard back to none" wait_for 5 snap 's["backend"]["character"]["keyboard_interactivity"] == "none"'
 
 echo "5. moveto"
-check "moveto fully off-screen" "$BIN/bentwire" moveto -100 -100 --speed 0 --wait
+check "moveto fully off-screen" timeout 60 "$BIN/bentwire" moveto -100 -100 --speed 0 --wait
 check "margins follow off-screen (B-WL-4, no clamping)" wait_for 5 snap 's["backend"]["character"]["margins_requested"] == {"left": -100, "top": -100}'
-check "moveto 200 150 --wait" "$BIN/bentwire" moveto 200 150 --speed 300 --wait
+check "moveto 200 150 --wait" timeout 60 "$BIN/bentwire" moveto 200 150 --speed 300 --wait
 check "status position 200,150" test "$(status left),$(status top)" = "200,150"
 check "margins requested 200,150" wait_for 5 snap 's["backend"]["character"]["margins_requested"] == {"left": 200, "top": 150}'
 sleep 0.5
@@ -499,16 +504,16 @@ if [ "$COMP" = sway ]; then
     swaymsg -q create_output
     swaymsg -q output HEADLESS-2 resolution 640x480 position $W 0
     check "second output seen" wait_for 5 snap 'len(s["outputs"]) == 2'
-    check "moveto onto the second output" "$BIN/bentwire" moveto $((W + 300)) 200 --speed 0 --wait
+    check "moveto onto the second output" timeout 60 "$BIN/bentwire" moveto $((W + 300)) 200 --speed 0 --wait
     check "surface recreated on the second output (B-WL-4)" wait_for 5 snap 's["backend"]["character"]["output"] != s["outputs"][0]["id"] and s["backend"]["character"]["buffer_attached"]'
     swaymsg -q output HEADLESS-2 unplug
     check "pulled back onto the first output (B-WL-4)" wait_for 5 snap 'len(s["outputs"]) == 1 and s["left"] + 32 <= s["outputs"][0]["w"] and s["backend"]["character"]["buffer_attached"]'
     check "Move cause 4 emitted" wait_for 5 grep -q 'int32 4' "$T/signals.log"
-    "$BIN/bentwire" moveto 200 150 --speed 0 --wait >/dev/null
+    timeout 60 "$BIN/bentwire" moveto 200 150 --speed 0 --wait >/dev/null
 fi
 
 echo "6. hide"
-check "hide --wait" "$BIN/bentwire" hide --wait
+check "hide --wait" timeout 60 "$BIN/bentwire" hide --wait
 check "surface unmapped" wait_for 5 snap 's["backend"]["character"] is None'
 sleep 0.5
 shot hide

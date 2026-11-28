@@ -8,12 +8,10 @@ The Flatpak contains the daemon `bentwired`, the CLI `bentwire`, the builtin cha
 (Wire and Quack, in `/app/share/bentwire/characters/builtin`, found through `XDG_DATA_DIRS`)
 and espeak-ng 1.52 with its data for speech output.
 
-**Compositors.** KDE Plasma (KWin) works from the sandbox. sway (tested: 1.11; other wlroots
-compositors may have the same policy) hides `zwlr_layer_shell_v1` from sandboxed
-clients: Flatpak connects the app through `wp_security_context_v1`, and sway offers
-privileged protocols only to unsandboxed clients. The daemon then exits with "the compositor
-has no wlr-layer-shell". See [sway](#sway) for the override that works around it, or use a
-host install there.
+**Compositors.** KDE Plasma (KWin 6.6) works from the sandbox. sway does not: Flatpak
+connects the app through `wp_security_context_v1`, and sway hides `zwlr_layer_shell_v1`
+from every client with a security context. The daemon then exits with "the compositor has
+no wlr-layer-shell". See [sway](#sway).
 
 ## Install and use
 
@@ -65,6 +63,11 @@ the unicast delivery without a match rule wait forever for `--wait` or an `ask` 
 the Flatpak daemon; add the match rule
 `type='signal',sender='org.bentwire.Agent',interface='org.bentwire.Character1'`.
 
+Known consequence: inside the sandbox every client on the session bus can see these four
+signals, that is the request ids, completion status and `ask` answers of other clients
+(outside the sandbox only the caller receives them). The session bus is the user's own, so
+this exposes nothing to other users.
+
 ## Where things live
 
 Inside the sandbox the XDG directories are the app's own:
@@ -110,7 +113,15 @@ The sandbox sees no host files. Where bentwire needs one, grant it for that run:
 
 ## sway
 
-sway gives layer-shell only to clients that connect to its socket directly. A user override
+Tested with sway 1.11. In sway's `sway/server.c`, `is_privileged()` lists the layer-shell
+global among the privileged ones, and `filter_global()` offers those only to clients
+without a `wp_security_context_v1` state. This is built in; sway's configuration has no
+setting for it. The sandboxed daemon's registry under sway lacks `zwlr_layer_shell_v1`
+(and the other privileged globals) while a host client sees it. So the Flatpak does not
+run on sway as shipped, and `scripts/desktop/scenario.sh sway` refuses
+`BENTWIRE_SCENARIO_FLATPAK` ("NOT RUN").
+
+The only way around it is to bypass the filtered socket. A user override
 that hides Flatpak's filtered Wayland socket and exposes the compositor's own socket, with
 `WAYLAND_DISPLAY` set inside the sandbox (Flatpak clears it without `--socket=wayland`):
 
@@ -159,8 +170,9 @@ release workflow builds it again and attaches it to the release.
   (the daemon through `flatpak run`, the CLI on the host): all checks pass, including the
   layer surfaces on two outputs with fractional scaling, popups, the tray (StatusNotifierItem
   and dbusmenu through the watcher) and the session bus loss.
-- sway 1.11: the sandboxed daemon sees no `zwlr_layer_shell_v1` (the scenario stops at
-  startup); with the [override](#sway) the character is mapped and on screen.
+- sway 1.11: the sandboxed daemon sees no `zwlr_layer_shell_v1`; with the command in
+  [sway](#sway) (in the real `/run/user/UID`) `show --wait` completes and the character is
+  mapped and on screen.
 - D-Bus activation under KWin: a host `bentwire say --wait` and a sandboxed `flatpak run
   --command=bentwire ... say --wait` each start the sandboxed daemon and complete.
 - Sound and speech under KWin with a private PipeWire and pipewire-pulse (null sink): the
