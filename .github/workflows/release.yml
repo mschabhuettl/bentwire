@@ -91,19 +91,19 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/download-artifact@v8
         with:
-          path: assets
+          path: release
           merge-multiple: true
       - name: Assets and sha256sums.txt
         run: |
           version=${GITHUB_REF_NAME#v}
-          cd assets
+          cd release
           mv bentwire-x86_64.flatpak "bentwire-$version-x86_64.flatpak"
           # Exactly these; only the tarball's name may contain "tar.gz" (the AUR scripts
           # grep for it in sha256sums.txt).
           expected=$(printf '%s\n' "bentwire-$version-$TARGET.tar.gz" \
             "bentwire-$version-x86_64.flatpak" "bentwire_$version-1_amd64.deb" \
             "bentwire-$version-1.x86_64.rpm" | sort)
-          actual=$(find . -maxdepth 1 -type f -printf '%f\n' | sort)
+          actual=$(find . -mindepth 1 -maxdepth 1 -printf '%f\n' | sort)
           if [ "$actual" != "$expected" ]; then
             printf 'unexpected release assets:\n%s\nexpected:\n%s\n' "$actual" "$expected"
             exit 1
@@ -118,4 +118,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" --title "bentwire $GITHUB_REF_NAME" \
-            --notes-file notes.md assets/*
+            --notes-file notes.md release/*
