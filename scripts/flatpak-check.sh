@@ -13,8 +13,9 @@ set -euo pipefail
 BUNDLE=$(realpath "${1:?usage: flatpak-check.sh BUNDLE.flatpak [--classics]}")
 CLASSICS=${2:-}
 IMAGE=${BENTWIRE_FLATPAK_IMAGE:-docker.io/library/debian:trixie}
-# bubblewrap needs unprivileged user namespaces and mounts (seccomp, masked /proc paths).
-read -r -a FLAGS <<<"${PODMAN_FLAGS:---security-opt seccomp=unconfined --security-opt unmask=ALL --security-opt label=disable}"
+# bubblewrap mounts a new /proc, which podman's masked /proc paths forbid (without this:
+# "bwrap: Can't mount proc on /proc"). SELinux hosts may also need label=disable.
+read -r -a FLAGS <<<"${PODMAN_FLAGS:---security-opt unmask=ALL}"
 
 INNER=$(cat <<'EOF'
 set -euo pipefail

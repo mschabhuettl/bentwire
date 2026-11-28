@@ -144,6 +144,24 @@ systemctl --user daemon-reload && systemctl --user enable --now bentwired
 Release binaries for x86_64 Linux are attached to each
 [GitHub release](https://github.com/mschabhuettl/bentwire/releases).
 
+### Flatpak
+
+Each [GitHub release](https://github.com/mschabhuettl/bentwire/releases) has a Flatpak
+bundle, `bentwire-VERSION-x86_64.flatpak` (app ID `org.bentwire.Agent`, with Wire, Quack and
+espeak-ng). The runtime comes from Flathub:
+
+```sh
+flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+flatpak install --user bentwire-0.6.0-x86_64.flatpak
+flatpak run --command=bentwire org.bentwire.Agent say hello   # starts the daemon on demand
+flatpak run --command=bentwire org.bentwire.Agent characters install classics
+```
+
+It works on KDE Plasma; sway hides layer-shell from sandboxed apps, so use a host install
+there (or the override in the docs). Permissions, how a host `bentwire` and the client hooks
+work with it, and what the sandbox leaves out (the notification bridge) are in
+[docs/flatpak.md](docs/flatpak.md).
+
 ### Wire, the default builtin character
 
 <img src="docs/images/wire.png" width="840" alt="Wire, a copper wire coiled into a spring with a round face, says hello in the Agent word balloon: on the left smooth, on the right the retro rendering with hard pixels">
