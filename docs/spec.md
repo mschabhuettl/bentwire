@@ -572,6 +572,12 @@ and cannot tell "own client" from "other client".) **bentwire decision.**
 - RequestStart, RequestComplete, AskComplete and Bookmark are sent only to the D-Bus
   unique name that made the call, because the SDK sends them only to the request's
   holder (= R-Q-5) [DOC].
+- **bentwire decision (B-Q-2a, Flatpak).** Inside a Flatpak sandbox (`/.flatpak-info`
+  exists) these four are broadcast instead, because the Flatpak D-Bus proxy drops signals
+  that the sandboxed app addresses to a unique name. Consequences: every client on the
+  session bus sees the request ids, statuses and ask answers of the others; a client must
+  add a match rule for them and filter by request id (`bentwire` since 0.7 does); an older
+  CLI waits forever with `--wait` on a sandboxed daemon. Details in `docs/flatpak.md`.
 
 **B-Q-3 Multi-phase requests.** (Closes agent-runtime U-13 [INF].) **bentwire decision.**
 - MoveTo has the phases animation, slide and end (R-MOVE-1..3).
@@ -2321,8 +2327,8 @@ Properties:
 | `BalloonEnabled` | b | read | B-BAL-1 |
 | `AnimationNames` | as | read | manifest names, then office97 group names |
 
-Signals. "U" marks a signal sent only to the caller's unique name (B-Q-2); the others
-are broadcast.
+Signals. "U" marks a signal sent only to the caller's unique name (B-Q-2; broadcast
+inside a Flatpak sandbox, B-Q-2a); the others are broadcast.
 
 | Signal | Signature | Sent | Rule |
 |---|---|---|---|
@@ -2656,7 +2662,8 @@ Balloon and menu goldens (synthetic character, bundled font) are committed PNGs.
 **T-5 D-Bus end to end.**
 - Under `dbus-run-session`, start `bentwired --headless`, drive it with the CLI and
   `Test1`, and assert:
-  - signals, their order and their unicast addressing;
+  - signals, their order and their unicast addressing (and the B-Q-2a broadcast, forced
+    with `BENTWIRE_BROADCAST_SIGNALS`);
   - the reply-before-signal ordering (B-Q-1);
   - CLI output and exit codes (5.5);
   - the B-ASK-7 matrix;

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=bentwire
+GenericName=Desktop character
+Comment=Animated desktop characters in the formats of Microsoft Agent and the Office Assistant
+Exec=bentwired
+Icon=org.bentwire.Agent
+Terminal=false
+Categories=Utility;
+Keywords=agent;assistant;character;office;
+StartupNotify=false

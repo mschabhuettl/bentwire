@@ -360,7 +360,16 @@ pub fn signal_args(s: &Signal) -> serde_json::Value {
     }
 }
 
+/// In a Flatpak sandbox the D-Bus proxy drops signals sent to a unique name, so the
+/// unicast signals go out as broadcasts there (docs/flatpak.md).
+/// `BENTWIRE_BROADCAST_SIGNALS` does the same outside a sandbox (tests).
+static SANDBOXED: std::sync::LazyLock<bool> = std::sync::LazyLock::new(|| {
+    std::path::Path::new("/.flatpak-info").exists()
+        || std::env::var_os("BENTWIRE_BROADCAST_SIGNALS").is_some()
+});
+
 pub fn emit(conn: &Connection, dest: Option<&str>, s: &Signal) {
+    let dest = dest.filter(|_| !*SANDBOXED);
     let m = signal_member(s);
     let r = match s {
         Signal::RequestStart { id } => conn.emit_signal(dest, CHAR_PATH, CHAR_IFACE, m, &(id,)),

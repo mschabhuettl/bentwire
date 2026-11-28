@@ -88,6 +88,41 @@ fn b_q_1_reply_before_signal_and_b_q_2_unicast() {
     );
 }
 
+/// docs/flatpak.md: in a Flatpak sandbox (forced here with BENTWIRE_BROADCAST_SIGNALS) the
+/// request signals are broadcast, so other clients see them, and `--wait` still completes.
+#[test]
+fn flatpak_request_signals_broadcast_and_cli_waits() {
+    let mut e = Env::new("fpbc");
+    let fx = fixtures();
+    let mut d = e.daemon_cmd(&["--characters", fx.to_str().unwrap()]);
+    d.env("BENTWIRE_BROADCAST_SIGNALS", "1");
+    e.daemon = Some(d.spawn().expect("bentwired"));
+    while !e.name_owned() {
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    e.advance(1000);
+    let mut a = e.client();
+    let mut b = e.client();
+    let id = a.call_id("Play", &("Wave",)).unwrap();
+    e.advance(2000);
+    let seen = a.drain(300).to_vec();
+    let start = seen.iter().find(|r| r.member == "RequestStart");
+    assert_eq!(
+        start.expect("RequestStart").dest,
+        None,
+        "broadcast, no destination"
+    );
+    assert_eq!(a.complete(id), (0, String::new()));
+    b.drain(300);
+    assert!(
+        b.members().iter().any(|m| m == "RequestComplete"),
+        "B saw {:?}",
+        b.members()
+    );
+    let (code, out, err) = e.finish_advancing(e.cli_bg(&["play", "Wave", "--wait"]));
+    assert_eq!(code, 0, "{out} {err}");
+}
+
 #[test]
 fn b_q_2_removed_before_start_gets_only_complete_status_3() {
     let e = ready("q2");

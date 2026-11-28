@@ -209,6 +209,19 @@ impl Client {
                     "type='signal',sender='org.freedesktop.DBus',member='NameOwnerChanged',arg0='{BUS_NAME}'"
                 ),),
             )?;
+            // The request's signals are unicast, except from a daemon in a Flatpak sandbox,
+            // which broadcasts them (docs/flatpak.md).
+            for member in ["AskComplete", "RequestComplete"] {
+                conn.call_method(
+                    Some("org.freedesktop.DBus"),
+                    "/org/freedesktop/DBus",
+                    Some("org.freedesktop.DBus"),
+                    "AddMatch",
+                    &(format!(
+                        "type='signal',sender='{BUS_NAME}',interface='{CHAR_IFACE}',member='{member}'"
+                    ),),
+                )?;
+            }
             Some(MessageIterator::from(&conn))
         } else {
             None

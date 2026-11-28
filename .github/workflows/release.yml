@@ -54,3 +54,21 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" --title "bentwire $GITHUB_REF_NAME" \
             --notes-file notes.md dist/*.tar.gz dist/sha256sums.txt
+
+  flatpak:
+    uses: ./.github/workflows/flatpak.yml
+
+  flatpak-upload:
+    needs: [release, flatpak]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: flatpak-bundle
+      - name: Attach the Flatpak bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bundle="bentwire-${GITHUB_REF_NAME#v}-x86_64.flatpak"
+          mv bentwire-x86_64.flatpak "$bundle"
+          gh release upload "$GITHUB_REF_NAME" "$bundle" --repo "$GITHUB_REPOSITORY"
