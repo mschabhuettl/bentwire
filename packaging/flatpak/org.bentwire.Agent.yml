@@ -1,0 +1,83 @@
+# Flatpak manifest for bentwire (docs/flatpak.md). Build from the repository root:
+#   scripts/flatpak-build.sh
+# cargo-sources.json is generated from Cargo.lock (scripts/flatpak-cargo-sources.sh).
+app-id: org.bentwire.Agent
+runtime: org.freedesktop.Platform
+runtime-version: '26.08'
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: bentwired
+# Why each permission is there: docs/flatpak.md, "Permissions".
+finish-args:
+  - --socket=wayland
+  - --socket=pulseaudio
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --share=network
+modules:
+  # Speech (B-TTS-6): bentwired loads libespeak-ng.so.1 at run time; the data goes to
+  # /app/share/espeak-ng-data, which the library finds through its install prefix.
+  - name: espeak-ng
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_SHARED_LIBS=ON
+      - -DUSE_MBROLA=OFF
+      - -DUSE_LIBPCAUDIO=OFF
+      - -DUSE_ASYNC=OFF
+      - -DESPEAK_COMPAT=OFF
+      - -DBUILD_TESTING=OFF
+      # espeak-ng always builds sonic from a FetchContent git checkout; offline here.
+      - -DFETCHCONTENT_FULLY_DISCONNECTED=ON
+      - -DFETCHCONTENT_SOURCE_DIR_SONIC-GIT=/run/build/espeak-ng/sonic
+    cleanup:
+      - /bin
+      - /include
+      - /lib/pkgconfig
+      - /lib/cmake
+      - /lib/libespeak-ng.so
+      - /share/vim
+      - '*.a'
+    sources:
+      - type: git
+        url: https://github.com/espeak-ng/espeak-ng.git
+        tag: 1.52.0
+        commit: 4870adfa25b1a32b4361592f1be8a40337c58d6c
+      - type: git
+        url: https://github.com/waywardgeek/sonic.git
+        commit: fbf75c3d6d846bad3bb3d456cbc5d07d9fd8c104
+        dest: sonic
+
+  - name: bentwire
+    buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/rust-stable/bin
+      env:
+        CARGO_HOME: /run/build/bentwire/cargo
+        CARGO_NET_OFFLINE: 'true'
+    build-commands:
+      - cargo build --offline --release --locked -j "$FLATPAK_BUILDER_N_JOBS"
+        -p bentwired -p bentwire --bin bentwired --bin bentwire
+      - install -Dm755 target/release/bentwired target/release/bentwire -t /app/bin/
+      - install -d /app/share/bentwire/characters
+      - cp -r --no-preserve=ownership characters/builtin /app/share/bentwire/characters/
+      - sed 's|^Exec=.*|Exec=/app/bin/bentwired|' packaging/dbus/org.bentwire.Agent.service
+        >org.bentwire.Agent.service
+      - install -Dm644 org.bentwire.Agent.service -t /app/share/dbus-1/services/
+      - install -Dm644 packaging/flatpak/org.bentwire.Agent.desktop -t /app/share/applications/
+      - install -Dm644 packaging/flatpak/org.bentwire.Agent.metainfo.xml -t /app/share/metainfo/
+      - install -Dm644 packaging/flatpak/org.bentwire.Agent.png
+        /app/share/icons/hicolor/256x256/apps/org.bentwire.Agent.png
+      # flatpak-builder adds LICENSE-MIT and LICENSE-APACHE here; the font and the builtin
+      # characters have their own.
+      - install -Dm644 assets/fonts/LICENSE-LGPL-2.1.txt
+        -t /app/share/licenses/org.bentwire.Agent/bentwire/
+      - install -Dm644 characters/builtin/LICENSE
+        /app/share/licenses/org.bentwire.Agent/bentwire/LICENSE-characters-builtin
+    sources:
+      - type: dir
+        path: ../..
+        skip:
+          - .git
+          - target
+      - cargo-sources.json

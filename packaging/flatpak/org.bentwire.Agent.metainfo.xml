@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>org.bentwire.Agent</id>
+  <name>bentwire</name>
+  <summary>Animated desktop characters for Wayland</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>(MIT OR Apache-2.0) AND LGPL-2.1-or-later AND CC0-1.0 AND GPL-3.0-or-later</project_license>
+  <developer id="io.github.mschabhuettl">
+    <name>Matthias Schabhüttl</name>
+  </developer>
+  <description>
+    <p>
+      bentwire brings animated desktop characters in the formats of Microsoft Agent and the
+      Office Assistant to the Linux Wayland desktop. A small daemon shows one character above
+      your windows that plays its animations, speaks in a word balloon and asks questions in an
+      Office-style balloon. Scripts, your shell and other programs drive it over D-Bus or
+      through the bentwire command.
+    </p>
+    <p>
+      It ships its own characters, Wire and Quack. Original character files (Agent 2.0 ACS,
+      ACF/ACA, Agent 1.5, Office 97 and Microsoft Bob ACT) can be converted into its open
+      format; no Microsoft characters are included.
+    </p>
+  </description>
+  <launchable type="desktop-id">org.bentwire.Agent.desktop</launchable>
+  <provides>
+    <binary>bentwired</binary>
+    <binary>bentwire</binary>
+    <dbus type="user">org.bentwire.Agent</dbus>
+  </provides>
+  <url type="homepage">https://github.com/mschabhuettl/bentwire</url>
+  <url type="bugtracker">https://github.com/mschabhuettl/bentwire/issues</url>
+  <url type="vcs-browser">https://github.com/mschabhuettl/bentwire</url>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Wire, the builtin character</caption>
+      <image>https://raw.githubusercontent.com/mschabhuettl/bentwire/main/docs/gallery/wire.png</image>
+    </screenshot>
+  </screenshots>
+  <categories>
+    <category>Utility</category>
+  </categories>
+  <requires>
+    <display_length compare="ge">360</display_length>
+  </requires>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.6.0" date="2026-11-27"/>
+  </releases>
+</component>
