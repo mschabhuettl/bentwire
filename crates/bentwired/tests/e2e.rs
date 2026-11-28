@@ -1750,7 +1750,7 @@ fn library_gallery_corner_walk_keeps_next_and_back_under_the_pointer() {
     assert!(all.is_empty(), "{all:#?}");
 }
 
-/// A-CHAR-1, B-GAL-1: with only `builtin`, the daemon lists Wire and Quack in both
+/// A-CHAR-1, B-GAL-1: with only `builtin`, the daemon lists Wire, Quack and Hermit in both
 /// renderings, starts with `wire`, and the gallery's Next previews `wire-retro` with Wave.
 #[test]
 fn a_char_1_b_gal_1_gallery_shows_wire() {
@@ -1781,6 +1781,8 @@ fn a_char_1_b_gal_1_gallery_shows_wire() {
     assert_eq!(
         names,
         [
+            ("hermit", "Hermit"),
+            ("hermit-retro", "Hermit (retro)"),
             ("quack", "Quack"),
             ("quack-retro", "Quack (retro)"),
             ("wire", "Wire"),
