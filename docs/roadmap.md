@@ -70,9 +70,12 @@ track the current state.
 - A slimmer classics pack: the same pixels in smaller PNGs, and a release archive without
   the README pictures (issue #21).
 
-## 0.7
+## 0.7 "Sandboxed and shelled"
 
-- Flatpak (issue #22).
+- Flatpak (issue #22): a manifest built from source, a bundle on every release, Flathub
+  prepared but not submitted.
+- **Hermit**, the third own character (issue #24).
+- Smooth edges keep thin lines; FLAC files without decoder warnings.
 
 ## Own characters (after 0.2)
 
@@ -83,7 +86,10 @@ track the current state.
   `builtin`, as `wire` (modern, the default) and `wire-retro` (issue #23).
 - The second is **Quack**, a rubber debugging duck. Done: `quack` and `quack-retro` in
   `builtin`, with a wobble when idle and a squeak on Alert and GetAttention (issue #24).
-- Ideas after that: Hermit (a hermit crab, "shell"), Greybeard (an old sysadmin), Blink (a
+- The third is **Hermit**, a hermit crab in a spiral shell. Done: `hermit` and
+  `hermit-retro` in `builtin`; it pulls into its shell for Hide and when startled, and
+  sleeps half inside (issue #24).
+- Ideas after that: Greybeard (an old sysadmin), Blink (a
   cursor), Cron (an alarm clock), Floppy.
 - Later, a separate `mascots` pack with free mascots of free-software projects (for example
   Ferris, Xenia, Tux, Konqi, the Go gopher, Pepper & Carrot), each under its own licence.

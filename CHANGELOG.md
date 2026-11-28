@@ -7,6 +7,26 @@ D-Bus API (`org.bentwire.Agent1`) and the character format (`format = 1`) are fr
 
 ## [Unreleased]
 
+### Added
+
+- Hermit, a hermit crab in a spiral shell, bentwire's third own character (CC0-1.0),
+  drawn by code like Wire and Quack: `hermit` (smooth, 1x and 2x) and `hermit-retro`
+  (15 colours, hard edges). Same animation set; it comes out of its shell for Show, pulls
+  back in for Hide and when startled, sleeps half inside, snaps its claw when waving and
+  clacks on Alert and GetAttention. Wire stays the default.
+
+### Changed
+
+- Smooth edges: thin runs of an aliased 2x picture are fitted to the pixel grid before
+  averaging, so 1 px lines along rows and columns keep their full colour instead of
+  turning into two half-covered pixels (B-SMOOTH-1). Unsmoothed pictures are unchanged.
+
+### Fixed
+
+- FLAC files written by the converter declared a minimum block size smaller than their
+  fixed block size, so `flac -d` warned that frame numbers did not increase. The sound is
+  unchanged; builtin characters and the classics pack 2026.11.4 are regenerated.
+
 ## [0.6.0] - 2026-11-27
 
 ### Changed
